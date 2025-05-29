@@ -207,11 +207,11 @@ type
     procedure SetInputMask(const Value: string);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure CaptionSettingsChanged(Sender: TObject);
-    procedure SetHoverSettings(const Value: THoverSettings); // New Setter
-    procedure HoverSettingsChanged(Sender: TObject);        // New Method
+    procedure SetHoverSettings(const Value: THoverSettings);
+    procedure HoverSettingsChanged(Sender: TObject);
 
-    procedure CMMouseEnter(var Message: TCMMouseEnter); message CM_MOUSEENTER; // Added message map
-    procedure CMMouseLeave(var Message: TCMMouseLeave); message CM_MOUSELEAVE; // Added message map
+    procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER; // Changed to TMessage
+    procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE; // Changed to TMessage
     procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
     procedure CMExit(var Message: TCMExit); message CM_EXIT;
 
@@ -1321,7 +1321,7 @@ begin
     Invalidate;
 end;
 
-procedure TANDMR_CEdit.CMMouseEnter(var Message: TCMMouseEnter);
+procedure TANDMR_CEdit.CMMouseEnter(var Message: TMessage); // Changed to TMessage
 begin
   inherited;
   if not FHovered then
@@ -1332,7 +1332,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CEdit.CMMouseLeave(var Message: TCMMouseLeave);
+procedure TANDMR_CEdit.CMMouseLeave(var Message: TMessage); // Changed to TMessage
 begin
   inherited;
   if FHovered then
@@ -1367,46 +1367,60 @@ begin
       LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
       // --- Determine current state colors ---
-      var CurrentEditBGColor, CurrentEditBorderColor, CurrentEditTextColor, CurrentCaptionTextColor: TColor;
+      var ActualEditBGColor, ActualEditBorderColor, ActualEditTextColor, ActualCaptionTextColor: TColor;
+      var BaseEditBG, BaseEditBorder, BaseEditText, BaseCaptionText: TColor;
 
-      // 1. Start with base colors
-      CurrentEditBGColor := FInactiveColor; // Or clWindow as base for edit area
-      if FImagePlacement = iplInsideBounds then // If image is inside, the "edit box" is the whole thing
-          CurrentEditBGColor := FInactiveColor // This might be Self.Color if FInactiveColor is a specific state
-      else // Image outside, edit box has its own background
-          CurrentEditBGColor := clWindow; // A common default for the text entry part
+      // 1. Start with base colors from properties (non-focused, non-hovered)
+      BaseEditBorderColor := FBorderColor;
+      BaseEditTextColor := Self.Font.Color; // From component's Font property
 
-      CurrentEditBorderColor := FBorderColor;
-      CurrentEditTextColor := Self.Font.Color; // From component's Font property
-      CurrentCaptionTextColor := FCaptionSettings.Color;
-      if CurrentCaptionTextColor = clDefault then CurrentCaptionTextColor := Self.Font.Color;
+      if FCaptionSettings.Color = clDefault then
+        BaseCaptionTextColor := Self.Font.Color // Default caption color tied to component font color
+      else
+        BaseCaptionTextColor := FCaptionSettings.Color;
 
+      // Determine BaseEditBG based on FImagePlacement and FInactiveColor
+      if FImagePlacement = iplInsideBounds then
+          BaseEditBGColor := FInactiveColor // Background for the entire component area if image is inside
+      else
+          BaseEditBGColor := clWindow; // Background for the text entry part itself if image is outside
+
+      // Initialize Actual colors with Base colors
+      ActualEditBGColor := BaseEditBGColor;
+      ActualEditBorderColor := BaseEditBorderColor;
+      ActualEditTextColor := BaseEditTextColor;
+      ActualCaptionTextColor := BaseCaptionTextColor;
 
       // 2. Apply Hover Settings if enabled and hovered
       if FHovered and FHoverSettings.Enabled then
       begin
-        if FHoverSettings.BackgroundColor <> clNone then CurrentEditBGColor := FHoverSettings.BackgroundColor;
-        if FHoverSettings.BorderColor <> clNone then CurrentEditBorderColor := FHoverSettings.BorderColor;
-        if FHoverSettings.FontColor <> clNone then CurrentEditTextColor := FHoverSettings.FontColor;
-        if FHoverSettings.CaptionFontColor <> clNone then CurrentCaptionTextColor := FHoverSettings.CaptionFontColor;
+        if FHoverSettings.BackgroundColor <> clNone then ActualEditBGColor := FHoverSettings.BackgroundColor;
+        if FHoverSettings.BorderColor <> clNone then ActualEditBorderColor := FHoverSettings.BorderColor;
+        if FHoverSettings.FontColor <> clNone then ActualEditTextColor := FHoverSettings.FontColor;
+        if FHoverSettings.CaptionFontColor <> clNone then ActualCaptionTextColor := FHoverSettings.CaptionFontColor;
       end;
 
-      // 3. Apply Focus Settings (potentially override Hover, or combine)
+      // 3. Apply Focus Settings (these can override Hover or Base colors)
       if Self.Focused then
       begin
+        // Border: Focus setting takes precedence if visible and set
         if FFocusBorderColorVisible and (FFocusBorderColor <> clNone) then
-          CurrentEditBorderColor := FFocusBorderColor
-        else if not (FHovered and FHoverSettings.Enabled and (FHoverSettings.BorderColor <> clNone)) then // if not hover border
-          CurrentEditBorderColor := FActiveColor; // Default focus border
+          ActualEditBorderColor := FFocusBorderColor
+        // If no specific focus border, but hover border is set, keep hover border. Otherwise, use FActiveColor.
+        else if not (FHovered and FHoverSettings.Enabled and (FHoverSettings.BorderColor <> clNone)) then
+          ActualEditBorderColor := FActiveColor;
 
+        // Background: Focus setting takes precedence if visible and set
         if FFocusBackgroundColorVisible and (FFocusBackgroundColor <> clNone) then
-          CurrentEditBGColor := FFocusBackgroundColor
-        else if not (FHovered and FHoverSettings.Enabled and (FHoverSettings.BackgroundColor <> clNone)) then // if not hover bg
+          ActualEditBGColor := FFocusBackgroundColor
+        // If no specific focus BG, but hover BG is set, keep hover BG. Otherwise, use a default focused BG.
+        else if not (FHovered and FHoverSettings.Enabled and (FHoverSettings.BackgroundColor <> clNone)) then
         begin
-            if FImagePlacement = iplInsideBounds then CurrentEditBGColor := clWindow // Or a specific focus background
-            else CurrentEditBGColor := clWindow; // For the text entry part when image is outside
+            if FImagePlacement = iplInsideBounds then ActualEditBGColor := clWindow // Default focused BG for inside image placement
+            else ActualEditBGColor := clWindow; // Default focused BG for text entry part
         end;
-        // EditTextColor and CaptionTextColor could also have focused states if desired
+        // EditTextColor and CaptionTextColor could also have specific focused states if new properties were added for that.
+        // For now, they retain their hover/base values during focus unless overwritten by a specific focus font color prop.
       end;
 
       // --- Painting ---
@@ -1415,54 +1429,35 @@ begin
       begin
         Canvas.Brush.Color := Self.Color; // Base color of the control
         Canvas.FillRect(Self.ClientRect);
-      end; // If FOpacity < 255, parent's background shows through.
+      end;
 
-      // RectToDrawEditBoxIn: This is the area for the actual edit box part,
-      // EXCLUDING the caption if image is iplOutsideBounds.
-      // If image is iplInsideBounds, this is effectively the whole component area (minus caption).
-      // This needs to be carefully determined based on CalculateLayout's outputs (txtR mainly for edit box part)
-      // For iplInsideBounds, RectToDrawEditBoxIn might be ClientRect adjusted for caption.
-      // For iplOutsideBounds, RectToDrawEditBoxIn is txtR (the edit field part).
-
-      var EditBoxAreaToDrawIn: TRect; // The rectangle for DrawEditBox call
-      var BackgroundForEditBoxItself: TColor; // The BG color passed to DrawEditBox
+      var EditBoxDrawingRect: TRect; // The rectangle for DrawEditBox call
 
       if FImagePlacement = iplInsideBounds then
       begin
-        // Edit box is the entire area adjusted for caption
-        EditBoxAreaToDrawIn := FullClientRect; // Start with the full client rect
+        EditBoxDrawingRect := FullClientRect;
         if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') then
-        begin // Adjust EditBoxAreaToDrawIn for caption
+        begin
             case FCaptionSettings.Position of
-              cpAbove: EditBoxAreaToDrawIn.Top := FCaptionRect.Bottom + FCaptionSettings.Offset;
-              cpBelow: EditBoxAreaToDrawIn.Bottom := FCaptionRect.Top - FCaptionSettings.Offset;
-              cpLeft:  EditBoxAreaToDrawIn.Left := FCaptionRect.Right + FCaptionSettings.Offset;
-              cpRight: EditBoxAreaToDrawIn.Right := FCaptionRect.Left - FCaptionSettings.Offset;
+              cpAbove: EditBoxDrawingRect.Top := FCaptionRect.Bottom + FCaptionSettings.Offset;
+              cpBelow: EditBoxDrawingRect.Bottom := FCaptionRect.Top - FCaptionSettings.Offset;
+              cpLeft:  EditBoxDrawingRect.Left := FCaptionRect.Right + FCaptionSettings.Offset;
+              cpRight: EditBoxDrawingRect.Right := FCaptionRect.Left - FCaptionSettings.Offset;
             end;
         end;
-        BackgroundForEditBoxItself := CurrentEditBGColor; // This BG is for the entire component area under edit controls
-        DrawEditBox(EditBoxAreaToDrawIn, LG, BackgroundForEditBoxItself, CurrentEditBorderColor);
+        DrawEditBox(EditBoxDrawingRect, LG, ActualEditBGColor, ActualEditBorderColor);
         if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
           Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
       end
-      else // iplOutsideBounds: Image is outside, text rect (txtR) is the edit box
+      else // iplOutsideBounds
       begin
-         // OverallBGColor (for LG.Clear) should be Self.Color if painting the whole component background,
-         // or a specific color for the area *around* the edit box if that's different.
-         // The LG.Clear call was here: LG.Clear(ColorToARGB(OverallBGColor, Self.FOpacity));
-         // This needs to be handled by the initial fill if FOpacity = 255.
-         // If FOpacity < 255, the parent draws.
-         // So, no specific LG.Clear here if initial fill is done.
-
         if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
           Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
-
-        EditBoxAreaToDrawIn := txtR; // txtR is calculated by CalculateLayout to be the edit field
-        BackgroundForEditBoxItself := CurrentEditBGColor; // BG for the text entry field itself
-        DrawEditBox(EditBoxAreaToDrawIn, LG, BackgroundForEditBoxItself, CurrentEditBorderColor);
+        EditBoxDrawingRect := txtR; // txtR is the specific edit field area
+        DrawEditBox(EditBoxDrawingRect, LG, ActualEditBGColor, ActualEditBorderColor);
       end;
 
-      // Draw Focus Underline (uses CurrentEditBorderColor or a specific FFocusUnderlineColor)
+      // Draw Focus Underline (if focused and underline is enabled)
       if Self.Focused and FFocusUnderlineVisible and (FFocusUnderlineThickness > 0) then
       begin
         var UnderlineY: Integer;
@@ -1519,7 +1514,7 @@ begin
       TextToDisplay := FText;
 
     Canvas.Font.Assign(Self.Font);
-    Canvas.Font.Color := CurrentEditTextColor; // Apply determined font color
+    Canvas.Font.Color := ActualEditTextColor; // Use the determined color for edit text
     Canvas.Brush.Style := bsClear;
     TextFlags := DT_LEFT or DT_VCENTER or DT_SINGLELINE or DT_NOPREFIX or DT_EDITCONTROL;
 

@@ -70,6 +70,18 @@ type
     FCaretPosition: Integer;
     FCaretTimer: TTimer;
 
+    // New private fields
+    FFocusBorderColor: TColor;
+    FFocusBorderColorVisible: Boolean;
+    FFocusBackgroundColor: TColor;
+    FFocusBackgroundColorVisible: Boolean;
+    FFocusUnderlineColor: TColor;
+    FFocusUnderlineVisible: Boolean;
+    FFocusUnderlineThickness: Integer;
+    FFocusUnderlineStyle: TPenStyle;
+    FOpacity: Byte;
+    FCurrentCursor: TCursor;
+
     procedure SetText(const Value: string);
     procedure SetMaxLength(const Value: Integer);
     procedure SetPasswordChar(const Value: Char);
@@ -97,6 +109,18 @@ type
     procedure SetSeparatorHeightMode(const Value: TSeparatorHeightMode);
     procedure SetSeparatorCustomHeight(const Value: Integer);
     procedure CaretTimerTick(Sender: TObject);
+
+    // New Set methods
+    procedure SetFocusBorderColor(const Value: TColor);
+    procedure SetFocusBorderColorVisible(const Value: Boolean);
+    procedure SetFocusBackgroundColor(const Value: TColor);
+    procedure SetFocusBackgroundColorVisible(const Value: Boolean);
+    procedure SetFocusUnderlineColor(const Value: TColor);
+    procedure SetFocusUnderlineVisible(const Value: Boolean);
+    procedure SetFocusUnderlineThickness(const Value: Integer);
+    procedure SetFocusUnderlineStyle(const Value: TPenStyle);
+    procedure SetOpacity(const Value: Byte);
+    procedure SetCurrentCursor(const Value: TCursor);
 
     procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
     procedure CMExit(var Message: TCMExit); message CM_EXIT;
@@ -165,6 +189,18 @@ type
     property OnKeyDown;
     property OnKeyPress;
     property OnKeyUp;
+
+    // New published properties
+    property FocusBorderColor: TColor read FFocusBorderColor write SetFocusBorderColor;
+    property FocusBorderColorVisible: Boolean read FFocusBorderColorVisible write SetFocusBorderColorVisible;
+    property FocusBackgroundColor: TColor read FFocusBackgroundColor write SetFocusBackgroundColor;
+    property FocusBackgroundColorVisible: Boolean read FFocusBackgroundColorVisible write SetFocusBackgroundColorVisible;
+    property FocusUnderlineColor: TColor read FFocusUnderlineColor write SetFocusUnderlineColor;
+    property FocusUnderlineVisible: Boolean read FFocusUnderlineVisible write SetFocusUnderlineVisible;
+    property FocusUnderlineThickness: Integer read FFocusUnderlineThickness write SetFocusUnderlineThickness;
+    property FocusUnderlineStyle: TPenStyle read FFocusUnderlineStyle write SetFocusUnderlineStyle;
+    property Opacity: Byte read FOpacity write SetOpacity;
+    property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
   end;
 
 procedure Register;
@@ -180,53 +216,106 @@ end;
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 var
   ColorRef: LongWord;
+  EffectiveAlpha: Byte;
 begin
+  // This function is general. The caller (e.g., Paint method using FOpacity)
+  // is responsible for passing the desired alpha.
+  EffectiveAlpha := Alpha;
+
   if AColor = clNone then
   begin
-    Result := (Alpha shl 24);
+    // For clNone, only alpha matters, RGB is zero.
+    Result := (UInt32(EffectiveAlpha) shl 24);
     Exit;
   end;
-  ColorRef := ColorToRGB(AColor);
-  Result := (Alpha shl 24) or
-            ((ColorRef and $000000FF) shl 16) or
-            (ColorRef and $0000FF00) or
-            ((ColorRef and $00FF0000) shr 16);
+  ColorRef := ColorToRGB(AColor); // BGR format from VCL
+  Result := (UInt32(EffectiveAlpha) shl 24) or // Alpha
+            ((ColorRef and $000000FF) shl 16) or // Blue component to ARGB Red position
+            (ColorRef and $0000FF00) or          // Green component to ARGB Green position
+            ((ColorRef and $00FF0000) shr 16);   // Red component to ARGB Blue position
 end;
 
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
 const
-  MIN_RADIUS_FOR_PATH = 0.5;
+  MIN_RADIUS_FOR_PATH = 0.1; // Adjusted for GDI+ which can handle smaller radii
 var
   LRadius, LDiameter: Single;
   RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
+  Rect: TGPRectF; // Use a local copy
 begin
   APath.Reset;
-  if (ARect.Width <= 0) or (ARect.Height <= 0) then Exit;
-  LRadius := ARadiusValue;
-  LRadius := Min(LRadius, Min(ARect.Width / 2.0, ARect.Height / 2.0));
-  LRadius := Max(0.0, LRadius);
-  LDiameter := LRadius * 2.0;
-  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) then
+  Rect := ARect; // Work with a copy
+
+  // Ensure width and height are non-negative, GDI+ can be sensitive
+  if Rect.Width < 0 then Rect.Width := 0;
+  if Rect.Height < 0 then Rect.Height := 0;
+
+  // If either dimension is zero, cannot form a meaningful path with arcs
+  if (Rect.Width = 0) or (Rect.Height = 0) then
   begin
-    APath.AddRectangle(ARect);
+    // Add a simple rectangle if both >0 (though this case implies one is 0), else exit.
+    // This prevents AddRectangle with zero width/height which might be problematic.
+    if (Rect.Width > 0) and (Rect.Height > 0) then // Should not happen if one is already 0
+       APath.AddRectangle(Rect);
     Exit;
   end;
+
+  LRadius := ARadiusValue;
+  // Radius cannot be more than half the width or height of the *current* Rect
+  LRadius := Min(LRadius, Rect.Width / 2.0);
+  LRadius := Min(LRadius, Rect.Height / 2.0);
+  LRadius := Max(0.0, LRadius); // Ensure radius is not negative
+
+  LDiameter := LRadius * 2.0;
+
+  // If no rounding is needed or possible (e.g., radius too small, or rect too small for diameter)
+  // Also check if Rect.Width or Rect.Height is less than LDiameter, which would make arcs impossible.
+  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) or (Rect.Width < LDiameter) or (Rect.Height < LDiameter) then
+  begin
+    APath.AddRectangle(Rect);
+    Exit;
+  end;
+
   RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
   RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
   RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
   RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
+
   APath.StartFigure;
-  if RoundTL then APath.AddArc(ARect.X, ARect.Y, LDiameter, LDiameter, 180, 90)
-  else APath.AddLine(ARect.X, ARect.Y, ARect.X, ARect.Y);
-  APath.AddLine(ARect.X + IfThen(RoundTL, LRadius, 0.0), ARect.Y, ARect.X + ARect.Width - IfThen(RoundTR, LRadius, 0.0), ARect.Y);
-  if RoundTR then APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y, LDiameter, LDiameter, 270, 90)
-  else APath.AddLine(ARect.X + ARect.Width, ARect.Y, ARect.X + ARect.Width, ARect.Y);
-  APath.AddLine(ARect.X + ARect.Width, ARect.Y + IfThen(RoundTR, LRadius, 0.0), ARect.X + ARect.Width, ARect.Y + ARect.Height - IfThen(RoundBR, LRadius, 0.0));
-  if RoundBR then APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
-  else APath.AddLine(ARect.X + ARect.Width, ARect.Y + ARect.Height, ARect.X + ARect.Width, ARect.Y + ARect.Height);
-  APath.AddLine(ARect.X + ARect.Width - IfThen(RoundBR, LRadius, 0.0), ARect.Y + ARect.Height, ARect.X + IfThen(RoundBL, LRadius, 0.0), ARect.Y + ARect.Height);
-  if RoundBL then APath.AddArc(ARect.X, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
-  else APath.AddLine(ARect.X, ARect.Y + ARect.Height, ARect.X, ARect.Y + ARect.Height);
+
+  // Top-Left corner
+  if RoundTL then
+    APath.AddArc(Rect.X, Rect.Y, LDiameter, LDiameter, 180, 90)
+  else
+    APath.AddLine(Rect.X, Rect.Y, Rect.X, Rect.Y); // Start point for line
+
+  // Top edge
+  APath.AddLine(Rect.X + LRadius, Rect.Y, Rect.X + Rect.Width - LRadius, Rect.Y);
+
+  // Top-Right corner
+  if RoundTR then
+    APath.AddArc(Rect.X + Rect.Width - LDiameter, Rect.Y, LDiameter, LDiameter, 270, 90)
+  else
+    APath.AddLine(Rect.X + Rect.Width, Rect.Y, Rect.X + Rect.Width, Rect.Y);
+
+  // Right edge
+  APath.AddLine(Rect.X + Rect.Width, Rect.Y + LRadius, Rect.X + Rect.Width, Rect.Y + Rect.Height - LRadius);
+
+  // Bottom-Right corner
+  if RoundBR then
+    APath.AddArc(Rect.X + Rect.Width - LDiameter, Rect.Y + Rect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
+  else
+    APath.AddLine(Rect.X + Rect.Width, Rect.Y + Rect.Height, Rect.X + Rect.Width, Rect.Y + Rect.Height);
+
+  // Bottom edge
+  APath.AddLine(Rect.X + Rect.Width - LRadius, Rect.Y + Rect.Height, Rect.X + LRadius, Rect.Y + Rect.Height);
+
+  // Bottom-Left corner
+  if RoundBL then
+    APath.AddArc(Rect.X, Rect.Y + Rect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
+  else
+    APath.AddLine(Rect.X, Rect.Y + Rect.Height, Rect.X, Rect.Y + Rect.Height);
+
   APath.CloseFigure;
 end;
 
@@ -405,26 +494,91 @@ begin
 end;
 
 procedure TANDMR_CEdit.DrawEditBox(const ADrawArea: TRect; AGraphics: TGPGraphics; ABackgroundColor: TColor; ABorderColor: TColor);
-var LPath: TGPGraphicsPath; LBrush: TGPBrush; LPen: TGPPen; LRectF: TGPRectF; LRadiusValue: Single;
+var
+  LPath: TGPGraphicsPath;
+  LBrush: TGPBrush;
+  LPen: TGPPen;
+  LRectF: TGPRectF;
+  LRadiusValue: Single;
+  LBorderThicknessValue: Single; // Use a Single for GDI+ operations
 begin
-  if (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) or (AGraphics = nil) then Exit;
-  if FBorderThickness > 0 then
+  if (AGraphics = nil) or (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) then // Basic check
+    Exit;
+
+  LBorderThicknessValue := Self.FBorderThickness; // Use the actual field value for consistency
+
+  // Define the rectangle for path creation.
+  // If there's a border, the path should trace the centerline of the border stroke.
+  // This means the rectangle for the path is inset by half the border thickness.
+  if LBorderThicknessValue > 0 then
   begin
-    LRectF.X := ADrawArea.Left + FBorderThickness / 2.0;
-    LRectF.Y := ADrawArea.Top + FBorderThickness / 2.0;
-    LRectF.Width := ADrawArea.Width - FBorderThickness;
-    LRectF.Height := ADrawArea.Height - FBorderThickness;
+    LRectF.X      := ADrawArea.Left + LBorderThicknessValue / 2.0;
+    LRectF.Y      := ADrawArea.Top + LBorderThicknessValue / 2.0;
+    LRectF.Width  := ADrawArea.Width - LBorderThicknessValue;
+    LRectF.Height := ADrawArea.Height - LBorderThicknessValue;
   end
-  else
+  else // No border, path is the ADrawArea itself
   begin
-    LRectF.X := ADrawArea.Left;
-    LRectF.Y := ADrawArea.Top;
-    LRectF.Width := ADrawArea.Width;
+    LRectF.X      := ADrawArea.Left;
+    LRectF.Y      := ADrawArea.Top;
+    LRectF.Width  := ADrawArea.Width;
     LRectF.Height := ADrawArea.Height;
   end;
-  LRectF.Width := Max(0.0, LRectF.Width); LRectF.Height := Max(0.0, LRectF.Height);
-  LRadiusValue := Min(FCornerRadius, Min(LRectF.Width / 2.0, LRectF.Height / 2.0)); LRadiusValue := Max(0.0, LRadiusValue);
-  LPath := TGPGraphicsPath.Create; try CreateGPRoundedPath(LPath, LRectF, LRadiusValue, FRoundCornerType); if LPath.GetPointCount > 0 then begin if ABackgroundColor <> clNone then begin LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor)); try AGraphics.FillPath(LBrush, LPath); finally LBrush.Free; end; end; if (FBorderThickness > 0) and (ABorderColor <> clNone) then begin LPen := TGPPen.Create(ColorToARGB(ABorderColor), FBorderThickness); try case FBorderStyle of psSolid: LPen.SetDashStyle(DashStyleSolid); psDash: LPen.SetDashStyle(DashStyleDash); psDot: LPen.SetDashStyle(DashStyleDot); psDashDot: LPen.SetDashStyle(DashStyleDashDot); psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot); else LPen.SetDashStyle(DashStyleSolid); end; if FBorderStyle <> psClear then AGraphics.DrawPath(LPen, LPath); finally LPen.Free; end; end; end; finally LPath.Free; end;
+
+  // Ensure dimensions are not negative for path creation.
+  LRectF.Width  := Max(0.0, LRectF.Width);
+  LRectF.Height := Max(0.0, LRectF.Height);
+
+  if (LRectF.Width = 0) or (LRectF.Height = 0) then // Cannot draw if path rect is empty
+    Exit;
+
+  // Calculate effective radius for rounding, cannot exceed half of the smallest dimension of LRectF.
+  LRadiusValue := Self.FCornerRadius; // Use Self consistently
+  LRadiusValue := Min(LRadiusValue, LRectF.Width / 2.0);
+  LRadiusValue := Min(LRadiusValue, LRectF.Height / 2.0);
+  LRadiusValue := Max(0.0, LRadiusValue); // Ensure non-negative radius
+
+  LPath := TGPGraphicsPath.Create;
+  try
+    CreateGPRoundedPath(LPath, LRectF, LRadiusValue, Self.FRoundCornerType); // Use Self
+
+    if LPath.GetPointCount > 0 then // Check if path creation was successful
+    begin
+      // Fill Background
+      if ABackgroundColor <> clNone then
+      begin
+        // Use Self.FOpacity for the alpha component of the background color
+        LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor, Self.FOpacity));
+        try
+          AGraphics.FillPath(LBrush, LPath);
+        finally
+          LBrush.Free;
+        end;
+      end;
+
+      // Draw Border
+      if (LBorderThicknessValue > 0) and (ABorderColor <> clNone) and (Self.FBorderStyle <> psClear) then // Use Self
+      begin
+        // Use Self.FOpacity for the alpha component of the border color
+        LPen := TGPPen.Create(ColorToARGB(ABorderColor, Self.FOpacity), LBorderThicknessValue);
+        try
+          case Self.FBorderStyle of // Use Self
+            psSolid:      LPen.SetDashStyle(DashStyleSolid);
+            psDash:       LPen.SetDashStyle(DashStyleDash);
+            psDot:        LPen.SetDashStyle(DashStyleDot);
+            psDashDot:    LPen.SetDashStyle(DashStyleDashDot);
+            psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot);
+            else          LPen.SetDashStyle(DashStyleSolid);
+          end;
+          AGraphics.DrawPath(LPen, LPath);
+        finally
+          LPen.Free;
+        end;
+      end;
+    end;
+  finally
+    LPath.Free;
+  end;
 end;
 
 constructor TANDMR_CEdit.Create(AOwner: TComponent);
@@ -440,6 +594,19 @@ begin
   FImagePlacement := iplInsideBounds; FImageDrawMode := idmProportional;
   FSeparatorVisible := False; FSeparatorColor := clGrayText; FSeparatorThickness := 1; FSeparatorPadding := 2; FSeparatorHeightMode := shmFull; FSeparatorCustomHeight := 0;
   FCaretVisible := False; FCaretPosition := 0; FCaretTimer := TTimer.Create(Self); FCaretTimer.Interval := GetCaretBlinkTime; FCaretTimer.OnTimer := CaretTimerTick; FCaretTimer.Enabled := False;
+
+  // Initialize new properties
+  FFocusBorderColorVisible := False;
+  FFocusBorderColor := clBlack;
+  FFocusBackgroundColorVisible := False;
+  FFocusBackgroundColor := clWindow;
+  FFocusUnderlineVisible := False;
+  FFocusUnderlineColor := clBlack;
+  FFocusUnderlineThickness := 1;
+  FFocusUnderlineStyle := psSolid;
+  FOpacity := 255;
+  FCurrentCursor := crIBeam;
+  Self.Cursor := FCurrentCursor; // Set initial cursor
 end;
 
 destructor TANDMR_CEdit.Destroy;
@@ -467,6 +634,109 @@ procedure TANDMR_CEdit.SetInactiveColor(const Value: TColor); begin if FInactive
 procedure TANDMR_CEdit.SetBorderColor(const Value: TColor); begin if FBorderColor <> Value then begin FBorderColor := Value; Invalidate; end; end;
 procedure TANDMR_CEdit.SetBorderThickness(const Value: Integer); begin if FBorderThickness <> Value then begin FBorderThickness := Value; Invalidate; end; end;
 procedure TANDMR_CEdit.SetBorderStyle(const Value: TPenStyle); begin if FBorderStyle <> Value then begin FBorderStyle := Value; Invalidate; end; end;
+
+// Implementation of new Set methods
+procedure TANDMR_CEdit.SetFocusBorderColor(const Value: TColor);
+begin
+  if FFocusBorderColor <> Value then
+  begin
+    FFocusBorderColor := Value;
+    if FFocusBorderColorVisible and Focused then Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetFocusBorderColorVisible(const Value: Boolean);
+begin
+  if FFocusBorderColorVisible <> Value then
+  begin
+    FFocusBorderColorVisible := Value;
+    if Focused then Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetFocusBackgroundColor(const Value: TColor);
+begin
+  if FFocusBackgroundColor <> Value then
+  begin
+    FFocusBackgroundColor := Value;
+    if FFocusBackgroundColorVisible and Focused then Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetFocusBackgroundColorVisible(const Value: Boolean);
+begin
+  if FFocusBackgroundColorVisible <> Value then
+  begin
+    FFocusBackgroundColorVisible := Value;
+    if Focused then Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetFocusUnderlineColor(const Value: TColor);
+begin
+  if FFocusUnderlineColor <> Value then
+  begin
+    FFocusUnderlineColor := Value;
+    if FFocusUnderlineVisible and Focused then Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetFocusUnderlineVisible(const Value: Boolean);
+begin
+  if FFocusUnderlineVisible <> Value then
+  begin
+    FFocusUnderlineVisible := Value;
+    if Focused then Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetFocusUnderlineThickness(const Value: Integer);
+var ValidThickness: Integer;
+begin
+  ValidThickness := Max(0, Value); // Ensure non-negative
+  if FFocusUnderlineThickness <> ValidThickness then
+  begin
+    FFocusUnderlineThickness := ValidThickness;
+    if FFocusUnderlineVisible and Focused then Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetFocusUnderlineStyle(const Value: TPenStyle);
+begin
+  if FFocusUnderlineStyle <> Value then
+  begin
+    FFocusUnderlineStyle := Value;
+    if FFocusUnderlineVisible and Focused then Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetOpacity(const Value: Byte);
+begin
+  if FOpacity <> Value then
+  begin
+    FOpacity := Value;
+    // Handle csOpaque style based on opacity
+    if FOpacity < 255 then
+    begin
+      ControlStyle := ControlStyle - [csOpaque];
+      if Parent <> nil then Parent.Invalidate; // Invalidate parent to redraw background
+    end
+    else
+    begin
+      ControlStyle := ControlStyle + [csOpaque];
+    end;
+    Invalidate; // Invalidate self to redraw with new opacity
+  end;
+end;
+
+procedure TANDMR_CEdit.SetCurrentCursor(const Value: TCursor);
+begin
+  if FCurrentCursor <> Value then
+  begin
+    FCurrentCursor := Value;
+    Self.Cursor := FCurrentCursor; // Update the actual cursor
+  end;
+end;
 
 procedure TANDMR_CEdit.Paint;
 var
@@ -499,25 +769,33 @@ begin
       end
       else
       begin
-        EditBoxBGColor := clWindow; 
-        OverallBGColor := Self.Color; 
+        // Apply FocusBackgroundColor if visible and focused
+        if Self.Focused and FFocusBackgroundColorVisible then
+          EditBoxBGColor := FFocusBackgroundColor
+        else
+          EditBoxBGColor := clWindow; // Default background color
+        OverallBGColor := Self.Color;
       end;
 
-      if Self.Focused then
+      // Apply FocusBorderColor if visible and focused
+      if Self.Focused and FFocusBorderColorVisible then
+        EditBoxBorderColor := FFocusBorderColor
+      else if Self.Focused then // Default focus border color if new one not visible
         EditBoxBorderColor := FActiveColor
       else
-        EditBoxBorderColor := FBorderColor;
+        EditBoxBorderColor := FBorderColor; // Default non-focus border color
 
       if FImagePlacement = iplInsideBounds then
       begin
-        RectToDrawEditBoxIn := ClientRect; 
-        var CompBGColorWhenInside: TColor; 
+        RectToDrawEditBoxIn := ClientRect;
+        var CompBGColorWhenInside: TColor;
         if csDesigning in ComponentState then CompBGColorWhenInside := clWhite
-        else if Self.Focused then CompBGColorWhenInside := clWindow 
-        else CompBGColorWhenInside := FInactiveColor; 
+        else if Self.Focused and FFocusBackgroundColorVisible then CompBGColorWhenInside := FFocusBackgroundColor
+        else if Self.Focused then CompBGColorWhenInside := clWindow // Default focus if FFocusBackgroundColorVisible is false
+        else CompBGColorWhenInside := FInactiveColor;
 
         DrawEditBox(RectToDrawEditBoxIn, LG, CompBGColorWhenInside, EditBoxBorderColor);
-        
+
         if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
           Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
       end
@@ -526,16 +804,57 @@ begin
         if csDesigning in ComponentState then OverallBGColor := clBtnFace 
         else OverallBGColor := Self.Color; 
         
-        LG.Clear(ColorToARGB(OverallBGColor)); 
+        // Apply FOpacity to the overall background clear
+        LG.Clear(ColorToARGB(OverallBGColor, Self.FOpacity)); 
 
         if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
           Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
 
-        RectToDrawEditBoxIn := txtR; 
-        DrawEditBox(RectToDrawEditBoxIn, LG, EditBoxBGColor, EditBoxBorderColor);
+        RectToDrawEditBoxIn := txtR;
+        // Determine background for edit box when image is outside
+        var EditBoxActualBGColor: TColor;
+        if csDesigning in ComponentState then EditBoxActualBGColor := clWhite
+        else if Self.Focused and FFocusBackgroundColorVisible then EditBoxActualBGColor := FFocusBackgroundColor
+        else if Self.Focused then EditBoxActualBGColor := clWindow // default focused if FFocusBackgroundColorVisible is false
+        else EditBoxActualBGColor := FInactiveColor; // default non-focused
+
+        DrawEditBox(RectToDrawEditBoxIn, LG, EditBoxActualBGColor, EditBoxBorderColor);
       end;
+
+      // Draw Focus Underline if visible and focused
+      if Self.Focused and FFocusUnderlineVisible and (FFocusUnderlineThickness > 0) then
+      begin
+        var UnderlineY: Integer;
+        var UnderlinePen: TGPPen;
+        // Corrected Y position for underline, considering border thickness
+        if FBorderThickness > 0 then
+          UnderlineY := RectToDrawEditBoxIn.Bottom - FBorderThickness - (FFocusUnderlineThickness div 2)
+        else
+          UnderlineY := RectToDrawEditBoxIn.Bottom - (FFocusUnderlineThickness div 2);
+        
+        // Ensure underline is drawn just above the bottom edge or border
+        UnderlineY := Min(UnderlineY, RectToDrawEditBoxIn.Bottom - FFocusUnderlineThickness);
+
+
+        UnderlinePen := TGPPen.Create(ColorToARGB(FFocusUnderlineColor, Self.FOpacity), FFocusUnderlineThickness); // Apply Opacity to underline too
+        try
+          case FFocusUnderlineStyle of
+            psSolid: UnderlinePen.SetDashStyle(DashStyleSolid);
+            psDash: UnderlinePen.SetDashStyle(DashStyleDash);
+            psDot: UnderlinePen.SetDashStyle(DashStyleDot);
+            psDashDot: UnderlinePen.SetDashStyle(DashStyleDashDot);
+            psDashDotDot: UnderlinePen.SetDashStyle(DashStyleDashDotDot);
+            else UnderlinePen.SetDashStyle(DashStyleSolid);
+          end;
+          // Draw underline across the width of RectToDrawEditBoxIn, respecting its horizontal bounds and border
+          LG.DrawLine(UnderlinePen, RectToDrawEditBoxIn.Left + FBorderThickness, UnderlineY, RectToDrawEditBoxIn.Right - FBorderThickness, UnderlineY);
+        finally
+          UnderlinePen.Free;
+        end;
+      end;
+
     finally
-      LG.Free; 
+      LG.Free;
     end; // End of GDI+ operations
 
     if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and not (FImage.Graphic is TPNGImage) then
@@ -608,9 +927,10 @@ begin
   inherited; // Call inherited handler for CM_ENTER
   FCaretVisible := True;
   FCaretTimer.Enabled := True;
+  Self.Cursor := FCurrentCursor; // Ensure correct cursor on enter
   if Assigned(FOnEnter) then
     FOnEnter(Self);
-  Invalidate;
+  Invalidate; // This will trigger a repaint, which will use focus properties
 end;
 
 procedure TANDMR_CEdit.CMExit(var Message: TCMExit);
@@ -618,9 +938,10 @@ begin
   inherited; // Call inherited handler for CM_EXIT
   FCaretVisible := False;
   FCaretTimer.Enabled := False;
+  Self.Cursor := crDefault; // Revert cursor on exit
   if Assigned(FOnExit) then
     FOnExit(Self);
-  Invalidate;
+  Invalidate; // This will trigger a repaint
 end;
 
 procedure TANDMR_CEdit.KeyDown(var Key: Word; Shift: TShiftState);

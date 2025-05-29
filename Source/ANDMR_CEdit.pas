@@ -37,7 +37,6 @@ type
     FBorderColor: TColor;
     FBorderThickness: Integer;
     FBorderStyle: TPenStyle;
-    procedure SetBorderStyle(const Value: TPenStyle);
 
     FImage: TPicture;
     FImageVisible: Boolean;
@@ -45,22 +44,23 @@ type
     FImageAlignment: TImageAlignmentVertical;
     FImageMargins: TImageMarginsControl;
     // Setter method declarations
+
+    FCaretVisible: Boolean;
+    FCaretPosition: Integer; // Character index after which caret is shown
+    FCaretTimer: TTimer;
+
+    // Event fields
+    FOnChange: TNotifyEvent;
+    FOnEnter: TNotifyEvent;
+    FOnExit: TNotifyEvent;
+    procedure SetBorderStyle(const Value: TPenStyle);
     procedure SetImage(const Value: TPicture);
     procedure SetImageVisible(const Value: Boolean);
     procedure SetImagePosition(const Value: TImagePositionSide);
     procedure SetImageAlignment(const Value: TImageAlignmentVertical);
     procedure SetImageMargins(const Value: TImageMarginsControl);
     procedure ImageChanged(Sender: TObject); // OnChange handler for FImage
-
-    FCaretVisible: Boolean;
-    FCaretPosition: Integer; // Character index after which caret is shown
-    FCaretTimer: TTimer;
     procedure CaretTimerTick(Sender: TObject);
-
-    // Event fields
-    FOnChange: TNotifyEvent;
-    FOnEnter: TNotifyEvent;
-    FOnExit: TNotifyEvent;
 
     procedure SetText(const Value: string);
     procedure SetMaxLength(const Value: Integer);

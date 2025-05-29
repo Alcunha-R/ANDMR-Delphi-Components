@@ -408,8 +408,20 @@ procedure TANDMR_CEdit.DrawEditBox(const ADrawArea: TRect; AGraphics: TGPGraphic
 var LPath: TGPGraphicsPath; LBrush: TGPBrush; LPen: TGPPen; LRectF: TGPRectF; LRadiusValue: Single;
 begin
   if (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) or (AGraphics = nil) then Exit;
-  if FBorderThickness > 0 then LRectF := TGPRectF.Create(ADrawArea.Left + FBorderThickness / 2.0, ADrawArea.Top + FBorderThickness / 2.0, ADrawArea.Width - FBorderThickness, ADrawArea.Height - FBorderThickness)
-  else LRectF := TGPRectF.Create(ADrawArea.Left, ADrawArea.Top, ADrawArea.Width, ADrawArea.Height);
+  if FBorderThickness > 0 then
+  begin
+    LRectF.X := ADrawArea.Left + FBorderThickness / 2.0;
+    LRectF.Y := ADrawArea.Top + FBorderThickness / 2.0;
+    LRectF.Width := ADrawArea.Width - FBorderThickness;
+    LRectF.Height := ADrawArea.Height - FBorderThickness;
+  end
+  else
+  begin
+    LRectF.X := ADrawArea.Left;
+    LRectF.Y := ADrawArea.Top;
+    LRectF.Width := ADrawArea.Width;
+    LRectF.Height := ADrawArea.Height;
+  end;
   LRectF.Width := Max(0.0, LRectF.Width); LRectF.Height := Max(0.0, LRectF.Height);
   LRadiusValue := Min(FCornerRadius, Min(LRectF.Width / 2.0, LRectF.Height / 2.0)); LRadiusValue := Max(0.0, LRadiusValue);
   LPath := TGPGraphicsPath.Create; try CreateGPRoundedPath(LPath, LRectF, LRadiusValue, FRoundCornerType); if LPath.GetPointCount > 0 then begin if ABackgroundColor <> clNone then begin LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor)); try AGraphics.FillPath(LBrush, LPath); finally LBrush.Free; end; end; if (FBorderThickness > 0) and (ABorderColor <> clNone) then begin LPen := TGPPen.Create(ColorToARGB(ABorderColor), FBorderThickness); try case FBorderStyle of psSolid: LPen.SetDashStyle(DashStyleSolid); psDash: LPen.SetDashStyle(DashStyleDash); psDot: LPen.SetDashStyle(DashStyleDot); psDashDot: LPen.SetDashStyle(DashStyleDashDot); psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot); else LPen.SetDashStyle(DashStyleSolid); end; if FBorderStyle <> psClear then AGraphics.DrawPath(LPen, LPath); finally LPen.Free; end; end; end; finally LPath.Free; end;

@@ -41,6 +41,10 @@ type
     rctTopLeftBottomRight, rctTopRightBottomLeft
   );
 
+  TInputType = (itNormal, itLettersOnly, itNumbersOnly, itNoSpecialChars, itAlphaNumericOnly);
+
+  TTextCase = (tcNormal, tcUppercase, tcLowercase); // New Enum
+
   TANDMR_CEdit = class(TCustomControl)
   private
     FText: string;
@@ -81,6 +85,11 @@ type
     FFocusUnderlineStyle: TPenStyle;
     FOpacity: Byte;
     FCurrentCursor: TCursor;
+    FInputType: TInputType;
+    FTextCase: TTextCase;
+    FInputMask: string;      // New field for the mask pattern
+    FMaskedText: string;    // New field for text displayed to user (literals + input)
+    FRawText: string;       // New field for actual user input characters
 
     procedure SetText(const Value: string);
     procedure SetMaxLength(const Value: Integer);
@@ -121,6 +130,9 @@ type
     procedure SetFocusUnderlineStyle(const Value: TPenStyle);
     procedure SetOpacity(const Value: Byte);
     procedure SetCurrentCursor(const Value: TCursor);
+    procedure SetInputType(const Value: TInputType);
+    procedure SetTextCase(const Value: TTextCase);
+    procedure SetInputMask(const Value: string); // New setter declaration
 
     procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
     procedure CMExit(var Message: TCMExit); message CM_EXIT;
@@ -201,11 +213,16 @@ type
     property FocusUnderlineStyle: TPenStyle read FFocusUnderlineStyle write SetFocusUnderlineStyle;
     property Opacity: Byte read FOpacity write SetOpacity;
     property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
+    property InputType: TInputType read FInputType write SetInputType default itNormal;
+    property TextCase: TTextCase read FTextCase write SetTextCase default tcNormal;
+    property InputMask: string read FInputMask write SetInputMask; // New property
   end;
 
 procedure Register;
 
 implementation
+
+uses System.Character; // Added for ToUpper/ToLower
 
 procedure Register;
 begin
@@ -607,6 +624,11 @@ begin
   FOpacity := 255;
   FCurrentCursor := crIBeam;
   Self.Cursor := FCurrentCursor; // Set initial cursor
+  FInputType := itNormal; // Initialize InputType
+  FTextCase := tcNormal; // Initialize TextCase
+  FInputMask := '';      // Initialize InputMask
+  FMaskedText := '';   // Initialize FMaskedText
+  FRawText := '';        // Initialize FRawText
 end;
 
 destructor TANDMR_CEdit.Destroy;
@@ -615,9 +637,109 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_CEdit.SetText(const Value: string);
-var OldText: string;
-begin OldText := FText; if FText <> Value then begin FText := Value; FCaretPosition := Length(FText); FCaretVisible := True; if Focused then begin FCaretTimer.Enabled := False; FCaretTimer.Enabled := True; end; Invalidate; if Assigned(FOnChange) and (OldText <> FText) then FOnChange(Self); end;
+procedure TANDMR_CEdit.SetText(const Value: string); // Value is considered RAW input
+var
+  OldFDisplayText: string; // FText will now represent FMaskedText for display
+  ProcessedRawText: string; // Raw text after TextCase transformation
+  NewMaskedText: string;
+  NewUnmaskedText: string; // Corrected FRawText after applying mask
+  RawIndex: Integer;
+  MaskIndex: Integer;
+  MaskChar: Char;
+  IsLiteral: Boolean;
+  CharToTest: Char;
+  CharAllowed: Boolean;
+begin
+  OldFDisplayText := FText; // FText currently stores the masked text for display
+
+  // 1. Apply TextCase to the incoming raw Value
+  ProcessedRawText := Value;
+  case FTextCase of
+    tcUppercase: ProcessedRawText := System.SysUtils.UpperCase(ProcessedRawText);
+    tcLowercase: ProcessedRawText := System.SysUtils.LowerCase(ProcessedRawText);
+  end;
+
+  // 2. Rebuild FRawText and FMaskedText based on ProcessedRawText and FInputMask
+  NewUnmaskedText := '';
+  NewMaskedText := '';
+
+  if FInputMask <> '' then
+  begin
+    RawIndex := 1;
+    for MaskIndex := 1 to Length(FInputMask) do
+    begin
+      MaskChar := FInputMask[MaskIndex];
+      // Define literals as characters not in the set of placeholders
+      IsLiteral := not (MaskChar IN ['9', 'L', 'A', '#']); // Assuming '#' is a generic placeholder for now
+
+      if IsLiteral then
+      begin
+        NewMaskedText := NewMaskedText + MaskChar;
+      end
+      else // It's a placeholder
+      begin
+        if RawIndex <= Length(ProcessedRawText) then
+        begin
+          CharToTest := ProcessedRawText[RawIndex];
+          CharAllowed := False;
+          case MaskChar of
+            '9': CharAllowed := CharToTest IN ['0'..'9'];
+            'L': CharAllowed := System.Character.IsLetter(CharToTest);
+            'A': CharAllowed := System.Character.IsLetterOrDigit(CharToTest);
+            '#': CharAllowed := True; // Example: '#' accepts any char from raw text
+          end;
+
+          if CharAllowed then
+          begin
+            NewMaskedText := NewMaskedText + CharToTest;
+            NewUnmaskedText := NewUnmaskedText + CharToTest; // Build the true FRawText
+            Inc(RawIndex);
+          end
+          else // Char from ProcessedRawText doesn't fit mask placeholder
+          begin
+            NewMaskedText := NewMaskedText + '_'; // Placeholder for invalid/missing char
+            // Do not increment RawIndex, as this raw char was not consumed.
+            // Or, option: skip this raw char and try next? For now, assume strict adherence.
+          end;
+        end
+        else // No more raw text to fill this placeholder
+        begin
+          NewMaskedText := NewMaskedText + '_'; // Placeholder for empty part of mask
+        end;
+      end;
+    end;
+    FRawText := NewUnmaskedText;
+    FText := NewMaskedText; // FText (display text) is the newly built FMaskedText
+    FMaskedText := NewMaskedText; // Keep FMaskedText field in sync
+  end
+  else // No input mask
+  begin
+    FRawText := ProcessedRawText; // Raw text is just the transformed input value
+    FText := FRawText;          // Display text is also this raw text
+    FMaskedText := FRawText;    // FMaskedText is same as FRawText when no mask
+  end;
+
+  // 3. Update caret and visual state
+  //FCaretPosition := Length(FText); // Simplistic caret: end of text. TODO: Smarter caret.
+  // For SetText, placing caret at end is a common behavior.
+  // If trying to preserve caret: more complex, map old FRawText pos to new FRawText pos, then to FMaskedText pos.
+  // For now, set to end of the new FText.
+  if FCaretPosition > Length(FText) then FCaretPosition := Length(FText);
+
+
+  FCaretVisible := True;
+  if Focused then
+  begin
+    FCaretTimer.Enabled := False;
+    FCaretTimer.Enabled := True;
+  end;
+
+  if OldFDisplayText <> FText then
+  begin
+    Invalidate;
+    if Assigned(FOnChange) then
+      FOnChange(Self);
+  end;
 end;
 
 procedure TANDMR_CEdit.SetMaxLength(const Value: Integer);
@@ -735,6 +857,73 @@ begin
   begin
     FCurrentCursor := Value;
     Self.Cursor := FCurrentCursor; // Update the actual cursor
+  end;
+end;
+
+procedure TANDMR_CEdit.SetInputType(const Value: TInputType);
+begin
+  if FInputType <> Value then
+  begin
+    FInputType := Value;
+    // Future: May need to validate/clear existing text if it doesn't match the new type.
+    // For now, just set and let new input be filtered.
+    // Invalidate might be useful if visual cues for input type are added later
+    // or if immediate validation of existing text is performed.
+    // Invalidate; 
+  end;
+end;
+
+procedure TANDMR_CEdit.SetTextCase(const Value: TTextCase);
+var
+  OldText: string;
+  TransformedText: string;
+begin
+  if FTextCase <> Value then
+  begin
+    OldText := FText; // Store original FText before any transformation by this call
+    FTextCase := Value; // Assign the new case type
+
+    TransformedText := FText; // Start with current FText for transformation
+    case FTextCase of
+      tcUppercase: TransformedText := System.SysUtils.UpperCase(FText);
+      tcLowercase: TransformedText := System.SysUtils.LowerCase(FText);
+      // tcNormal: No transformation needed on existing FText based on this new setting
+    end;
+
+    if FText <> TransformedText then // If the text actually changed after applying the new case
+    begin
+      FText := TransformedText; // Assign the transformed text
+      FCaretPosition := Length(FText); // Reset caret to end
+      if Assigned(FOnChange) then
+         FOnChange(Self); // Text content changed
+      Invalidate; // Repaint needed
+    end
+    else if OldText = TransformedText and Value <> tcNormal then
+    begin
+      // This case handles if FText was already, e.g., "TEXT" and tcUppercase is set.
+      // FText doesn't change, OldText is same as TransformedText.
+      // However, the *property* TextCase has changed, which might be relevant for designers
+      // or other logic. A simple Invalidate might be too much if no visual change.
+      // For now, if text didn't change, only Invalidate if a specific case is enforced
+      // and a repaint might be desired by some logic (though not strictly necessary if text is same)
+      // No OnChange here as FText content hasn't changed.
+      Invalidate; // Or remove if no visual change is expected when text is already correct case.
+    end;
+  end;
+end;
+
+procedure TANDMR_CEdit.SetInputMask(const Value: string);
+begin
+  if FInputMask <> Value then
+  begin
+    FInputMask := Value;
+    // When mask changes, clear existing text (FRawText, FMaskedText, and FText which is display).
+    // SetText('') will handle resetting FRawText and FMaskedText and then FText.
+    SetText(''); // This effectively clears FRawText and FMaskedText (via current SetText logic path)
+                 // and then updates FText to the empty masked representation.
+    FCaretPosition := 0; // Reset caret
+    Invalidate;
+    // A more advanced implementation might try to reformat FRawText based on the new mask.
   end;
 end;
 
@@ -934,14 +1123,45 @@ begin
 end;
 
 procedure TANDMR_CEdit.CMExit(var Message: TCMExit);
+var
+  TempText: string;
+  OriginalFText: string;
 begin
-  inherited; // Call inherited handler for CM_EXIT
+  OriginalFText := FText; // Store FText before CMExit transformations
+
+  // Apply final transformation before exiting focus
+  if FTextCase <> tcNormal then // Only transform if a specific case is set
+  begin
+    TempText := FText;
+    case FTextCase of
+      tcUppercase: TempText := System.SysUtils.UpperCase(FText);
+      tcLowercase: TempText := System.SysUtils.LowerCase(FText);
+    end;
+    if FText <> TempText then
+    begin
+       FText := TempText; // Update FText directly
+       // FCaretPosition might need adjustment, e.g. to Length(FText) or try to preserve
+       FCaretPosition := Length(FText);
+       if Assigned(FOnChange) and (OriginalFText <> FText) then // Fire OnChange if text actually changed
+         FOnChange(Self);
+       // No need to call Invalidate here if the inherited CMExit or subsequent Invalidate will handle it
+       // However, if FText changed, an Invalidate is good.
+    end;
+  end;
+
+  inherited; // Call inherited handler for CM_EXIT (which might Invalidate)
   FCaretVisible := False;
   FCaretTimer.Enabled := False;
   Self.Cursor := crDefault; // Revert cursor on exit
+
   if Assigned(FOnExit) then
     FOnExit(Self);
-  Invalidate; // This will trigger a repaint
+
+  // Invalidate if text changed or if default CMExit doesn't always cover it
+  if OriginalFText <> FText then
+    Invalidate
+  else
+    Invalidate; // Standard CMExit practice to repaint for focus change
 end;
 
 procedure TANDMR_CEdit.KeyDown(var Key: Word; Shift: TShiftState);
@@ -966,11 +1186,66 @@ begin
     VK_BACK:
       begin
         if FReadOnly then Exit;
-        if FCaretPosition > 0 then
+        if FInputMask <> '' then
         begin
-          FText := Copy(FText, 1, FCaretPosition - 1) + Copy(FText, FCaretPosition + 1, MaxInt);
-          Dec(FCaretPosition);
-          Changed := True;
+          if Length(FRawText) > 0 then
+          begin
+            FRawText := Copy(FRawText, 1, Length(FRawText) - 1);
+            // Call SetText with the new FRawText to rebuild FMaskedText (which becomes FText)
+            // and handle caret, invalidation, and OnChange.
+            // Store current FText (display) to check if it changes, to prevent unnecessary OnChange/Invalidate.
+            var OldDisplayText: string := FText;
+            SetText(FRawText); // This will update FText (display), FMaskedText, and FRawText internally.
+                               // It also handles TextCase.
+            
+            // Attempt to position caret intelligently after backspace
+            // A simple approach: position before the last character of the new FRawText within FMaskedText
+            var NewCaretPosInMask: Integer := 0;
+            var TempRawLen: Integer := 0;
+            var MaskIdx: Integer;
+            for MaskIdx := 1 to Length(FMaskedText) do
+            begin
+              if not (FInputMask[MaskIdx] IN ['9','L','A','#']) then // It's a literal
+              begin
+                Inc(NewCaretPosInMask);
+              end
+              else // It's a placeholder
+              begin
+                if TempRawLen < Length(FRawText) then
+                begin
+                  Inc(TempRawLen);
+                  Inc(NewCaretPosInMask);
+                end
+                else if TempRawLen = Length(FRawText) then // This is the first placeholder after the new raw text
+                begin
+                   Inc(NewCaretPosInMask); // Caret should be at this placeholder
+                   Break;
+                end
+                else // Should not happen if FMaskedText is correctly built
+                begin
+                   Inc(NewCaretPosInMask);
+                   Break;
+                end;
+              end;
+               if MaskIdx = Length(FMaskedText) then NewCaretPosInMask := Length(FMaskedText); // If loop finishes, caret at end
+            end;
+            FCaretPosition := NewCaretPosInMask;
+            if FCaretPosition > Length(FText) then FCaretPosition := Length(FText);
+
+
+            if OldDisplayText <> FText then Changed := True else Changed := False; // Set Changed based on actual display text change
+          end;
+          Key := 0; // Mark key as handled
+          Exit;     // Exit because we've handled it here
+        end
+        else // No input mask, standard backspace logic
+        begin
+          if FCaretPosition > 0 then
+          begin
+            FText := Copy(FText, 1, FCaretPosition - 1) + Copy(FText, FCaretPosition + 1, MaxInt);
+            Dec(FCaretPosition);
+            Changed := True;
+          end;
         end;
       end;
     VK_DELETE:
@@ -1029,6 +1304,7 @@ end;
 procedure TANDMR_CEdit.KeyPress(var Key: Char);
 var
   OldText: string;
+  AllowChar: Boolean; // Added for filtering
 begin
   inherited KeyPress(Key);
 
@@ -1044,35 +1320,155 @@ begin
     Exit;
   end;
 
-  // Handle printable characters (and not control chars like Enter, Tab if KeyDown doesn't catch them first)
-  if (Key >= ' ') then // Includes space and all printable chars
+  // New InputType filtering logic
+  // This filter applies primarily to printable characters.
+  // Control characters (like Tab, Enter, Esc, etc.) are generally expected to either
+  // be handled in KeyDown or allowed through KeyPress if they are not printable.
+  if (FInputType <> itNormal) and (Key >= ' ') then // Filter only printable chars
   begin
-    OldText := FText;
-    if (FMaxLength > 0) and (Length(FText) >= FMaxLength) then
-    begin
-      Key := #0;
-      Exit; // MaxLength reached
+    AllowChar := True; // Assume allowed, then restrict
+    case FInputType of
+      itLettersOnly: AllowChar := Key IN ['a'..'z', 'A'..'Z'];
+      itNumbersOnly: AllowChar := Key IN ['0'..'9'];
+      itAlphaNumericOnly: AllowChar := Key IN ['a'..'z', 'A'..'Z', '0'..'9'];
+      itNoSpecialChars: // Example: Alphanumeric + Space. Customize as needed.
+        AllowChar := Key IN ['a'..'z', 'A'..'Z', '0'..'9', ' '];
+      // itNormal is handled by falling through, all chars allowed by default.
     end;
-
-    // Insert character at caret position
-    if FCaretPosition > Length(FText) then FCaretPosition := Length(FText); // Ensure valid position
-    FText := Copy(FText, 1, FCaretPosition) + Key + Copy(FText, FCaretPosition + 1, MaxInt);
-    Inc(FCaretPosition);
-
-    FCaretVisible := True; // Make sure caret is visible after typing
-    if Focused then
+    if not AllowChar then
     begin
-      FCaretTimer.Enabled := False; // Reset blink
-      FCaretTimer.Enabled := True;
+      Key := #0; // Disallow character by setting it to null char
+      // Do not Exit here, let Key := #0 be handled by the end of the procedure
     end;
-
-    if Assigned(FOnChange) and (OldText <> FText) then
-    begin
-      FOnChange(Self);
-    end;
-    Invalidate;
   end;
-  Key := #0; // Mark as handled
+
+  // Existing logic for handling printable characters (MaxLength, inserting char, etc.)
+  // If Key was set to #0 by the filter, it will not satisfy (Key >= ' ')
+  if (Key >= ' ') then // Process if Key is still a printable char (i.e., not #0 from filter)
+  begin
+    // Apply TextCase transformation to the incoming character
+    case FTextCase of
+      tcUppercase: Key := System.Character.ToUpper(Key);
+      tcLowercase: Key := System.Character.ToLower(Key);
+    end;
+
+    // If InputMask is active, handle through mask logic
+    if FInputMask <> '' then
+    begin
+      var MaskPlaceholdersCount: Integer := 0;
+      var i: Integer;
+      for i := 1 to Length(FInputMask) do
+        if FInputMask[i] IN ['9','L','A','#'] then Inc(MaskPlaceholdersCount);
+
+      if Length(FRawText) >= MaskPlaceholdersCount then
+      begin
+         Key := #0; // Mask is full, cannot add more characters to FRawText
+         Exit;
+      end;
+
+      // Tentatively add the new character to FRawText and rebuild FMaskedText
+      var TempRawText: string := FRawText + Key;
+      var BuildRawText: string := '';
+      var BuildMaskedText: string := '';
+      var RawIdx: Integer := 1;
+      var MaskIdx: Integer;
+      var MaskDefChar: Char;
+      var IsLit: Boolean;
+      var CharToIns: Char;
+      var CharOK: Boolean;
+
+      for MaskIdx := 1 to Length(FInputMask) do
+      begin
+        MaskDefChar := FInputMask[MaskIdx];
+        IsLit := not (MaskDefChar IN ['9', 'L', 'A', '#']);
+        if IsLit then
+        begin
+          BuildMaskedText := BuildMaskedText + MaskDefChar;
+        end
+        else // Placeholder
+        begin
+          if RawIdx <= Length(TempRawText) then
+          begin
+            CharToIns := TempRawText[RawIdx];
+            CharOK := False;
+            case MaskDefChar of
+              '9': CharOK := CharToIns IN ['0'..'9'];
+              'L': CharOK := System.Character.IsLetter(CharToIns);
+              'A': CharOK := System.Character.IsLetterOrDigit(CharToIns);
+              '#': CharOK := True;
+            end;
+
+            if CharOK then
+            begin
+              BuildMaskedText := BuildMaskedText + CharToIns;
+              BuildRawText := BuildRawText + CharToIns;
+              Inc(RawIdx);
+            end
+            else // Invalid char for this specific mask placeholder
+            begin
+              Key := #0; // Signal that the key was invalid for the mask
+              Exit;    // Stop processing this key press
+            end;
+          end
+          else // Still placeholders in mask, but no more raw text (including the new Key)
+          begin
+            // This part might be reached if TempRawText was shorter than expected,
+            // which shouldn't happen if CharOK logic is correct.
+            // Or, it means the mask expects more chars than TempRawText provides.
+            // Add placeholder to BuildMaskedText.
+            BuildMaskedText := BuildMaskedText + '_';
+          end;
+        end;
+      end;
+
+      // If Key is still valid (#0 would mean it was rejected by mask validation)
+      if Key <> #0 then
+      begin
+        OldText := FText; // FText holds the old FMaskedText
+        FRawText := BuildRawText;
+        FText := BuildMaskedText; // Update FText to new FMaskedText
+        FMaskedText := BuildMaskedText; // Sync FMaskedText field
+        FCaretPosition := Length(FText); // TODO: Smarter caret after insert
+        
+        FCaretVisible := True;
+        if Focused then
+        begin
+          FCaretTimer.Enabled := False; FCaretTimer.Enabled := True;
+        end;
+        if OldText <> FText then
+        begin
+          Invalidate;
+          if Assigned(FOnChange) then FOnChange(Self);
+        end;
+      end;
+      Key := #0; // Mark Key as handled by mask logic
+      Exit; // Exit KeyPress as mask logic has processed it
+    end
+    else // No InputMask, proceed with normal text insertion
+    begin
+      OldText := FText;
+      if (FMaxLength > 0) and (Length(FText) >= FMaxLength) then
+      begin
+        Exit; // MaxLength reached
+      end;
+
+      if FCaretPosition > Length(FText) then FCaretPosition := Length(FText);
+      FText := Copy(FText, 1, FCaretPosition) + Key + Copy(FText, FCaretPosition + 1, MaxInt);
+      Inc(FCaretPosition);
+
+      FCaretVisible := True;
+      if Focused then
+      begin
+        FCaretTimer.Enabled := False; FCaretTimer.Enabled := True;
+      end;
+      if OldText <> FText then
+      begin
+        Invalidate;
+        if Assigned(FOnChange) then FOnChange(Self);
+      end;
+    end;
+  end;
+  Key := #0; // Mark key as handled if it wasn't a printable char or was handled above.
 end;
 
 procedure TANDMR_CEdit.Click;

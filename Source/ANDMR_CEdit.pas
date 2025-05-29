@@ -10,6 +10,8 @@ uses
 type
   TImagePositionSide = (ipsLeft, ipsRight);
   TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
+  TImagePlacement = (iplInsideBounds, iplOutsideBounds);
+  TImageDrawMode = (idmStretch, idmProportional, idmNormal);
 
   TImageMarginsControl = record
     Left: Integer;
@@ -37,6 +39,7 @@ type
     FBorderColor: TColor;
     FBorderThickness: Integer;
     FBorderStyle: TPenStyle;
+    procedure SetBorderStyle(const Value: TPenStyle);
 
     FImage: TPicture;
     FImageVisible: Boolean;
@@ -44,23 +47,38 @@ type
     FImageAlignment: TImageAlignmentVertical;
     FImageMargins: TImageMarginsControl;
     // Setter method declarations
-
-    FCaretVisible: Boolean;
-    FCaretPosition: Integer; // Character index after which caret is shown
-    FCaretTimer: TTimer;
-
-    // Event fields
-    FOnChange: TNotifyEvent;
-    FOnEnter: TNotifyEvent;
-    FOnExit: TNotifyEvent;
-    procedure SetBorderStyle(const Value: TPenStyle);
     procedure SetImage(const Value: TPicture);
     procedure SetImageVisible(const Value: Boolean);
     procedure SetImagePosition(const Value: TImagePositionSide);
     procedure SetImageAlignment(const Value: TImageAlignmentVertical);
     procedure SetImageMargins(const Value: TImageMarginsControl);
     procedure ImageChanged(Sender: TObject); // OnChange handler for FImage
+
+    FImagePlacement: TImagePlacement;
+    FImageDrawMode: TImageDrawMode;
+
+    FSeparatorVisible: Boolean;
+    FSeparatorColor: TColor;
+    FSeparatorThickness: Integer;
+    FSeparatorPadding: Integer; // Space on each side of the separator line
+
+    // Setter method declarations for new fields
+    procedure SetImagePlacement(const Value: TImagePlacement);
+    procedure SetImageDrawMode(const Value: TImageDrawMode);
+    procedure SetSeparatorVisible(const Value: Boolean);
+    procedure SetSeparatorColor(const Value: TColor);
+    procedure SetSeparatorThickness(const Value: Integer);
+    procedure SetSeparatorPadding(const Value: Integer);
+
+    FCaretVisible: Boolean;
+    FCaretPosition: Integer; // Character index after which caret is shown
+    FCaretTimer: TTimer;
     procedure CaretTimerTick(Sender: TObject);
+
+    // Event fields
+    FOnChange: TNotifyEvent;
+    FOnEnter: TNotifyEvent;
+    FOnExit: TNotifyEvent;
 
     procedure SetText(const Value: string);
     procedure SetMaxLength(const Value: Integer);
@@ -80,6 +98,8 @@ type
     procedure Paint; override;
     // procedure Enter; override; // Removed
     // procedure Exit; override; // Removed
+    procedure CalculateLayout(out outImgRect, out outTxtRect, out outSepRect: TRect); virtual;
+    procedure Paint; override;
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
     procedure KeyPress(var Key: Char); override;
     procedure Click; override;
@@ -109,6 +129,13 @@ type
     property ImagePosition: TImagePositionSide read FImagePosition write SetImagePosition default ipsLeft;
     property ImageAlignment: TImageAlignmentVertical read FImageAlignment write SetImageAlignment default iavCenter;
     property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins;
+    property ImagePlacement: TImagePlacement read FImagePlacement write SetImagePlacement default iplInsideBounds;
+    property ImageDrawMode: TImageDrawMode read FImageDrawMode write SetImageDrawMode default idmProportional;
+
+    property SeparatorVisible: Boolean read FSeparatorVisible write SetSeparatorVisible default False;
+    property SeparatorColor: TColor read FSeparatorColor write SetSeparatorColor default clGrayText;
+    property SeparatorThickness: Integer read FSeparatorThickness write SetSeparatorThickness default 1;
+    property SeparatorPadding: Integer read FSeparatorPadding write SetSeparatorPadding default 2;
 
     // Standard inherited properties that are relevant
     property Align;
@@ -240,6 +267,187 @@ begin
 end;
 // --- End Helper Functions ---
 
+procedure TANDMR_CEdit.CalculateLayout(out outImgRect, out outTxtRect, out outSepRect: TRect);
+var
+  WorkArea: TRect; // Area inside component borders
+  ImgW, ImgH, SepW: Integer;
+begin
+  WorkArea := Self.ClientRect;
+  InflateRect(WorkArea, -FBorderThickness, -FBorderThickness); // Available content area
+
+  // Initialize output rects
+  outImgRect := Rect(0,0,0,0);
+  outSepRect := Rect(0,0,0,0);
+  outTxtRect := WorkArea; // Text initially gets the whole content area
+
+  // Get raw image dimensions
+  ImgW := 0; ImgH := 0;
+  if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
+  begin
+    ImgW := FImage.Graphic.Width;
+    ImgH := FImage.Graphic.Height;
+  end;
+
+  // Get raw separator width
+  SepW := 0;
+  if FSeparatorVisible and (FSeparatorThickness > 0) then
+  begin
+    SepW := FSeparatorThickness;
+  end;
+
+  // --- Horizontal Layout ---
+  if FImageVisible and (ImgW > 0) then
+  begin
+    if FImagePosition = ipsLeft then
+    begin
+      outImgRect.Left := WorkArea.Left + FImageMargins.Left;
+      outImgRect.Right := outImgRect.Left + ImgW;
+      outTxtRect.Left := outImgRect.Right + FImageMargins.Right;
+
+      if FSeparatorVisible and (SepW > 0) then
+      begin
+        outSepRect.Left := outTxtRect.Left + FSeparatorPadding;
+        outSepRect.Right := outSepRect.Left + SepW;
+        outTxtRect.Left := outSepRect.Right + FSeparatorPadding;
+      end;
+    end
+    else // ipsRight (Image on Right)
+    begin
+      outImgRect.Right := WorkArea.Right - FImageMargins.Right;
+      outImgRect.Left := outImgRect.Right - ImgW;
+      outTxtRect.Right := outImgRect.Left - FImageMargins.Left;
+
+      if FSeparatorVisible and (SepW > 0) then
+      begin
+        outSepRect.Right := outTxtRect.Right - FSeparatorPadding;
+        outSepRect.Left := outSepRect.Right - SepW;
+        outTxtRect.Right := outSepRect.Left - FSeparatorPadding;
+      end;
+    end;
+  end
+  else if FSeparatorVisible and (SepW > 0) then // No image, but Separator visible
+  begin
+    // Example: Separator on left if no image (can be configured later)
+    outSepRect.Left := WorkArea.Left + FSeparatorPadding;
+    outSepRect.Right := outSepRect.Left + SepW;
+    outTxtRect.Left := outSepRect.Right + FSeparatorPadding;
+  end;
+
+  // --- Vertical Layout ---
+  if FImageVisible and (ImgW > 0) then
+  begin
+    var AvailHForImgLayout: Integer;
+    AvailHForImgLayout := WorkArea.Height - FImageMargins.Top - FImageMargins.Bottom;
+    AvailHForImgLayout := Max(0, AvailHForImgLayout);
+
+    case FImageAlignment of
+      iavTop:    outImgRect.Top := WorkArea.Top + FImageMargins.Top;
+      iavCenter: outImgRect.Top := WorkArea.Top + FImageMargins.Top + (AvailHForImgLayout - ImgH) div 2;
+      iavBottom: outImgRect.Top := WorkArea.Bottom - FImageMargins.Bottom - ImgH;
+    end;
+    outImgRect.Bottom := outImgRect.Top + ImgH;
+
+    if outImgRect.Top < WorkArea.Top + FImageMargins.Top then
+       outImgRect.Top := WorkArea.Top + FImageMargins.Top;
+    if outImgRect.Bottom > WorkArea.Bottom - FImageMargins.Bottom then
+       outImgRect.Bottom := WorkArea.Bottom - FImageMargins.Bottom;
+    if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
+  end;
+
+  outTxtRect.Top := WorkArea.Top;
+  outTxtRect.Bottom := WorkArea.Bottom;
+  if FSeparatorVisible and (SepW > 0) then
+  begin
+    outSepRect.Top := WorkArea.Top;
+    outSepRect.Bottom := WorkArea.Bottom;
+  end;
+
+  // Final safety checks
+  if outTxtRect.Left < WorkArea.Left then outTxtRect.Left := WorkArea.Left;
+  if outTxtRect.Right > WorkArea.Right then outTxtRect.Right := WorkArea.Right;
+  if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left;
+
+  if outImgRect.Left < WorkArea.Left then outImgRect.Left := WorkArea.Left;
+  if outImgRect.Right > WorkArea.Right then outImgRect.Right := WorkArea.Right;
+  if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
+  
+  if outSepRect.Left < WorkArea.Left then outSepRect.Left := WorkArea.Left;
+  if outSepRect.Right > WorkArea.Right then outSepRect.Right := WorkArea.Right;
+  if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left;
+
+  if outTxtRect.Top < WorkArea.Top then outTxtRect.Top := WorkArea.Top;
+  if outTxtRect.Bottom > WorkArea.Bottom then outTxtRect.Bottom := WorkArea.Bottom;
+  if outTxtRect.Bottom < outTxtRect.Top then outTxtRect.Bottom := outTxtRect.Top;
+
+  if outImgRect.Top < WorkArea.Top then outImgRect.Top := WorkArea.Top;
+  if outImgRect.Bottom > WorkArea.Bottom then outImgRect.Bottom := WorkArea.Bottom;
+  if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
+
+  if outSepRect.Top < WorkArea.Top then outSepRect.Top := WorkArea.Top;
+  if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom;
+  if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
+end;
+
+procedure TANDMR_CEdit.SetImagePlacement(const Value: TImagePlacement);
+begin
+  if FImagePlacement <> Value then
+  begin
+    FImagePlacement := Value;
+    Invalidate; // Major layout change
+  end;
+end;
+
+procedure TANDMR_CEdit.SetImageDrawMode(const Value: TImageDrawMode);
+begin
+  if FImageDrawMode <> Value then
+  begin
+    FImageDrawMode := Value;
+    Invalidate; // Image drawing will change
+  end;
+end;
+
+procedure TANDMR_CEdit.SetSeparatorVisible(const Value: Boolean);
+begin
+  if FSeparatorVisible <> Value then
+  begin
+    FSeparatorVisible := Value;
+    Invalidate; // Layout and repaint needed
+  end;
+end;
+
+procedure TANDMR_CEdit.SetSeparatorColor(const Value: TColor);
+begin
+  if FSeparatorColor <> Value then
+  begin
+    FSeparatorColor := Value;
+    if FSeparatorVisible then Invalidate; // Repaint if separator is visible
+  end;
+end;
+
+procedure TANDMR_CEdit.SetSeparatorThickness(const Value: Integer);
+var
+  ValidThickness: Integer;
+begin
+  ValidThickness := Max(0, Value); // Ensure non-negative
+  if FSeparatorThickness <> ValidThickness then
+  begin
+    FSeparatorThickness := ValidThickness;
+    if FSeparatorVisible then Invalidate; // Layout and repaint if separator is visible
+  end;
+end;
+
+procedure TANDMR_CEdit.SetSeparatorPadding(const Value: Integer);
+var
+  ValidPadding: Integer;
+begin
+  ValidPadding := Max(0, Value); // Ensure non-negative
+  if FSeparatorPadding <> ValidPadding then
+  begin
+    FSeparatorPadding := ValidPadding;
+    if FSeparatorVisible then Invalidate; // Layout and repaint if separator is visible
+  end;
+end;
+
 procedure TANDMR_CEdit.SetImage(const Value: TPicture);
 begin
   FImage.Assign(Value); // TPicture.Assign handles nil and actual assignment
@@ -326,6 +534,15 @@ begin
   FImageMargins.Top := 2;
   FImageMargins.Right := 2;
   FImageMargins.Bottom := 2;
+
+  // Initialize new advanced image and separator fields
+  FImagePlacement := iplInsideBounds;     // Matches property default
+  FImageDrawMode := idmProportional;    // Matches property default
+
+  FSeparatorVisible := False;           // Matches property default
+  FSeparatorColor := clGrayText;        // Matches property default
+  FSeparatorThickness := 1;             // Matches property default
+  FSeparatorPadding := 2;               // Matches property default
 
   FCaretVisible := False;
   FCaretPosition := 0;
@@ -511,73 +728,23 @@ var
   LRadiusValue: Single;
   LBorderColorToUse: TColor;
   LBackgroundColorToUse: TColor;
-  DrawRect: TRect; // For text
+  // DrawRect: TRect; // Replaced by PaddedTextRect for text drawing
   TextToDisplay: string;
   TextFlags: Cardinal;
-  PaddingX: Integer; // This might be replaced or repurposed
+  // PaddingX: Integer; // No longer used directly here
 
-  ImageRect: TRect;
-  TextRect: TRect;
-  ActualImageWidth, ActualImageHeight: Integer;
-  AvailableContentHeight: Integer;
+  outImgRect, outTxtRect, outSepRect: TRect; // Output from CalculateLayout
+  // ActualImageWidth, ActualImageHeight: Integer; // Calculated within CalculateLayout if needed, or use FImage.Graphic
+  // AvailableContentHeight: Integer; // Calculated within CalculateLayout
+
+  // Variables for image drawing modes
+  DrawImageRect: TRect;
+  GraphicW, GraphicH: Integer;
+  rRatio, rRectRatio: Double;
+
 begin
-  // inherited Paint; // Call if needed, but usually not for full custom paint
-
-  // --- Calculate ImageRect and TextRect ---
-  TextRect := ClientRect; // Start with the whole client area
-  ImageRect := Rect(0,0,0,0); // Default empty image rect
-  ActualImageWidth := 0;
-  ActualImageHeight := 0;
-
-  if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
-  begin
-    ActualImageWidth := FImage.Graphic.Width;
-    ActualImageHeight := FImage.Graphic.Height;
-
-    if FImagePosition = ipsLeft then
-    begin
-      ImageRect.Left := ClientRect.Left + FBorderThickness + FImageMargins.Left;
-      ImageRect.Right := ImageRect.Left + ActualImageWidth;
-      TextRect.Left := ImageRect.Right + FImageMargins.Right;
-      TextRect.Right := ClientRect.Right - FBorderThickness;
-    end
-    else // ipsRight
-    begin
-      ImageRect.Right := ClientRect.Right - FBorderThickness - FImageMargins.Right;
-      ImageRect.Left := ImageRect.Right - ActualImageWidth;
-      TextRect.Right := ImageRect.Left - FImageMargins.Left;
-      TextRect.Left := ClientRect.Left + FBorderThickness;
-    end;
-
-    AvailableContentHeight := ClientRect.Height - FBorderThickness * 2 - FImageMargins.Top - FImageMargins.Bottom;
-
-    case FImageAlignment of
-      iavTop:
-        ImageRect.Top := ClientRect.Top + FBorderThickness + FImageMargins.Top;
-      iavCenter:
-        ImageRect.Top := ClientRect.Top + FBorderThickness + FImageMargins.Top +
-                         (AvailableContentHeight - ActualImageHeight) div 2;
-      iavBottom:
-        ImageRect.Top := ClientRect.Bottom - FBorderThickness - FImageMargins.Bottom - ActualImageHeight;
-    end;
-    ImageRect.Bottom := ImageRect.Top + ActualImageHeight;
-
-    TextRect.Top := ClientRect.Top + FBorderThickness;
-    TextRect.Bottom := ClientRect.Bottom - FBorderThickness;
-
-    if TextRect.Right < TextRect.Left then TextRect.Right := TextRect.Left;
-    if TextRect.Bottom < TextRect.Top then TextRect.Bottom := TextRect.Top;
-    if ImageRect.Right < ImageRect.Left then ImageRect.Left := ImageRect.Right;
-    if ImageRect.Bottom < ImageRect.Top then ImageRect.Top := ImageRect.Bottom;
-  end
-  else // No image visible or assigned
-  begin
-    TextRect.Left := ClientRect.Left + FBorderThickness;
-    TextRect.Top := ClientRect.Top + FBorderThickness;
-    TextRect.Right := ClientRect.Right - FBorderThickness;
-    TextRect.Bottom := ClientRect.Bottom - FBorderThickness;
-  end;
-  // --- End Calculate ImageRect and TextRect ---
+  // Call CalculateLayout to get the rects
+  CalculateLayout(outImgRect, outTxtRect, outSepRect);
 
   Canvas.Lock; // Lock canvas for VCL drawing (text, caret)
   try
@@ -662,75 +829,189 @@ begin
         LPath.Free;
       end;
     finally
-      LG.Free;
-    end;
+      // LG.Free; // Moved to the outer try-finally block that wraps all GDI+ operations
+    // end; // Original end of GDI+ background/border try-finally block
 
-    // --- Draw Image ---
+    // --- Draw Image (GDI+ part for PNGs, must be within LG scope) ---
     if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
     begin
-      // Ensure ImageRect dimensions are positive before attempting to draw
-      if (ImageRect.Width > 0) and (ImageRect.Height > 0) then
+      if (outImgRect.Width > 0) and (outImgRect.Height > 0) then
       begin
-        if FImage.Graphic is TPNGImage then
-        begin
-          var PngImage: TPNGImage;
-          var PngStream: TMemoryStream;
-          var GpSourceBitmap: TGPBitmap;
-          var Adapter: IStream;
-          // Removed redundant inner begin/end block
-          PngImage := FImage.Graphic as TPNGImage;
-          PngStream := TMemoryStream.Create;
-          try
-            PngImage.SaveToStream(PngStream);
-            PngStream.Position := 0;
-            Adapter := TStreamAdapter.Create(PngStream, soReference);
-            GpSourceBitmap := TGPBitmap.Create(Adapter);
-            try
-              if (ImageRect.Width <> GpSourceBitmap.GetWidth()) or (ImageRect.Height <> GpSourceBitmap.GetHeight()) then
-                 LG.SetInterpolationMode(InterpolationModeHighQualityBicubic)
-              else
-                 LG.SetInterpolationMode(InterpolationModeDefault);
+        GraphicW := FImage.Graphic.Width;
+        GraphicH := FImage.Graphic.Height;
 
-              LG.DrawImage(GpSourceBitmap, ImageRect.Left, ImageRect.Top, ImageRect.Width, ImageRect.Height);
-            finally
-              GpSourceBitmap.Free;
-            end;
-          finally
-            PngStream.Free;
-          end;
-        end // This end now correctly closes the "if FImage.Graphic is TPNGImage then" block
-        else // For non-PNG images (TBitmap, TJPEGImage, etc.)
+        if (GraphicW > 0) and (GraphicH > 0) then
         begin
-          // Use VCL Canvas.StretchDraw for other types.
-          // This will be drawn on top of the GDI+ background.
-          Canvas.StretchDraw(ImageRect, FImage.Graphic);
+          case FImageDrawMode of
+            idmStretch: DrawImageRect := outImgRect;
+            idmProportional:
+              begin
+                rRatio := GraphicW / GraphicH;
+                if outImgRect.Height = 0 then rRectRatio := MaxDouble
+                else rRectRatio := outImgRect.Width / outImgRect.Height;
+                if rRectRatio > rRatio then
+                begin
+                  DrawImageRect.Height := outImgRect.Height;
+                  DrawImageRect.Width := Round(outImgRect.Height * rRatio);
+                end
+                else
+                begin
+                  DrawImageRect.Width := outImgRect.Width;
+                  if rRatio = 0 then DrawImageRect.Height := 0
+                  else DrawImageRect.Height := Round(outImgRect.Width / rRatio);
+                end;
+                DrawImageRect.Left := outImgRect.Left + (outImgRect.Width - DrawImageRect.Width) div 2;
+                DrawImageRect.Top := outImgRect.Top + (outImgRect.Height - DrawImageRect.Height) div 2;
+                DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+                DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+              end;
+            idmNormal:
+              begin
+                DrawImageRect.Width := GraphicW;
+                DrawImageRect.Height := GraphicH;
+                DrawImageRect.Left := outImgRect.Left + (outImgRect.Width - GraphicW) div 2;
+                DrawImageRect.Top := outImgRect.Top + (outImgRect.Height - GraphicH) div 2;
+                DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+                DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+              end;
+          else DrawImageRect := outImgRect; // Default to stretch
+          end;
+
+          if (DrawImageRect.Width > 0) and (DrawImageRect.Height > 0) then
+          begin
+            if FImage.Graphic is TPNGImage then // PNG drawing uses LG
+            begin
+              var PngImage: TPNGImage;
+              var PngStream: TMemoryStream;
+              var GpSourceBitmap: TGPBitmap;
+              var Adapter: IStream;
+              PngImage := FImage.Graphic as TPNGImage;
+              PngStream := TMemoryStream.Create;
+              try
+                PngImage.SaveToStream(PngStream);
+                PngStream.Position := 0;
+                Adapter := TStreamAdapter.Create(PngStream, soReference);
+                GpSourceBitmap := TGPBitmap.Create(Adapter);
+                try
+                  if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then
+                     LG.SetInterpolationMode(InterpolationModeHighQualityBicubic)
+                  else
+                     LG.SetInterpolationMode(InterpolationModeDefault);
+                  LG.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height);
+                finally
+                  GpSourceBitmap.Free;
+                end;
+              finally
+                PngStream.Free;
+              end;
+            end;
+            // Non-PNG image drawing will be handled after LG is freed, using VCL Canvas
+          end;
         end;
       end;
     end;
 
-    // --- VCL Canvas drawing for Text and Caret ---
-    // PaddingX variable is no longer used for this calculation directly.
-    // TextRect is the available area for text, including its own padding.
+  finally // This finally is for the LG instance
+    if Assigned(LG) then LG.Free;
+  end; // End of GDI+ operations scope (LG.Free)
 
+  // --- VCL Canvas Drawing Section (Non-PNG Image, Separator, Text, Caret) ---
+
+  // Draw Non-PNG Image (if applicable and not drawn by GDI+)
+  if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
+  begin
+    if not (FImage.Graphic is TPNGImage) then // Only if not already drawn as PNG
+    begin
+      if (outImgRect.Width > 0) and (outImgRect.Height > 0) then // Re-check outImgRect for context
+      begin
+        GraphicW := FImage.Graphic.Width; // Recalculate GraphicW/H if needed, or use from above if safe
+        GraphicH := FImage.Graphic.Height;
+        if (GraphicW > 0) and (GraphicH > 0) then
+        begin
+          // Recalculate DrawImageRect for non-PNG, similar to above
+          // This re-calculation is necessary as DrawImageRect might not be in scope here
+          // or to ensure clarity. For simplicity, we repeat the case logic.
+          var VCLDrawImageRect: TRect; // Use a new variable for VCL drawing rect
+          case FImageDrawMode of
+            idmStretch: VCLDrawImageRect := outImgRect;
+            idmProportional:
+              begin
+                rRatio := GraphicW / GraphicH;
+                if outImgRect.Height = 0 then rRectRatio := MaxDouble
+                else rRectRatio := outImgRect.Width / outImgRect.Height;
+                if rRectRatio > rRatio then
+                begin
+                  VCLDrawImageRect.Height := outImgRect.Height;
+                  VCLDrawImageRect.Width := Round(outImgRect.Height * rRatio);
+                end
+                else
+                begin
+                  VCLDrawImageRect.Width := outImgRect.Width;
+                  if rRatio = 0 then VCLDrawImageRect.Height := 0
+                  else VCLDrawImageRect.Height := Round(outImgRect.Width / rRatio);
+                end;
+                VCLDrawImageRect.Left := outImgRect.Left + (outImgRect.Width - VCLDrawImageRect.Width) div 2;
+                VCLDrawImageRect.Top := outImgRect.Top + (outImgRect.Height - VCLDrawImageRect.Height) div 2;
+                VCLDrawImageRect.Right := VCLDrawImageRect.Left + VCLDrawImageRect.Width;
+                VCLDrawImageRect.Bottom := VCLDrawImageRect.Top + VCLDrawImageRect.Height;
+              end;
+            idmNormal:
+              begin
+                VCLDrawImageRect.Width := GraphicW;
+                VCLDrawImageRect.Height := GraphicH;
+                VCLDrawImageRect.Left := outImgRect.Left + (outImgRect.Width - GraphicW) div 2;
+                VCLDrawImageRect.Top := outImgRect.Top + (outImgRect.Height - GraphicH) div 2;
+                VCLDrawImageRect.Right := VCLDrawImageRect.Left + VCLDrawImageRect.Width;
+                VCLDrawImageRect.Bottom := VCLDrawImageRect.Top + VCLDrawImageRect.Height;
+              end;
+          else VCLDrawImageRect := outImgRect; // Default
+          end;
+
+          if (VCLDrawImageRect.Width > 0) and (VCLDrawImageRect.Height > 0) then
+          begin
+            if FImageDrawMode = idmNormal then
+               Canvas.Draw(VCLDrawImageRect.Left, VCLDrawImageRect.Top, FImage.Graphic)
+            else // idmStretch, idmProportional
+               Canvas.StretchDraw(VCLDrawImageRect, FImage.Graphic);
+          end;
+        end;
+      end;
+    end;
+  end;
+
+  // --- Draw Separator ---
+    if FSeparatorVisible and (FSeparatorThickness > 0) and (outSepRect.Width > 0) and (outSepRect.Height > 0) then
+    begin
+      // The separator line is drawn in the middle of outSepRect horizontally
+      var LineX: Integer;
+      LineX := outSepRect.Left + outSepRect.Width div 2;
+
+      Canvas.Pen.Color := FSeparatorColor;
+      Canvas.Pen.Width := FSeparatorThickness;
+      Canvas.Pen.Style := psSolid; // Or make this a property later FSeparatorStyle
+
+      Canvas.MoveTo(LineX, outSepRect.Top);
+      Canvas.LineTo(LineX, outSepRect.Bottom);
+    end;
+
+    // --- VCL Canvas drawing for Text and Caret ---
     Canvas.Font.Assign(Self.Font);
-    Canvas.Brush.Style := bsClear; // Text background is transparent
+    Canvas.Brush.Style := bsClear;
 
     var
-      PaddedTextRect: TRect; // New variable for clarity
+      PaddedTextRect: TRect;
       InternalTextPaddingX: Integer;
       InternalTextPaddingY: Integer;
 
-    InternalTextPaddingX := 4; // Example horizontal padding
-    InternalTextPaddingY := 2; // Example vertical padding
+    InternalTextPaddingX := 4;
+    InternalTextPaddingY := 2;
 
-    PaddedTextRect := TextRect; // Start with the calculated TextRect
-    // Apply internal padding *within* TextRect
-    PaddedTextRect.Left := TextRect.Left + InternalTextPaddingX;
-    PaddedTextRect.Top := TextRect.Top + InternalTextPaddingY;
-    PaddedTextRect.Right := TextRect.Right - InternalTextPaddingX;
-    PaddedTextRect.Bottom := TextRect.Bottom - InternalTextPaddingY;
+    PaddedTextRect := outTxtRect; // Use outTxtRect from CalculateLayout
+    PaddedTextRect.Left := outTxtRect.Left + InternalTextPaddingX;
+    PaddedTextRect.Top := outTxtRect.Top + InternalTextPaddingY;
+    PaddedTextRect.Right := outTxtRect.Right - InternalTextPaddingX;
+    PaddedTextRect.Bottom := outTxtRect.Bottom - InternalTextPaddingY;
 
-    // Ensure padded rect is not inverted
     if PaddedTextRect.Right < PaddedTextRect.Left then PaddedTextRect.Right := PaddedTextRect.Left;
     if PaddedTextRect.Bottom < PaddedTextRect.Top then PaddedTextRect.Bottom := PaddedTextRect.Top;
 
@@ -961,16 +1242,32 @@ end;
 procedure TANDMR_CEdit.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   I: Integer;
-  ClickX_RelativeToPaddedText: Integer; // Renamed for clarity
+  ClickX_RelativeToPaddedText: Integer;
   CurrentWidth: Integer;
   CharWidth: Integer;
   TextToMeasure: string;
-  LocalTextRect: TRect;
-  PaddedLocalTextRect: TRect;
-  ActualImageW: Integer;
-  InternalTextPaddingX_Mouse: Integer;
+  LayoutImgRect, LayoutTxtRect, LayoutSepRect: TRect; // To store results from CalculateLayout
+  PaddedTextClickArea: TRect; // The actual clickable area for text
+  InternalTextPaddingX_Mouse, InternalTextPaddingY_Mouse: Integer;
 begin
   inherited MouseDown(Button, Shift, X, Y);
+
+  Self.CalculateLayout(LayoutImgRect, LayoutTxtRect, LayoutSepRect); // Get current layout
+
+  // Define internal padding (must match Paint's PaddedTextRect calculation)
+  InternalTextPaddingX_Mouse := 4; // Matches Paint's InternalTextPaddingX
+  InternalTextPaddingY_Mouse := 2; // Matches Paint's InternalTextPaddingY
+
+  // Calculate the actual clickable area for text based on LayoutTxtRect and padding
+  PaddedTextClickArea := LayoutTxtRect;
+  PaddedTextClickArea.Left := LayoutTxtRect.Left + InternalTextPaddingX_Mouse;
+  PaddedTextClickArea.Top := LayoutTxtRect.Top + InternalTextPaddingY_Mouse;
+  PaddedTextClickArea.Right := LayoutTxtRect.Right - InternalTextPaddingX_Mouse;
+  PaddedTextClickArea.Bottom := LayoutTxtRect.Bottom - InternalTextPaddingY_Mouse;
+
+  // Ensure padded rect is not inverted
+  if PaddedTextClickArea.Right < PaddedTextClickArea.Left then PaddedTextClickArea.Right := PaddedTextClickArea.Left;
+  if PaddedTextClickArea.Bottom < PaddedTextClickArea.Top then PaddedTextClickArea.Bottom := PaddedTextClickArea.Top;
 
   if Button = mbLeft then
   begin
@@ -986,73 +1283,56 @@ begin
     else
       Exit;
 
-    // --- Simplified Recalculation of TextRect's X-bounds and Padded X-bounds for Click ---
-    InternalTextPaddingX_Mouse := 4; // Must match Paint's InternalTextPaddingX
-
-    LocalTextRect.Left := ClientRect.Left + FBorderThickness;
-    LocalTextRect.Right := ClientRect.Right - FBorderThickness;
-    // Vertical bounds (Top, Bottom) of LocalTextRect are not strictly needed for this X-based caret positioning,
-    // but a full PtInRect check would use them.
-
-    if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
+    // --- Caret positioning logic using PaddedTextClickArea ---
+    // Check if click is within the vertical bounds of the PaddedTextClickArea first
+    if not PtInRect(PaddedTextClickArea, Point(X,Y)) then
     begin
-      ActualImageW := FImage.Graphic.Width;
-      if FImagePosition = ipsLeft then
-      begin
-        LocalTextRect.Left := ClientRect.Left + FBorderThickness + FImageMargins.Left + ActualImageW + FImageMargins.Right;
-      end
-      else // ipsRight
-      begin
-        // If image is on the right, TextRect.Right is affected.
-        // TextRect.Left remains ClientRect.Left + FBorderThickness.
-        LocalTextRect.Right := ClientRect.Right - FBorderThickness - FImageMargins.Right - ActualImageW - FImageMargins.Left;
+      // Click is outside the padded text area vertically.
+      // Decide behavior: either do nothing, or set caret to beginning/end based on X.
+      // For simplicity, if Y is outside, but X is near, one might still want to set caret.
+      // Let's refine: if Y is outside, set to 0 if X is left, Length(FText) if X is right of overall TextRect.
+      if X < PaddedTextClickArea.Left then FCaretPosition := 0
+      else if X >= PaddedTextClickArea.Right then FCaretPosition := Length(FText)
+      else begin // Click X is within horizontal bounds, but Y is outside. Set to nearest end.
+        if Y < PaddedTextClickArea.Top then FCaretPosition := 0 // Or based on X proximity to start/end
+        else FCaretPosition := Length(FText); // Y is below
       end;
-    end;
-
-    PaddedLocalTextRect.Left := LocalTextRect.Left + InternalTextPaddingX_Mouse;
-    PaddedLocalTextRect.Right := LocalTextRect.Right - InternalTextPaddingX_Mouse;
-    // For Y check, PaddedLocalTextRect.Top/Bottom would be:
-    // PaddedLocalTextRect.Top := ClientRect.Top + FBorderThickness + InternalTextPaddingY_Mouse; (InternalTextPaddingY_Mouse = 2)
-    // PaddedLocalTextRect.Bottom := ClientRect.Bottom - FBorderThickness - InternalTextPaddingY_Mouse;
-
-    // --- End Simplified Recalculation ---
-
-    if X < PaddedLocalTextRect.Left then
-    begin
-      FCaretPosition := 0;
     end
-    else if X >= PaddedLocalTextRect.Right then // Use >= for right boundary
+    else if X < PaddedTextClickArea.Left then // X is to the left, Y is inside
     begin
-      FCaretPosition := Length(FText);
+        FCaretPosition := 0;
     end
-    else
+    else if X >= PaddedTextClickArea.Right then // X is to the right (or on edge), Y is inside
     begin
-      ClickX_RelativeToPaddedText := X - PaddedLocalTextRect.Left;
+        FCaretPosition := Length(FText);
+    end
+    else // Click is within the horizontal and vertical text area
+    begin
+        ClickX_RelativeToPaddedText := X - PaddedTextClickArea.Left;
 
-      if (FPasswordChar <> #0) and not (csDesigning in ComponentState) then
-        TextToMeasure := StringOfChar(FPasswordChar, Length(FText))
-      else
-        TextToMeasure := FText;
+        if (FPasswordChar <> #0) and not (csDesigning in ComponentState) then
+          TextToMeasure := StringOfChar(FPasswordChar, Length(FText))
+        else
+          TextToMeasure := FText;
 
-      Canvas.Font.Assign(Self.Font);
-      CurrentWidth := 0;
-      FCaretPosition := 0; // Default to beginning if no characters or calculation fails
+        Canvas.Font.Assign(Self.Font);
+        CurrentWidth := 0;
+        FCaretPosition := 0;
 
-      for I := 1 to Length(TextToMeasure) do
-      begin
-        CharWidth := Canvas.TextWidth(TextToMeasure[I]);
-        if ClickX_RelativeToPaddedText < (CurrentWidth + CharWidth div 2) then
+        for I := 1 to Length(TextToMeasure) do
         begin
-          FCaretPosition := I - 1;
-          Break;
+          CharWidth := Canvas.TextWidth(TextToMeasure[I]);
+          if ClickX_RelativeToPaddedText < (CurrentWidth + CharWidth div 2) then
+          begin
+            FCaretPosition := I - 1;
+            Break;
+          end;
+          CurrentWidth := CurrentWidth + CharWidth;
+          FCaretPosition := I;
         end;
-        CurrentWidth := CurrentWidth + CharWidth;
-        FCaretPosition := I;
-      end;
 
-      // If click is past the center of the last character, ensure caret is at the very end
-      if ClickX_RelativeToPaddedText >= CurrentWidth then
-          FCaretPosition := Length(TextToMeasure);
+        if ClickX_RelativeToPaddedText >= CurrentWidth then
+            FCaretPosition := Length(TextToMeasure);
     end;
     
     Invalidate;

@@ -204,42 +204,36 @@ end;
 function BlendColors(Color1, Color2: TColor; Factor: Single): TColor;
 var
   R1, G1, B1, R2, G2, B2, R, G, B: Byte;
-  IsTransparent1, IsTransparent2: Boolean;
-  Alpha1, Alpha2, BlendedAlpha: Byte; // Added for alpha blending consideration
 begin
   if Factor <= 0.0 then Exit(Color1);
   if Factor >= 1.0 then Exit(Color2);
 
-  // Basic check for clNone which doesn't have alpha in TAlphaColorRec sense
-  IsTransparent1 := (Color1 = clNone);
-  IsTransparent2 := (Color2 = clNone);
-  
-  // If using TAlphaColor, extract alpha, otherwise assume 255
-  if not IsTransparent1 then Alpha1 := TAlphaColorRec(Color1).Alpha else Alpha1 := 0;
-  if not IsTransparent2 then Alpha2 := TAlphaColorRec(Color2).Alpha else Alpha2 := 0;
+  // Simplified transparency handling for E1012 fix
+  if Color1 = clNone then
+  begin
+    // If Color1 is transparent, return Color2 as is.
+    // This includes Color2's original alpha if it's an TAlphaColor.
+    Exit(Color2);
+  end;
+  if Color2 = clNone then
+  begin
+    // If Color2 is transparent, return Color1 as is.
+    Exit(Color1);
+  end;
 
-
-  if IsTransparent1 and IsTransparent2 then Exit(clNone);
-  // If one is transparent, ideally we'd return the other color with adjusted alpha.
-  // For simplicity, if one is fully transparent (Alpha=0) and other is not, return non-transparent.
-  // This simplified version doesn't fully blend alpha if one color is clNone.
-  if IsTransparent1 then Exit(Color2); 
-  if IsTransparent2 then Exit(Color1);
-
-  Color1 := ColorToRGB(Color1); // Strip alpha for RGB components
-  Color2 := ColorToRGB(Color2);
-
-  R1 := GetRValue(Color1); G1 := GetGValue(Color1); B1 := GetBValue(Color1);
-  R2 := GetRValue(Color2); G2 := GetGValue(Color2); B2 := GetBValue(Color2);
+  // Proceed with RGB blending.
+  // ColorToRGB extracts pure RGB, effectively stripping any incoming alpha for these calculations.
+  R1 := GetRValue(ColorToRGB(Color1));
+  G1 := GetGValue(ColorToRGB(Color1));
+  B1 := GetBValue(ColorToRGB(Color1));
+  R2 := GetRValue(ColorToRGB(Color2));
+  G2 := GetGValue(ColorToRGB(Color2));
+  B2 := GetBValue(ColorToRGB(Color2));
 
   R := Round(R1 + (R2 - R1) * Factor);
   G := Round(G1 + (G2 - G1) * Factor);
   B := Round(B1 + (B2 - B1) * Factor);
-  
-  // Blend alpha values
-  BlendedAlpha := Round(Alpha1 + (Alpha2 - Alpha1) * Factor);
-  
-  Result := TColor(RGB(R, G, B)) or (BlendedAlpha shl 24); // Reconstruct with blended alpha
+  Result := RGB(R, G, B); // Result is an opaque TColor (alpha byte $00).
 end;
 
 end.

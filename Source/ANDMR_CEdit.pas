@@ -43,7 +43,75 @@ type
 
   TInputType = (itNormal, itLettersOnly, itNumbersOnly, itNoSpecialChars, itAlphaNumericOnly);
 
-  TTextCase = (tcNormal, tcUppercase, tcLowercase); // New Enum
+  TTextCase = (tcNormal, tcUppercase, tcLowercase);
+
+  TCaptionPosition = (cpAbove, cpBelow, cpLeft, cpRight);
+
+  TCaptionSettings = class(TPersistent)
+  private
+    FVisible: Boolean;
+    FText: string;
+    FPosition: TCaptionPosition;
+    FAlignment: TAlignment; // Vcl.Themes.TAlignment
+    FFont: TFont;
+    FColor: TColor;
+    FOffset: Integer;
+    FWordWrap: Boolean;
+    FOnChange: TNotifyEvent;
+    FOwnerControl: TWinControl; // To access parent font if needed
+    procedure SetVisible(const Value: Boolean);
+    procedure SetText(const Value: string);
+    procedure SetPosition(const Value: TCaptionPosition);
+    procedure SetAlignment(const Value: TAlignment);
+    procedure SetFont(const Value: TFont);
+    procedure SetColor(const Value: TColor);
+    procedure SetOffset(const Value: Integer);
+    procedure SetWordWrap(const Value: Boolean);
+    procedure FontChanged(Sender: TObject);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create(AOwner: TWinControl); // Changed AOwnerControl to AOwner
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property Text: string read FText write SetText;
+    property Position: TCaptionPosition read FPosition write SetPosition default cpAbove;
+    property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify;
+    property Font: TFont read FFont write SetFont;
+    property Color: TColor read FColor write SetColor default clWindowText; // Changed default
+    property Offset: Integer read FOffset write SetOffset default 2;
+    property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  THoverSettings = class(TPersistent)
+  private
+    FBackgroundColor: TColor;
+    FBorderColor: TColor;
+    FFontColor: TColor;
+    FCaptionFontColor: TColor;
+    FEnabled: Boolean;
+    FOnChange: TNotifyEvent;
+    procedure SetBackgroundColor(const Value: TColor);
+    procedure SetBorderColor(const Value: TColor);
+    procedure SetFontColor(const Value: TColor);
+    procedure SetCaptionFontColor(const Value: TColor);
+    procedure SetEnabled(const Value: Boolean);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Enabled: Boolean read FEnabled write SetEnabled default False;
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clInfoBk;
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clHighlight;
+    property FontColor: TColor read FFontColor write SetFontColor default clInfoText;
+    property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clInfoText;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
 
   TANDMR_CEdit = class(TCustomControl)
   private
@@ -87,9 +155,13 @@ type
     FCurrentCursor: TCursor;
     FInputType: TInputType;
     FTextCase: TTextCase;
-    FInputMask: string;      // New field for the mask pattern
-    FMaskedText: string;    // New field for text displayed to user (literals + input)
-    FRawText: string;       // New field for actual user input characters
+    FInputMask: string;
+    FMaskedText: string;
+    FRawText: string;
+    FCaptionSettings: TCaptionSettings;
+    FCaptionRect: TRect;
+    FHoverSettings: THoverSettings; // New Field
+    FHovered: Boolean;             // New Field
 
     procedure SetText(const Value: string);
     procedure SetMaxLength(const Value: Integer);
@@ -132,8 +204,14 @@ type
     procedure SetCurrentCursor(const Value: TCursor);
     procedure SetInputType(const Value: TInputType);
     procedure SetTextCase(const Value: TTextCase);
-    procedure SetInputMask(const Value: string); // New setter declaration
+    procedure SetInputMask(const Value: string);
+    procedure SetCaptionSettings(const Value: TCaptionSettings);
+    procedure CaptionSettingsChanged(Sender: TObject);
+    procedure SetHoverSettings(const Value: THoverSettings); // New Setter
+    procedure HoverSettingsChanged(Sender: TObject);        // New Method
 
+    procedure CMMouseEnter(var Message: TCMMouseEnter); message CM_MOUSEENTER; // Added message map
+    procedure CMMouseLeave(var Message: TCMMouseLeave); message CM_MOUSELEAVE; // Added message map
     procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
     procedure CMExit(var Message: TCMExit); message CM_EXIT;
 
@@ -215,7 +293,9 @@ type
     property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
     property InputType: TInputType read FInputType write SetInputType default itNormal;
     property TextCase: TTextCase read FTextCase write SetTextCase default tcNormal;
-    property InputMask: string read FInputMask write SetInputMask; // New property
+    property InputMask: string read FInputMask write SetInputMask;
+    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
+    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // New Property
   end;
 
 procedure Register;
@@ -230,6 +310,214 @@ begin
 end;
 
 // --- Helper Functions (ColorToARGB, CreateGPRoundedPath) ---
+
+{ TCaptionSettings }
+
+constructor TCaptionSettings.Create(AOwner: TWinControl);
+begin
+  inherited Create;
+  FOwnerControl := AOwner; // Store owner
+  FVisible := True;
+  FText := '';
+  FPosition := cpAbove;
+  FAlignment := taLeftJustify;
+  FFont := TFont.Create;
+  FFont.OnChange := FontChanged;
+  if Assigned(FOwnerControl) then // Initialize with owner's font if available
+    FFont.Assign(FOwnerControl.Font)
+  else // Otherwise, set a common default
+  begin
+    FFont.Name := 'Segoe UI';
+    FFont.Size := 9;
+  end;
+  FColor := clWindowText;
+  FOffset := 2;
+  FWordWrap := False;
+end;
+
+destructor TCaptionSettings.Destroy;
+begin
+  FFont.OnChange := nil; // Important before freeing
+  FFont.Free;
+  inherited Destroy;
+end;
+
+procedure TCaptionSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TCaptionSettings.Assign(Source: TPersistent);
+begin
+  if Source is TCaptionSettings then
+  begin
+    FVisible := TCaptionSettings(Source).FVisible;
+    FText := TCaptionSettings(Source).FText;
+    FPosition := TCaptionSettings(Source).FPosition;
+    FAlignment := TCaptionSettings(Source).FAlignment;
+    FFont.Assign(TCaptionSettings(Source).FFont); // Font assignment
+    FColor := TCaptionSettings(Source).FColor;
+    FOffset := TCaptionSettings(Source).FOffset;
+    FWordWrap := TCaptionSettings(Source).FWordWrap;
+    Changed; // Notify after assigning all
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TCaptionSettings.FontChanged(Sender: TObject);
+begin
+  Changed;
+end;
+
+procedure TCaptionSettings.SetVisible(const Value: Boolean);
+begin
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
+    Changed;
+  end;
+end;
+
+procedure TCaptionSettings.SetText(const Value: string);
+begin
+  if FText <> Value then
+  begin
+    FText := Value;
+    Changed;
+  end;
+end;
+
+procedure TCaptionSettings.SetPosition(const Value: TCaptionPosition);
+begin
+  if FPosition <> Value then
+  begin
+    FPosition := Value;
+    Changed;
+  end;
+end;
+
+procedure TCaptionSettings.SetAlignment(const Value: TAlignment);
+begin
+  if FAlignment <> Value then
+  begin
+    FAlignment := Value;
+    Changed;
+  end;
+end;
+
+procedure TCaptionSettings.SetFont(const Value: TFont);
+begin
+  FFont.Assign(Value); // Font.Assign will trigger its own OnChange if different
+  // No direct Changed call here as Font.OnChange handles it via FontChanged -> Changed
+end;
+
+procedure TCaptionSettings.SetColor(const Value: TColor);
+begin
+  if FColor <> Value then
+  begin
+    FColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TCaptionSettings.SetOffset(const Value: Integer);
+begin
+  if FOffset <> Value then
+  begin
+    FOffset := Value;
+    Changed;
+  end;
+end;
+
+procedure TCaptionSettings.SetWordWrap(const Value: Boolean);
+begin
+  if FWordWrap <> Value then
+  begin
+    FWordWrap := Value;
+    Changed;
+  end;
+end;
+
+{ THoverSettings }
+
+constructor THoverSettings.Create;
+begin
+  inherited Create;
+  FEnabled := False;
+  FBackgroundColor := clInfoBk; // Example default, can be clNone or other
+  FBorderColor := clHighlight; // Example default
+  FFontColor := clInfoText;     // Example default
+  FCaptionFontColor := clInfoText; // Example default
+end;
+
+procedure THoverSettings.Assign(Source: TPersistent);
+begin
+  if Source is THoverSettings then
+  begin
+    FEnabled := THoverSettings(Source).FEnabled;
+    FBackgroundColor := THoverSettings(Source).FBackgroundColor;
+    FBorderColor := THoverSettings(Source).FBorderColor;
+    FFontColor := THoverSettings(Source).FFontColor;
+    FCaptionFontColor := THoverSettings(Source).FCaptionFontColor;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure THoverSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure THoverSettings.SetEnabled(const Value: Boolean);
+begin
+  if FEnabled <> Value then
+  begin
+    FEnabled := Value;
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.SetBackgroundColor(const Value: TColor);
+begin
+  if FBackgroundColor <> Value then
+  begin
+    FBackgroundColor := Value;
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.SetBorderColor(const Value: TColor);
+begin
+  if FBorderColor <> Value then
+  begin
+    FBorderColor := Value;
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.SetFontColor(const Value: TColor);
+begin
+  if FFontColor <> Value then
+  begin
+    FFontColor := Value;
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.SetCaptionFontColor(const Value: TColor);
+begin
+  if FCaptionFontColor <> Value then
+  begin
+    FCaptionFontColor := Value;
+    Changed;
+  end;
+end;
+
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 var
   ColorRef: LongWord;
@@ -365,13 +653,82 @@ procedure TImageMarginsControl.SetRight(const Value: Integer); begin if FRight <
 procedure TImageMarginsControl.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
 
 { TANDMR_CEdit }
-procedure TANDMR_CEdit.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect); // Corrected signature
+procedure TANDMR_CEdit.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
 var
-  WorkArea: TRect; ImgW, ImgH, SepW: Integer;
-  CurrentX: Integer; 
-  CurrentX_End: Integer;
+  WorkArea: TRect; // This will become the area for the edit control itself
+  ImgW, ImgH, SepW: Integer;
+  CurrentX, CurrentX_End: Integer;
+  FullClientRect: TRect;
+  CaptionHeight, CaptionWidth: Integer;
+  TempCanvas: TCanvas; // For text size calculation
 begin
-  WorkArea := Self.ClientRect; InflateRect(WorkArea, -FBorderThickness, -FBorderThickness); // Available content area
+  FullClientRect := Self.ClientRect;
+  FCaptionRect := Rect(0,0,0,0); // Reset caption rect
+
+  if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') then
+  begin
+    TempCanvas := TCanvas.Create;
+    try
+      TempCanvas.Font.Assign(FCaptionSettings.Font);
+      // Calculate Caption Size (simplified, assuming single line for width if not wordwrap for height)
+      // For WordWrap, TextRect with DT_CALCRECT is better but more complex here.
+      // This is a basic estimation.
+      CaptionHeight := TempCanvas.TextHeight(FCaptionSettings.Text);
+      CaptionWidth := TempCanvas.TextWidth(FCaptionSettings.Text);
+      if FCaptionSettings.WordWrap and (FCaptionSettings.Position in [cpAbove, cpBelow]) then
+      begin
+         var TempRect := Rect(0,0, FullClientRect.Width, 30000); // Assume width of control, large height
+         DrawText(TempCanvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRect, DT_CALCRECT or DT_WORDBREAK);
+         CaptionHeight := TempRect.Bottom - TempRect.Top;
+         CaptionWidth := FullClientRect.Width; // Takes full width when above/below and wordwrap
+      end else if FCaptionSettings.WordWrap and (FCaptionSettings.Position in [cpLeft, cpRight]) then
+      begin
+         var TempRect := Rect(0,0, CaptionWidth, FullClientRect.Height); // Use calculated width, full height for wrap
+         DrawText(TempCanvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRect, DT_CALCRECT or DT_WORDBREAK);
+         CaptionWidth := TempRect.Right - TempRect.Left; // May change if text is very short
+         CaptionHeight := FullClientRect.Height;
+      end;
+
+
+    finally
+      TempCanvas.Free;
+    end;
+
+    WorkArea := FullClientRect; // Start with full area, then adjust for caption
+
+    case FCaptionSettings.Position of
+      cpAbove:
+        begin
+          FCaptionRect := Rect(FullClientRect.Left, FullClientRect.Top, FullClientRect.Right, FullClientRect.Top + CaptionHeight);
+          WorkArea.Top := FCaptionRect.Bottom + FCaptionSettings.Offset;
+        end;
+      cpBelow:
+        begin
+          FCaptionRect := Rect(FullClientRect.Left, FullClientRect.Bottom - CaptionHeight, FullClientRect.Right, FullClientRect.Bottom);
+          WorkArea.Bottom := FCaptionRect.Top - FCaptionSettings.Offset;
+        end;
+      cpLeft:
+        begin
+          FCaptionRect := Rect(FullClientRect.Left, FullClientRect.Top, FullClientRect.Left + CaptionWidth, FullClientRect.Bottom);
+          WorkArea.Left := FCaptionRect.Right + FCaptionSettings.Offset;
+        end;
+      cpRight:
+        begin
+          FCaptionRect := Rect(FullClientRect.Right - CaptionWidth, FullClientRect.Top, FullClientRect.Right, FullClientRect.Bottom);
+          WorkArea.Right := FCaptionRect.Left - FCaptionSettings.Offset;
+        end;
+    end;
+    // Ensure WorkArea (for edit control) is not inverted
+    if WorkArea.Bottom < WorkArea.Top then WorkArea.Bottom := WorkArea.Top;
+    if WorkArea.Right < WorkArea.Left then WorkArea.Right := WorkArea.Left;
+  end
+  else // No caption visible or text is empty
+  begin
+    WorkArea := FullClientRect; // Edit control uses the full client area
+  end;
+
+  // Existing layout logic now operates on 'WorkArea' instead of 'Self.ClientRect' directly
+  InflateRect(WorkArea, -FBorderThickness, -FBorderThickness); // Available content area for edit itself
   outImgRect := Rect(0,0,0,0); outSepRect := Rect(0,0,0,0); outTxtRect := WorkArea;
   ImgW := 0; ImgH := 0;
   if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
@@ -626,13 +983,21 @@ begin
   Self.Cursor := FCurrentCursor; // Set initial cursor
   FInputType := itNormal; // Initialize InputType
   FTextCase := tcNormal; // Initialize TextCase
-  FInputMask := '';      // Initialize InputMask
-  FMaskedText := '';   // Initialize FMaskedText
-  FRawText := '';        // Initialize FRawText
+  FInputMask := '';
+  FMaskedText := '';
+  FRawText := '';
+  FCaptionSettings := TCaptionSettings.Create(Self);
+  FCaptionSettings.OnChange := CaptionSettingsChanged;
+  FCaptionRect := Rect(0,0,0,0);
+  FHoverSettings := THoverSettings.Create; // Create HoverSettings
+  FHoverSettings.OnChange := HoverSettingsChanged; // Assign OnChange handler
+  FHovered := False; // Initialize FHovered
 end;
 
 destructor TANDMR_CEdit.Destroy;
 begin
+  FHoverSettings.Free; // Free HoverSettings
+  FCaptionSettings.Free;
   FCaretTimer.Free; if Assigned(FImage) then begin FImage.OnChange := nil; FImage.Free; end; FImageMargins.Free;
   inherited Destroy;
 end;
@@ -927,6 +1292,57 @@ begin
   end;
 end;
 
+procedure TANDMR_CEdit.SetCaptionSettings(const Value: TCaptionSettings);
+begin
+  FCaptionSettings.Assign(Value);
+  CaptionSettingsChanged(Self); // Trigger update
+end;
+
+procedure TANDMR_CEdit.CaptionSettingsChanged(Sender: TObject);
+begin
+  // This method is called when a property within FCaptionSettings changes.
+  // Need to recalculate layout and repaint.
+  // A more specific CalculateLayoutAndInvalidate could be:
+  // Self.CalculateLayout(FImgRect, FTxtRect, FSepRect); // Assuming CalculateLayout updates internal fields or similar
+  Invalidate; // For now, simple Invalidate. Layout recalculation will happen in Paint or a dedicated method.
+  // TODO: Ensure layout is recalculated before painting if caption affects it.
+  // For now, Paint will call CalculateLayout which should handle the new FCaptionRect
+end;
+
+procedure TANDMR_CEdit.SetHoverSettings(const Value: THoverSettings);
+begin
+  FHoverSettings.Assign(Value);
+  HoverSettingsChanged(Self); // Trigger update, typically Invalidate
+end;
+
+procedure TANDMR_CEdit.HoverSettingsChanged(Sender: TObject);
+begin
+  if FHovered or (not FHoverSettings.Enabled) then // Repaint if currently hovered or if hover effect is disabled (to revert)
+    Invalidate;
+end;
+
+procedure TANDMR_CEdit.CMMouseEnter(var Message: TCMMouseEnter);
+begin
+  inherited;
+  if not FHovered then
+  begin
+    FHovered := True;
+    if FHoverSettings.Enabled then
+      Invalidate;
+  end;
+end;
+
+procedure TANDMR_CEdit.CMMouseLeave(var Message: TCMMouseLeave);
+begin
+  inherited;
+  if FHovered then
+  begin
+    FHovered := False;
+    if FHoverSettings.Enabled then
+      Invalidate;
+  end;
+end;
+
 procedure TANDMR_CEdit.Paint;
 var
   LG: TGPGraphics;
@@ -946,71 +1362,107 @@ begin
   Canvas.Lock;
   try
     LG := TGPGraphics.Create(Canvas.Handle);
-    try // GDI+ operations block
+    try
       LG.SetSmoothingMode(SmoothingModeAntiAlias);
       LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-      // Determine colors
-      if csDesigning in ComponentState then
+      // --- Determine current state colors ---
+      var CurrentEditBGColor, CurrentEditBorderColor, CurrentEditTextColor, CurrentCaptionTextColor: TColor;
+
+      // 1. Start with base colors
+      CurrentEditBGColor := FInactiveColor; // Or clWindow as base for edit area
+      if FImagePlacement = iplInsideBounds then // If image is inside, the "edit box" is the whole thing
+          CurrentEditBGColor := FInactiveColor // This might be Self.Color if FInactiveColor is a specific state
+      else // Image outside, edit box has its own background
+          CurrentEditBGColor := clWindow; // A common default for the text entry part
+
+      CurrentEditBorderColor := FBorderColor;
+      CurrentEditTextColor := Self.Font.Color; // From component's Font property
+      CurrentCaptionTextColor := FCaptionSettings.Color;
+      if CurrentCaptionTextColor = clDefault then CurrentCaptionTextColor := Self.Font.Color;
+
+
+      // 2. Apply Hover Settings if enabled and hovered
+      if FHovered and FHoverSettings.Enabled then
       begin
-        EditBoxBGColor := clWhite;
-        OverallBGColor := clBtnFace; 
-      end
-      else
-      begin
-        // Apply FocusBackgroundColor if visible and focused
-        if Self.Focused and FFocusBackgroundColorVisible then
-          EditBoxBGColor := FFocusBackgroundColor
-        else
-          EditBoxBGColor := clWindow; // Default background color
-        OverallBGColor := Self.Color;
+        if FHoverSettings.BackgroundColor <> clNone then CurrentEditBGColor := FHoverSettings.BackgroundColor;
+        if FHoverSettings.BorderColor <> clNone then CurrentEditBorderColor := FHoverSettings.BorderColor;
+        if FHoverSettings.FontColor <> clNone then CurrentEditTextColor := FHoverSettings.FontColor;
+        if FHoverSettings.CaptionFontColor <> clNone then CurrentCaptionTextColor := FHoverSettings.CaptionFontColor;
       end;
 
-      // Apply FocusBorderColor if visible and focused
-      if Self.Focused and FFocusBorderColorVisible then
-        EditBoxBorderColor := FFocusBorderColor
-      else if Self.Focused then // Default focus border color if new one not visible
-        EditBoxBorderColor := FActiveColor
-      else
-        EditBoxBorderColor := FBorderColor; // Default non-focus border color
+      // 3. Apply Focus Settings (potentially override Hover, or combine)
+      if Self.Focused then
+      begin
+        if FFocusBorderColorVisible and (FFocusBorderColor <> clNone) then
+          CurrentEditBorderColor := FFocusBorderColor
+        else if not (FHovered and FHoverSettings.Enabled and (FHoverSettings.BorderColor <> clNone)) then // if not hover border
+          CurrentEditBorderColor := FActiveColor; // Default focus border
+
+        if FFocusBackgroundColorVisible and (FFocusBackgroundColor <> clNone) then
+          CurrentEditBGColor := FFocusBackgroundColor
+        else if not (FHovered and FHoverSettings.Enabled and (FHoverSettings.BackgroundColor <> clNone)) then // if not hover bg
+        begin
+            if FImagePlacement = iplInsideBounds then CurrentEditBGColor := clWindow // Or a specific focus background
+            else CurrentEditBGColor := clWindow; // For the text entry part when image is outside
+        end;
+        // EditTextColor and CaptionTextColor could also have focused states if desired
+      end;
+
+      // --- Painting ---
+      // 1. Paint component's main background (covers entire ClientRect)
+      if FOpacity = 255 then
+      begin
+        Canvas.Brush.Color := Self.Color; // Base color of the control
+        Canvas.FillRect(Self.ClientRect);
+      end; // If FOpacity < 255, parent's background shows through.
+
+      // RectToDrawEditBoxIn: This is the area for the actual edit box part,
+      // EXCLUDING the caption if image is iplOutsideBounds.
+      // If image is iplInsideBounds, this is effectively the whole component area (minus caption).
+      // This needs to be carefully determined based on CalculateLayout's outputs (txtR mainly for edit box part)
+      // For iplInsideBounds, RectToDrawEditBoxIn might be ClientRect adjusted for caption.
+      // For iplOutsideBounds, RectToDrawEditBoxIn is txtR (the edit field part).
+
+      var EditBoxAreaToDrawIn: TRect; // The rectangle for DrawEditBox call
+      var BackgroundForEditBoxItself: TColor; // The BG color passed to DrawEditBox
 
       if FImagePlacement = iplInsideBounds then
       begin
-        RectToDrawEditBoxIn := ClientRect;
-        var CompBGColorWhenInside: TColor;
-        if csDesigning in ComponentState then CompBGColorWhenInside := clWhite
-        else if Self.Focused and FFocusBackgroundColorVisible then CompBGColorWhenInside := FFocusBackgroundColor
-        else if Self.Focused then CompBGColorWhenInside := clWindow // Default focus if FFocusBackgroundColorVisible is false
-        else CompBGColorWhenInside := FInactiveColor;
-
-        DrawEditBox(RectToDrawEditBoxIn, LG, CompBGColorWhenInside, EditBoxBorderColor);
-
+        // Edit box is the entire area adjusted for caption
+        EditBoxAreaToDrawIn := FullClientRect; // Start with the full client rect
+        if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') then
+        begin // Adjust EditBoxAreaToDrawIn for caption
+            case FCaptionSettings.Position of
+              cpAbove: EditBoxAreaToDrawIn.Top := FCaptionRect.Bottom + FCaptionSettings.Offset;
+              cpBelow: EditBoxAreaToDrawIn.Bottom := FCaptionRect.Top - FCaptionSettings.Offset;
+              cpLeft:  EditBoxAreaToDrawIn.Left := FCaptionRect.Right + FCaptionSettings.Offset;
+              cpRight: EditBoxAreaToDrawIn.Right := FCaptionRect.Left - FCaptionSettings.Offset;
+            end;
+        end;
+        BackgroundForEditBoxItself := CurrentEditBGColor; // This BG is for the entire component area under edit controls
+        DrawEditBox(EditBoxAreaToDrawIn, LG, BackgroundForEditBoxItself, CurrentEditBorderColor);
         if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
           Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
       end
-      else // iplOutsideBounds
+      else // iplOutsideBounds: Image is outside, text rect (txtR) is the edit box
       begin
-        if csDesigning in ComponentState then OverallBGColor := clBtnFace 
-        else OverallBGColor := Self.Color; 
-        
-        // Apply FOpacity to the overall background clear
-        LG.Clear(ColorToARGB(OverallBGColor, Self.FOpacity)); 
+         // OverallBGColor (for LG.Clear) should be Self.Color if painting the whole component background,
+         // or a specific color for the area *around* the edit box if that's different.
+         // The LG.Clear call was here: LG.Clear(ColorToARGB(OverallBGColor, Self.FOpacity));
+         // This needs to be handled by the initial fill if FOpacity = 255.
+         // If FOpacity < 255, the parent draws.
+         // So, no specific LG.Clear here if initial fill is done.
 
         if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
           Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
 
-        RectToDrawEditBoxIn := txtR;
-        // Determine background for edit box when image is outside
-        var EditBoxActualBGColor: TColor;
-        if csDesigning in ComponentState then EditBoxActualBGColor := clWhite
-        else if Self.Focused and FFocusBackgroundColorVisible then EditBoxActualBGColor := FFocusBackgroundColor
-        else if Self.Focused then EditBoxActualBGColor := clWindow // default focused if FFocusBackgroundColorVisible is false
-        else EditBoxActualBGColor := FInactiveColor; // default non-focused
-
-        DrawEditBox(RectToDrawEditBoxIn, LG, EditBoxActualBGColor, EditBoxBorderColor);
+        EditBoxAreaToDrawIn := txtR; // txtR is calculated by CalculateLayout to be the edit field
+        BackgroundForEditBoxItself := CurrentEditBGColor; // BG for the text entry field itself
+        DrawEditBox(EditBoxAreaToDrawIn, LG, BackgroundForEditBoxItself, CurrentEditBorderColor);
       end;
 
-      // Draw Focus Underline if visible and focused
+      // Draw Focus Underline (uses CurrentEditBorderColor or a specific FFocusUnderlineColor)
       if Self.Focused and FFocusUnderlineVisible and (FFocusUnderlineThickness > 0) then
       begin
         var UnderlineY: Integer;
@@ -1067,6 +1519,7 @@ begin
       TextToDisplay := FText;
 
     Canvas.Font.Assign(Self.Font);
+    Canvas.Font.Color := CurrentEditTextColor; // Apply determined font color
     Canvas.Brush.Style := bsClear;
     TextFlags := DT_LEFT or DT_VCENTER or DT_SINGLELINE or DT_NOPREFIX or DT_EDITCONTROL;
 
@@ -1091,6 +1544,48 @@ begin
       Canvas.MoveTo(CaretXBase + CaretXOffset, CaretTop);
       Canvas.LineTo(CaretXBase + CaretXOffset, CaretTop + CaretHeight);
     end;
+
+    // --- Draw Caption ---
+    if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') and (FCaptionRect.Width > 0) and (FCaptionRect.Height > 0) then
+    begin
+      Canvas.Font.Assign(FCaptionSettings.Font);
+      if FCaptionSettings.Color = clDefault then
+        Canvas.Font.Color := Self.Font.Color // Or a specific default caption text color
+      else
+        Canvas.Font.Color := FCaptionSettings.Color;
+      Canvas.Brush.Style := bsClear; // Transparent background for text
+
+      var CaptionDrawFlags: Cardinal;
+      CaptionDrawFlags := DT_NOPREFIX; // Basic flag
+
+      if FCaptionSettings.WordWrap then
+        CaptionDrawFlags := CaptionDrawFlags or DT_WORDBREAK;
+
+      // Horizontal Alignment for DrawText
+      // Note: DT_CENTER, DT_RIGHT for DrawText apply to single line or within each line of word-wrap.
+      // For true block alignment with TextRect, TAlignment is used directly.
+      case FCaptionSettings.Alignment of
+        taLeftJustify: CaptionDrawFlags := CaptionDrawFlags or DT_LEFT;
+        taCenter: CaptionDrawFlags := CaptionDrawFlags or DT_CENTER;
+        taRightJustify: CaptionDrawFlags := CaptionDrawFlags or DT_RIGHT;
+      end;
+      
+      // Vertical Alignment consideration for cpLeft/cpRight (simplified for DrawText)
+      // DT_VCENTER might be useful if drawing single line in a taller rect.
+      // For multi-line word-wrapped text, vertical centering is more complex with DrawText.
+      // TextRect handles this better.
+      if FCaptionSettings.Position in [cpLeft, cpRight] then
+         CaptionDrawFlags := CaptionDrawFlags or DT_VCENTER or DT_SINGLELINE; // If not word wrapping
+      else if not FCaptionSettings.WordWrap then // For cpAbove, cpBelow if not word wrapping
+         CaptionDrawFlags := CaptionDrawFlags or DT_VCENTER; // Center vertically if single line
+
+      // Create a mutable copy of FCaptionRect for DrawText if needed
+      var TempCaptionDrawRect := FCaptionRect;
+      Canvas.Font.Assign(FCaptionSettings.Font); // Set font for caption
+      Canvas.Font.Color := CurrentCaptionTextColor; // Apply determined caption font color
+      DrawText(Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempCaptionDrawRect, CaptionDrawFlags);
+    end;
+
   finally
     Canvas.Unlock;
   end;

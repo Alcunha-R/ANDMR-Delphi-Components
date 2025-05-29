@@ -119,6 +119,98 @@ begin
   RegisterComponents('ANDMR', [TANDMR_CEdit]);
 end;
 
+// --- Helper Functions (ColorToARGB, CreateGPRoundedPath) ---
+function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
+var
+  ColorRef: LongWord;
+begin
+  if AColor = clNone then
+  begin
+    Result := (Alpha shl 24); // Transparent black or just alpha
+    Exit;
+  end;
+  ColorRef := ColorToRGB(AColor); // Vcl.Graphics
+  Result := (Alpha shl 24) or
+            ((ColorRef and $000000FF) shl 16) or // B
+            (ColorRef and $0000FF00) or          // G
+            ((ColorRef and $00FF0000) shr 16);   // R
+end;
+
+procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
+const
+  MIN_RADIUS_FOR_PATH = 0.5; // Ensure this is Single if ARadiusValue is Single
+var
+  LRadius, LDiameter: Single;
+  RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
+begin
+  APath.Reset;
+
+  if (ARect.Width <= 0) or (ARect.Height <= 0) then
+  begin
+    Exit;
+  end;
+
+  LRadius := ARadiusValue;
+  // Ensure LRadius calculations use floating point numbers if ARect dimensions are floats
+  LRadius := Min(LRadius, Min(ARect.Width / 2.0, ARect.Height / 2.0));
+  LRadius := Max(0.0, LRadius); // Max with 0.0 for float comparison
+
+  LDiameter := LRadius * 2.0;
+
+  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) then
+  begin
+    APath.AddRectangle(ARect); // TGPGraphicsPath.AddRectangle takes TGPRectF
+    Exit;
+  end;
+
+  RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
+  RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
+  RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
+  RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
+
+  APath.StartFigure;
+
+  // Top-Left corner
+  if RoundTL then
+    APath.AddArc(ARect.X, ARect.Y, LDiameter, LDiameter, 180, 90)
+  else // Start with a line segment to the top-left corner
+    APath.AddLine(ARect.X, ARect.Y, ARect.X, ARect.Y);
+
+
+  // Top edge
+  APath.AddLine(ARect.X + IfThen(RoundTL, LRadius, 0.0), ARect.Y,
+                ARect.X + ARect.Width - IfThen(RoundTR, LRadius, 0.0), ARect.Y);
+
+  // Top-Right corner
+  if RoundTR then
+    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y, LDiameter, LDiameter, 270, 90)
+  else
+    APath.AddLine(ARect.X + ARect.Width, ARect.Y, ARect.X + ARect.Width, ARect.Y);
+
+  // Right edge
+  APath.AddLine(ARect.X + ARect.Width, ARect.Y + IfThen(RoundTR, LRadius, 0.0),
+                ARect.X + ARect.Width, ARect.Y + ARect.Height - IfThen(RoundBR, LRadius, 0.0));
+
+  // Bottom-Right corner
+  if RoundBR then
+    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
+  else
+    APath.AddLine(ARect.X + ARect.Width, ARect.Y + ARect.Height, ARect.X + ARect.Width, ARect.Y + ARect.Height);
+
+  // Bottom edge
+  APath.AddLine(ARect.X + ARect.Width - IfThen(RoundBR, LRadius, 0.0), ARect.Y + ARect.Height,
+                ARect.X + IfThen(RoundBL, LRadius, 0.0), ARect.Y + ARect.Height);
+
+  // Bottom-Left corner
+  if RoundBL then
+    APath.AddArc(ARect.X, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
+  else
+    APath.AddLine(ARect.X, ARect.Y + ARect.Height, ARect.X, ARect.Y + ARect.Height);
+
+  APath.CloseFigure; // This connects the last point to the first (Left edge implicitly handled)
+end;
+// --- End Helper Functions ---
+
 constructor TANDMR_CEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -345,12 +437,21 @@ begin
       LG.SetSmoothingMode(SmoothingModeAntiAlias);
       LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-      // Correctly initialize PathRectF as TGPRectF
+      // Correctly initialize PathRectF using record field assignment
       if FBorderThickness > 0 then
-        PathRectF := TGPRectF.Create(FBorderThickness / 2.0, FBorderThickness / 2.0,
-                                   Self.Width - FBorderThickness, Self.Height - FBorderThickness)
+      begin
+        PathRectF.X := FBorderThickness / 2.0;
+        PathRectF.Y := FBorderThickness / 2.0;
+        PathRectF.Width := Self.Width - FBorderThickness;
+        PathRectF.Height := Self.Height - FBorderThickness;
+      end
       else
-        PathRectF := TGPRectF.Create(0.0, 0.0, Self.Width, Self.Height);
+      begin
+        PathRectF.X := 0.0;
+        PathRectF.Y := 0.0;
+        PathRectF.Width := Self.Width;
+        PathRectF.Height := Self.Height;
+      end;
 
       PathRectF.Width := Max(0.0, PathRectF.Width); // Ensure non-negative float
       PathRectF.Height := Max(0.0, PathRectF.Height); // Ensure non-negative float
@@ -469,98 +570,6 @@ begin
   end;
 end;
 
-// --- Helper Functions (ColorToARGB, CreateGPRoundedPath) ---
-function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
-var
-  ColorRef: LongWord;
-begin
-  if AColor = clNone then
-  begin
-    Result := (Alpha shl 24); // Transparent black or just alpha
-    Exit;
-  end;
-  ColorRef := ColorToRGB(AColor); // Vcl.Graphics
-  Result := (Alpha shl 24) or
-            ((ColorRef and $000000FF) shl 16) or // B
-            (ColorRef and $0000FF00) or          // G
-            ((ColorRef and $00FF0000) shr 16);   // R
-end;
-
-procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-const
-  MIN_RADIUS_FOR_PATH = 0.5; // Ensure this is Single if ARadiusValue is Single
-var
-  LRadius, LDiameter: Single;
-  RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
-begin
-  APath.Reset;
-
-  if (ARect.Width <= 0) or (ARect.Height <= 0) then
-  begin
-    Exit;
-  end;
-
-  LRadius := ARadiusValue;
-  // Ensure LRadius calculations use floating point numbers if ARect dimensions are floats
-  LRadius := Min(LRadius, Min(ARect.Width / 2.0, ARect.Height / 2.0));
-  LRadius := Max(0.0, LRadius); // Max with 0.0 for float comparison
-
-  LDiameter := LRadius * 2.0;
-
-  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) then
-  begin
-    APath.AddRectangle(ARect); // TGPGraphicsPath.AddRectangle takes TGPRectF
-    Exit;
-  end;
-
-  RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
-  RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
-  RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
-  RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
-
-  APath.StartFigure;
-
-  // Top-Left corner
-  if RoundTL then
-    APath.AddArc(ARect.X, ARect.Y, LDiameter, LDiameter, 180, 90)
-  else // Start with a line segment to the top-left corner
-    APath.AddLine(ARect.X, ARect.Y, ARect.X, ARect.Y);
-
-
-  // Top edge
-  APath.AddLine(ARect.X + IfThen(RoundTL, LRadius, 0.0), ARect.Y,
-                ARect.X + ARect.Width - IfThen(RoundTR, LRadius, 0.0), ARect.Y);
-
-  // Top-Right corner
-  if RoundTR then
-    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y, LDiameter, LDiameter, 270, 90)
-  else
-    APath.AddLine(ARect.X + ARect.Width, ARect.Y, ARect.X + ARect.Width, ARect.Y);
-
-  // Right edge
-  APath.AddLine(ARect.X + ARect.Width, ARect.Y + IfThen(RoundTR, LRadius, 0.0),
-                ARect.X + ARect.Width, ARect.Y + ARect.Height - IfThen(RoundBR, LRadius, 0.0));
-
-  // Bottom-Right corner
-  if RoundBR then
-    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
-  else
-    APath.AddLine(ARect.X + ARect.Width, ARect.Y + ARect.Height, ARect.X + ARect.Width, ARect.Y + ARect.Height);
-
-  // Bottom edge
-  APath.AddLine(ARect.X + ARect.Width - IfThen(RoundBR, LRadius, 0.0), ARect.Y + ARect.Height,
-                ARect.X + IfThen(RoundBL, LRadius, 0.0), ARect.Y + ARect.Height);
-
-  // Bottom-Left corner
-  if RoundBL then
-    APath.AddArc(ARect.X, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
-  else
-    APath.AddLine(ARect.X, ARect.Y + ARect.Height, ARect.X, ARect.Y + ARect.Height);
-
-  APath.CloseFigure; // This connects the last point to the first (Left edge implicitly handled)
-end;
-// --- End Helper Functions ---
-
 procedure TANDMR_CEdit.CaretTimerTick(Sender: TObject);
 begin
   if Focused then // Only blink if focused
@@ -576,22 +585,23 @@ begin
   end;
 end;
 
-procedure TANDMR_CEdit.Enter;
+procedure TANDMR_CEdit.CMEnter(var Message: TCMEnter);
 begin
-  inherited Enter;
+  inherited; // Call inherited handler for CM_ENTER
   FCaretVisible := True;
   FCaretTimer.Enabled := True;
-  // FCaretPosition := Length(FText); // Optionally set caret to end, or preserve. Current SetText sets it.
-  if Assigned(FOnEnter) then FOnEnter(Self);
+  if Assigned(FOnEnter) then
+    FOnEnter(Self);
   Invalidate;
 end;
 
-procedure TANDMR_CEdit.Exit;
+procedure TANDMR_CEdit.CMExit(var Message: TCMExit);
 begin
-  inherited Exit;
+  inherited; // Call inherited handler for CM_EXIT
   FCaretVisible := False;
   FCaretTimer.Enabled := False;
-  if Assigned(FOnExit) then FOnExit(Self);
+  if Assigned(FOnExit) then
+    FOnExit(Self);
   Invalidate;
 end;
 

@@ -5,19 +5,33 @@ interface
 uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
-  Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX; // Added ActiveX for IStream
+  Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX;
 
 type
   TImagePositionSide = (ipsLeft, ipsRight);
   TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
   TImagePlacement = (iplInsideBounds, iplOutsideBounds);
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
+  TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
 
-  TImageMarginsControl = record
-    Left: Integer;
-    Top: Integer;
-    Right: Integer;
-    Bottom: Integer;
+  TImageMarginsControl = class(TPersistent)
+  private
+    FLeft, FTop, FRight, FBottom: Integer;
+    FOnChange: TNotifyEvent;
+    procedure SetLeft(const Value: Integer);
+    procedure SetTop(const Value: Integer);
+    procedure SetRight(const Value: Integer);
+    procedure SetBottom(const Value: Integer);
+    procedure Changed;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Left: Integer read FLeft write SetLeft default 2;
+    property Top: Integer read FTop write SetTop default 2;
+    property Right: Integer read FRight write SetRight default 2;
+    property Bottom: Integer read FBottom write SetBottom default 2;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
   TRoundCornerType = (
@@ -32,53 +46,28 @@ type
     FMaxLength: Integer;
     FPasswordChar: Char;
     FReadOnly: Boolean;
-    // Placeholders for future styling properties from CButton
     FCornerRadius: Integer;
-    FRoundCornerType: TRoundCornerType; // Requires TRoundCornerType definition
+    FRoundCornerType: TRoundCornerType;
     FActiveColor, FInactiveColor: TColor;
     FBorderColor: TColor;
     FBorderThickness: Integer;
     FBorderStyle: TPenStyle;
-    procedure SetBorderStyle(const Value: TPenStyle);
-
     FImage: TPicture;
     FImageVisible: Boolean;
     FImagePosition: TImagePositionSide;
     FImageAlignment: TImageAlignmentVertical;
     FImageMargins: TImageMarginsControl;
-    // Setter method declarations
-    procedure SetImage(const Value: TPicture);
-    procedure SetImageVisible(const Value: Boolean);
-    procedure SetImagePosition(const Value: TImagePositionSide);
-    procedure SetImageAlignment(const Value: TImageAlignmentVertical);
-    procedure SetImageMargins(const Value: TImageMarginsControl);
-    procedure ImageChanged(Sender: TObject); // OnChange handler for FImage
-
     FImagePlacement: TImagePlacement;
     FImageDrawMode: TImageDrawMode;
-
     FSeparatorVisible: Boolean;
     FSeparatorColor: TColor;
     FSeparatorThickness: Integer;
-    FSeparatorPadding: Integer; // Space on each side of the separator line
-
-    // Setter method declarations for new fields
-    procedure SetImagePlacement(const Value: TImagePlacement);
-    procedure SetImageDrawMode(const Value: TImageDrawMode);
-    procedure SetSeparatorVisible(const Value: Boolean);
-    procedure SetSeparatorColor(const Value: TColor);
-    procedure SetSeparatorThickness(const Value: Integer);
-    procedure SetSeparatorPadding(const Value: Integer);
-
+    FSeparatorPadding: Integer;
+    FSeparatorHeightMode: TSeparatorHeightMode;
+    FSeparatorCustomHeight: Integer;
     FCaretVisible: Boolean;
-    FCaretPosition: Integer; // Character index after which caret is shown
+    FCaretPosition: Integer;
     FCaretTimer: TTimer;
-    procedure CaretTimerTick(Sender: TObject);
-
-    // Event fields
-    FOnChange: TNotifyEvent;
-    FOnEnter: TNotifyEvent;
-    FOnExit: TNotifyEvent;
 
     procedure SetText(const Value: string);
     procedure SetMaxLength(const Value: Integer);
@@ -90,15 +79,33 @@ type
     procedure SetInactiveColor(const Value: TColor);
     procedure SetBorderColor(const Value: TColor);
     procedure SetBorderThickness(const Value: Integer);
+    procedure SetBorderStyle(const Value: TPenStyle);
+    procedure SetImage(const Value: TPicture);
+    procedure SetImageVisible(const Value: Boolean);
+    procedure SetImagePosition(const Value: TImagePositionSide);
+    procedure SetImageAlignment(const Value: TImageAlignmentVertical);
+    procedure SetImageMargins(const Value: TImageMarginsControl);
+    procedure ImageChanged(Sender: TObject);
+    procedure ImageMarginsChanged(Sender: TObject);
+    procedure SetImagePlacement(const Value: TImagePlacement);
+    procedure SetImageDrawMode(const Value: TImageDrawMode);
+    procedure SetSeparatorVisible(const Value: Boolean);
+    procedure SetSeparatorColor(const Value: TColor);
+    procedure SetSeparatorThickness(const Value: Integer);
+    procedure SetSeparatorPadding(const Value: Integer);
+    procedure SetSeparatorHeightMode(const Value: TSeparatorHeightMode);
+    procedure SetSeparatorCustomHeight(const Value: Integer);
+    procedure CaretTimerTick(Sender: TObject);
 
     procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
     procedure CMExit(var Message: TCMExit); message CM_EXIT;
 
   protected
-    procedure Paint; override;
-    // procedure Enter; override; // Removed
-    // procedure Exit; override; // Removed
     procedure CalculateLayout(out outImgRect, out outTxtRect, out outSepRect: TRect); virtual;
+    procedure DrawEditBox(const ADrawArea: TRect; AGraphics: TGPGraphics; ABackgroundColor: TColor; ABorderColor: TColor);
+    procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
+    procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+    procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
     procedure Paint; override;
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
     procedure KeyPress(var Key: Char); override;
@@ -114,16 +121,13 @@ type
     property MaxLength: Integer read FMaxLength write SetMaxLength default 0;
     property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
     property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
-
-    // Placeholder styling properties (setters to be implemented later)
     property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 8;
     property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight; // Color when focused
-    property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clBtnFace; // Background color
+    property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight;
+    property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clBtnFace;
     property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
     property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
-
     property Image: TPicture read FImage write SetImage;
     property ImageVisible: Boolean read FImageVisible write SetImageVisible default True;
     property ImagePosition: TImagePositionSide read FImagePosition write SetImagePosition default ipsLeft;
@@ -131,31 +135,27 @@ type
     property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins;
     property ImagePlacement: TImagePlacement read FImagePlacement write SetImagePlacement default iplInsideBounds;
     property ImageDrawMode: TImageDrawMode read FImageDrawMode write SetImageDrawMode default idmProportional;
-
     property SeparatorVisible: Boolean read FSeparatorVisible write SetSeparatorVisible default False;
     property SeparatorColor: TColor read FSeparatorColor write SetSeparatorColor default clGrayText;
     property SeparatorThickness: Integer read FSeparatorThickness write SetSeparatorThickness default 1;
     property SeparatorPadding: Integer read FSeparatorPadding write SetSeparatorPadding default 2;
+    property SeparatorHeightMode: TSeparatorHeightMode read FSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
+    property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0;
 
-    // Standard inherited properties that are relevant
     property Align;
     property Anchors;
     property Constraints;
     property Enabled;
-    property Font; // Will use inherited Font property
+    property Font;
     property ParentShowHint;
     property PopupMenu;
     property ShowHint;
     property TabOrder;
     property TabStop default True;
     property Visible;
-
-    // Events
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
     property OnEnter: TNotifyEvent read FOnEnter write FOnEnter;
     property OnExit: TNotifyEvent read FOnExit write FOnExit;
-
-    // Standard event handlers to publish
     property OnClick;
     property OnDblClick;
     property OnMouseDown;
@@ -182,886 +182,382 @@ var
 begin
   if AColor = clNone then
   begin
-    Result := (Alpha shl 24); // Transparent black or just alpha
+    Result := (Alpha shl 24);
     Exit;
   end;
-  ColorRef := ColorToRGB(AColor); // Vcl.Graphics
+  ColorRef := ColorToRGB(AColor);
   Result := (Alpha shl 24) or
-            ((ColorRef and $000000FF) shl 16) or // B
-            (ColorRef and $0000FF00) or          // G
-            ((ColorRef and $00FF0000) shr 16);   // R
+            ((ColorRef and $000000FF) shl 16) or
+            (ColorRef and $0000FF00) or
+            ((ColorRef and $00FF0000) shr 16);
 end;
 
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
 const
-  MIN_RADIUS_FOR_PATH = 0.5; // Ensure this is Single if ARadiusValue is Single
+  MIN_RADIUS_FOR_PATH = 0.5;
 var
   LRadius, LDiameter: Single;
   RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
 begin
   APath.Reset;
-
-  if (ARect.Width <= 0) or (ARect.Height <= 0) then
-  begin
-    Exit;
-  end;
-
+  if (ARect.Width <= 0) or (ARect.Height <= 0) then Exit;
   LRadius := ARadiusValue;
-  // Ensure LRadius calculations use floating point numbers if ARect dimensions are floats
   LRadius := Min(LRadius, Min(ARect.Width / 2.0, ARect.Height / 2.0));
-  LRadius := Max(0.0, LRadius); // Max with 0.0 for float comparison
-
+  LRadius := Max(0.0, LRadius);
   LDiameter := LRadius * 2.0;
-
   if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) then
   begin
-    APath.AddRectangle(ARect); // TGPGraphicsPath.AddRectangle takes TGPRectF
+    APath.AddRectangle(ARect);
     Exit;
   end;
-
   RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
   RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
   RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
   RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
-
   APath.StartFigure;
-
-  // Top-Left corner
-  if RoundTL then
-    APath.AddArc(ARect.X, ARect.Y, LDiameter, LDiameter, 180, 90)
-  else // Start with a line segment to the top-left corner
-    APath.AddLine(ARect.X, ARect.Y, ARect.X, ARect.Y);
-
-
-  // Top edge
-  APath.AddLine(ARect.X + IfThen(RoundTL, LRadius, 0.0), ARect.Y,
-                ARect.X + ARect.Width - IfThen(RoundTR, LRadius, 0.0), ARect.Y);
-
-  // Top-Right corner
-  if RoundTR then
-    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y, LDiameter, LDiameter, 270, 90)
-  else
-    APath.AddLine(ARect.X + ARect.Width, ARect.Y, ARect.X + ARect.Width, ARect.Y);
-
-  // Right edge
-  APath.AddLine(ARect.X + ARect.Width, ARect.Y + IfThen(RoundTR, LRadius, 0.0),
-                ARect.X + ARect.Width, ARect.Y + ARect.Height - IfThen(RoundBR, LRadius, 0.0));
-
-  // Bottom-Right corner
-  if RoundBR then
-    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
-  else
-    APath.AddLine(ARect.X + ARect.Width, ARect.Y + ARect.Height, ARect.X + ARect.Width, ARect.Y + ARect.Height);
-
-  // Bottom edge
-  APath.AddLine(ARect.X + ARect.Width - IfThen(RoundBR, LRadius, 0.0), ARect.Y + ARect.Height,
-                ARect.X + IfThen(RoundBL, LRadius, 0.0), ARect.Y + ARect.Height);
-
-  // Bottom-Left corner
-  if RoundBL then
-    APath.AddArc(ARect.X, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
-  else
-    APath.AddLine(ARect.X, ARect.Y + ARect.Height, ARect.X, ARect.Y + ARect.Height);
-
-  APath.CloseFigure; // This connects the last point to the first (Left edge implicitly handled)
+  if RoundTL then APath.AddArc(ARect.X, ARect.Y, LDiameter, LDiameter, 180, 90)
+  else APath.AddLine(ARect.X, ARect.Y, ARect.X, ARect.Y);
+  APath.AddLine(ARect.X + IfThen(RoundTL, LRadius, 0.0), ARect.Y, ARect.X + ARect.Width - IfThen(RoundTR, LRadius, 0.0), ARect.Y);
+  if RoundTR then APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y, LDiameter, LDiameter, 270, 90)
+  else APath.AddLine(ARect.X + ARect.Width, ARect.Y, ARect.X + ARect.Width, ARect.Y);
+  APath.AddLine(ARect.X + ARect.Width, ARect.Y + IfThen(RoundTR, LRadius, 0.0), ARect.X + ARect.Width, ARect.Y + ARect.Height - IfThen(RoundBR, LRadius, 0.0));
+  if RoundBR then APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
+  else APath.AddLine(ARect.X + ARect.Width, ARect.Y + ARect.Height, ARect.X + ARect.Width, ARect.Y + ARect.Height);
+  APath.AddLine(ARect.X + ARect.Width - IfThen(RoundBR, LRadius, 0.0), ARect.Y + ARect.Height, ARect.X + IfThen(RoundBL, LRadius, 0.0), ARect.Y + ARect.Height);
+  if RoundBL then APath.AddArc(ARect.X, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
+  else APath.AddLine(ARect.X, ARect.Y + ARect.Height, ARect.X, ARect.Y + ARect.Height);
+  APath.CloseFigure;
 end;
-// --- End Helper Functions ---
 
+{ TImageMarginsControl }
+constructor TImageMarginsControl.Create;
+begin
+  inherited Create;
+  FLeft := 2; FTop := 2; FRight := 2; FBottom := 2;
+end;
+
+procedure TImageMarginsControl.Assign(Source: TPersistent);
+begin
+  if Source is TImageMarginsControl then
+  begin
+    Self.FLeft := TImageMarginsControl(Source).FLeft;
+    Self.FTop := TImageMarginsControl(Source).FTop;
+    Self.FRight := TImageMarginsControl(Source).FRight;
+    Self.FBottom := TImageMarginsControl(Source).FBottom;
+  end else inherited Assign(Source);
+end;
+
+procedure TImageMarginsControl.Changed;
+begin
+  if Assigned(FOnChange) then FOnChange(Self);
+end;
+
+procedure TImageMarginsControl.SetLeft(const Value: Integer); begin if FLeft <> Value then begin FLeft := Value; Changed; end; end;
+procedure TImageMarginsControl.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
+procedure TImageMarginsControl.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
+procedure TImageMarginsControl.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
+
+{ TANDMR_CEdit }
 procedure TANDMR_CEdit.CalculateLayout(out outImgRect, out outTxtRect, out outSepRect: TRect);
 var
-  WorkArea: TRect; // Area inside component borders
-  ImgW, ImgH, SepW: Integer;
+  WorkArea: TRect; ImgW, ImgH, SepW: Integer;
 begin
-  WorkArea := Self.ClientRect;
-  InflateRect(WorkArea, -FBorderThickness, -FBorderThickness); // Available content area
-
-  // Initialize output rects
-  outImgRect := Rect(0,0,0,0);
-  outSepRect := Rect(0,0,0,0);
-  outTxtRect := WorkArea; // Text initially gets the whole content area
-
-  // Get raw image dimensions
+  WorkArea := Self.ClientRect; InflateRect(WorkArea, -FBorderThickness, -FBorderThickness);
+  outImgRect := Rect(0,0,0,0); outSepRect := Rect(0,0,0,0); outTxtRect := WorkArea;
   ImgW := 0; ImgH := 0;
   if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
-  begin
-    ImgW := FImage.Graphic.Width;
-    ImgH := FImage.Graphic.Height;
-  end;
-
-  // Get raw separator width
+  begin ImgW := FImage.Graphic.Width; ImgH := FImage.Graphic.Height; end;
   SepW := 0;
-  if FSeparatorVisible and (FSeparatorThickness > 0) then
-  begin
-    SepW := FSeparatorThickness;
-  end;
-
-  // --- Horizontal Layout ---
+  if FSeparatorVisible and (FSeparatorThickness > 0) then SepW := FSeparatorThickness;
   if FImageVisible and (ImgW > 0) then
   begin
     if FImagePosition = ipsLeft then
     begin
-      outImgRect.Left := WorkArea.Left + FImageMargins.Left;
-      outImgRect.Right := outImgRect.Left + ImgW;
+      outImgRect.Left := WorkArea.Left + FImageMargins.Left; outImgRect.Right := outImgRect.Left + ImgW;
       outTxtRect.Left := outImgRect.Right + FImageMargins.Right;
-
       if FSeparatorVisible and (SepW > 0) then
-      begin
-        outSepRect.Left := outTxtRect.Left + FSeparatorPadding;
-        outSepRect.Right := outSepRect.Left + SepW;
-        outTxtRect.Left := outSepRect.Right + FSeparatorPadding;
-      end;
-    end
-    else // ipsRight (Image on Right)
-    begin
-      outImgRect.Right := WorkArea.Right - FImageMargins.Right;
-      outImgRect.Left := outImgRect.Right - ImgW;
+      begin outSepRect.Left := outTxtRect.Left + FSeparatorPadding; outSepRect.Right := outSepRect.Left + SepW; outTxtRect.Left := outSepRect.Right + FSeparatorPadding; end;
+    end else begin
+      outImgRect.Right := WorkArea.Right - FImageMargins.Right; outImgRect.Left := outImgRect.Right - ImgW;
       outTxtRect.Right := outImgRect.Left - FImageMargins.Left;
-
       if FSeparatorVisible and (SepW > 0) then
-      begin
-        outSepRect.Right := outTxtRect.Right - FSeparatorPadding;
-        outSepRect.Left := outSepRect.Right - SepW;
-        outTxtRect.Right := outSepRect.Left - FSeparatorPadding;
-      end;
+      begin outSepRect.Right := outTxtRect.Right - FSeparatorPadding; outSepRect.Left := outSepRect.Right - SepW; outTxtRect.Right := outSepRect.Left - FSeparatorPadding; end;
     end;
-  end
-  else if FSeparatorVisible and (SepW > 0) then // No image, but Separator visible
-  begin
-    // Example: Separator on left if no image (can be configured later)
-    outSepRect.Left := WorkArea.Left + FSeparatorPadding;
-    outSepRect.Right := outSepRect.Left + SepW;
-    outTxtRect.Left := outSepRect.Right + FSeparatorPadding;
-  end;
-
-  // --- Vertical Layout ---
+  end else if FSeparatorVisible and (SepW > 0) then
+  begin outSepRect.Left := WorkArea.Left + FSeparatorPadding; outSepRect.Right := outSepRect.Left + SepW; outTxtRect.Left := outSepRect.Right + FSeparatorPadding; end;
   if FImageVisible and (ImgW > 0) then
   begin
-    var AvailHForImgLayout: Integer;
-    AvailHForImgLayout := WorkArea.Height - FImageMargins.Top - FImageMargins.Bottom;
-    AvailHForImgLayout := Max(0, AvailHForImgLayout);
-
+    var AvailHForImgLayout: Integer; AvailHForImgLayout := WorkArea.Height - FImageMargins.Top - FImageMargins.Bottom; AvailHForImgLayout := Max(0, AvailHForImgLayout);
     case FImageAlignment of
       iavTop:    outImgRect.Top := WorkArea.Top + FImageMargins.Top;
       iavCenter: outImgRect.Top := WorkArea.Top + FImageMargins.Top + (AvailHForImgLayout - ImgH) div 2;
       iavBottom: outImgRect.Top := WorkArea.Bottom - FImageMargins.Bottom - ImgH;
     end;
     outImgRect.Bottom := outImgRect.Top + ImgH;
-
-    if outImgRect.Top < WorkArea.Top + FImageMargins.Top then
-       outImgRect.Top := WorkArea.Top + FImageMargins.Top;
-    if outImgRect.Bottom > WorkArea.Bottom - FImageMargins.Bottom then
-       outImgRect.Bottom := WorkArea.Bottom - FImageMargins.Bottom;
+    if outImgRect.Top < WorkArea.Top + FImageMargins.Top then outImgRect.Top := WorkArea.Top + FImageMargins.Top;
+    if outImgRect.Bottom > WorkArea.Bottom - FImageMargins.Bottom then outImgRect.Bottom := WorkArea.Bottom - FImageMargins.Bottom;
     if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
   end;
-
-  outTxtRect.Top := WorkArea.Top;
-  outTxtRect.Bottom := WorkArea.Bottom;
+  outTxtRect.Top := WorkArea.Top; outTxtRect.Bottom := WorkArea.Bottom;
   if FSeparatorVisible and (SepW > 0) then
   begin
-    outSepRect.Top := WorkArea.Top;
-    outSepRect.Bottom := WorkArea.Bottom;
+    var SepH: Integer; var RefTop, RefHeight: Integer; outSepRect.Top := WorkArea.Top; SepH := WorkArea.Height;
+    case FSeparatorHeightMode of
+      shmFull: begin end;
+      shmAsText: begin RefTop := outTxtRect.Top; RefHeight := outTxtRect.Height; SepH := RefHeight; outSepRect.Top := RefTop; end;
+      shmAsImage: if FImageVisible and (ImgW > 0) and (outImgRect.Height > 0) then begin RefTop := outImgRect.Top; RefHeight := outImgRect.Height; SepH := RefHeight; outSepRect.Top := RefTop; end;
+      shmCustom: begin if FSeparatorCustomHeight > 0 then SepH := FSeparatorCustomHeight else SepH := WorkArea.Height; outSepRect.Top := WorkArea.Top + (WorkArea.Height - SepH) div 2; end;
+    end;
+    outSepRect.Bottom := outSepRect.Top + SepH;
+    if outSepRect.Top < WorkArea.Top then outSepRect.Top := WorkArea.Top;
+    if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom;
+    if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
   end;
-
-  // Final safety checks
-  if outTxtRect.Left < WorkArea.Left then outTxtRect.Left := WorkArea.Left;
-  if outTxtRect.Right > WorkArea.Right then outTxtRect.Right := WorkArea.Right;
-  if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left;
-
-  if outImgRect.Left < WorkArea.Left then outImgRect.Left := WorkArea.Left;
-  if outImgRect.Right > WorkArea.Right then outImgRect.Right := WorkArea.Right;
-  if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
-  
-  if outSepRect.Left < WorkArea.Left then outSepRect.Left := WorkArea.Left;
-  if outSepRect.Right > WorkArea.Right then outSepRect.Right := WorkArea.Right;
-  if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left;
-
-  if outTxtRect.Top < WorkArea.Top then outTxtRect.Top := WorkArea.Top;
-  if outTxtRect.Bottom > WorkArea.Bottom then outTxtRect.Bottom := WorkArea.Bottom;
-  if outTxtRect.Bottom < outTxtRect.Top then outTxtRect.Bottom := outTxtRect.Top;
-
-  if outImgRect.Top < WorkArea.Top then outImgRect.Top := WorkArea.Top;
-  if outImgRect.Bottom > WorkArea.Bottom then outImgRect.Bottom := WorkArea.Bottom;
-  if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
-
-  if outSepRect.Top < WorkArea.Top then outSepRect.Top := WorkArea.Top;
-  if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom;
-  if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
+  if outTxtRect.Left < WorkArea.Left then outTxtRect.Left := WorkArea.Left; if outTxtRect.Right > WorkArea.Right then outTxtRect.Right := WorkArea.Right; if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left;
+  if outImgRect.Left < WorkArea.Left then outImgRect.Left := WorkArea.Left; if outImgRect.Right > WorkArea.Right then outImgRect.Right := WorkArea.Right; if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
+  if outSepRect.Left < WorkArea.Left then outSepRect.Left := WorkArea.Left; if outSepRect.Right > WorkArea.Right then outSepRect.Right := WorkArea.Right; if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left;
+  if outTxtRect.Top < WorkArea.Top then outTxtRect.Top := WorkArea.Top; if outTxtRect.Bottom > WorkArea.Bottom then outTxtRect.Bottom := WorkArea.Bottom; if outTxtRect.Bottom < outTxtRect.Top then outTxtRect.Bottom := outTxtRect.Top;
+  if outImgRect.Top < WorkArea.Top then outImgRect.Top := WorkArea.Top; if outImgRect.Bottom > WorkArea.Bottom then outImgRect.Bottom := WorkArea.Bottom; if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
+  if outSepRect.Top < WorkArea.Top then outSepRect.Top := WorkArea.Top; if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom; if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
 end;
 
-procedure TANDMR_CEdit.SetImagePlacement(const Value: TImagePlacement);
+procedure TANDMR_CEdit.SetImagePlacement(const Value: TImagePlacement); begin if FImagePlacement <> Value then begin FImagePlacement := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetImageDrawMode(const Value: TImageDrawMode); begin if FImageDrawMode <> Value then begin FImageDrawMode := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetSeparatorVisible(const Value: Boolean); begin if FSeparatorVisible <> Value then begin FSeparatorVisible := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetSeparatorColor(const Value: TColor); begin if FSeparatorColor <> Value then begin FSeparatorColor := Value; if FSeparatorVisible then Invalidate; end; end;
+procedure TANDMR_CEdit.SetSeparatorThickness(const Value: Integer); var ValidThickness: Integer; begin ValidThickness := Max(0, Value); if FSeparatorThickness <> ValidThickness then begin FSeparatorThickness := ValidThickness; if FSeparatorVisible then Invalidate; end; end;
+procedure TANDMR_CEdit.SetSeparatorPadding(const Value: Integer); var ValidPadding: Integer; begin ValidPadding := Max(0, Value); if FSeparatorPadding <> ValidPadding then begin FSeparatorPadding := ValidPadding; if FSeparatorVisible then Invalidate; end; end;
+procedure TANDMR_CEdit.SetSeparatorHeightMode(const Value: TSeparatorHeightMode); begin if FSeparatorHeightMode <> Value then begin FSeparatorHeightMode := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetSeparatorCustomHeight(const Value: Integer); var ValidHeight: Integer; begin ValidHeight := Max(0, Value); if FSeparatorCustomHeight <> ValidHeight then begin FSeparatorCustomHeight := ValidHeight; if FSeparatorHeightMode = shmCustom then Invalidate; end; end;
+
+procedure TANDMR_CEdit.SetImage(const Value: TPicture); begin FImage.Assign(Value); Invalidate; end;
+procedure TANDMR_CEdit.SetImageVisible(const Value: Boolean); begin if FImageVisible <> Value then begin FImageVisible := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetImagePosition(const Value: TImagePositionSide); begin if FImagePosition <> Value then begin FImagePosition := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetImageAlignment(const Value: TImageAlignmentVertical); begin if FImageAlignment <> Value then begin FImageAlignment := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetImageMargins(const Value: TImageMarginsControl); begin FImageMargins.Assign(Value); Invalidate; end;
+procedure TANDMR_CEdit.ImageChanged(Sender: TObject); begin Invalidate; end;
+procedure TANDMR_CEdit.ImageMarginsChanged(Sender: TObject); begin Invalidate; end;
+
+procedure TANDMR_CEdit.DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
+var DrawImageRect: TRect; GraphicW, GraphicH: Integer; rRatio, rRectRatio: Double; PngStream: TMemoryStream; GpSourceBitmap: TGPBitmap; Adapter: IStream;
 begin
-  if FImagePlacement <> Value then
-  begin
-    FImagePlacement := Value;
-    Invalidate; // Major layout change
-  end;
+  if (AGraphics = nil) or (APNG = nil) or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+  GraphicW := APNG.Width; GraphicH := APNG.Height; if (GraphicW <= 0) or (GraphicH <= 0) then Exit;
+  case ADrawMode of
+    idmStretch: DrawImageRect := ADestRect;
+    idmProportional: begin rRatio := GraphicW / GraphicH; if ADestRect.Height = 0 then rRectRatio := MaxDouble else rRectRatio := ADestRect.Width / ADestRect.Height; if rRectRatio > rRatio then begin DrawImageRect.Height := ADestRect.Height; DrawImageRect.Width := Round(ADestRect.Height * rRatio); end else begin DrawImageRect.Width := ADestRect.Width; if rRatio = 0 then DrawImageRect.Height := 0 else DrawImageRect.Height := Round(ADestRect.Width / rRatio); end; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
+    idmNormal: begin DrawImageRect.Width := GraphicW; DrawImageRect.Height := GraphicH; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
+  else DrawImageRect := ADestRect; end;
+  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
+  PngStream := TMemoryStream.Create; try APNG.SaveToStream(PngStream); PngStream.Position := 0; Adapter := TStreamAdapter.Create(PngStream, soReference); GpSourceBitmap := TGPBitmap.Create(Adapter); try if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic) else AGraphics.SetInterpolationMode(InterpolationModeDefault); AGraphics.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height); finally GpSourceBitmap.Free; end; finally PngStream.Free; end;
 end;
 
-procedure TANDMR_CEdit.SetImageDrawMode(const Value: TImageDrawMode);
+procedure TANDMR_CEdit.DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+var DrawImageRect: TRect; GraphicW, GraphicH: Integer; rRatio, rRectRatio: Double;
 begin
-  if FImageDrawMode <> Value then
-  begin
-    FImageDrawMode := Value;
-    Invalidate; // Image drawing will change
-  end;
+  if (ACanvas = nil) or (AGraphic = nil) or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+  GraphicW := AGraphic.Width; GraphicH := AGraphic.Height; if (GraphicW <= 0) or (GraphicH <= 0) then Exit;
+  case ADrawMode of
+    idmStretch: DrawImageRect := ADestRect;
+    idmProportional: begin rRatio := GraphicW / GraphicH; if ADestRect.Height = 0 then rRectRatio := MaxDouble else rRectRatio := ADestRect.Width / ADestRect.Height; if rRectRatio > rRatio then begin DrawImageRect.Height := ADestRect.Height; DrawImageRect.Width := Round(ADestRect.Height * rRatio); end else begin DrawImageRect.Width := ADestRect.Width; if rRatio = 0 then DrawImageRect.Height := 0 else DrawImageRect.Height := Round(ADestRect.Width / rRatio); end; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
+    idmNormal: begin DrawImageRect.Width := GraphicW; DrawImageRect.Height := GraphicH; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
+  else DrawImageRect := ADestRect; end;
+  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
+  if ADrawMode = idmNormal then ACanvas.Draw(DrawImageRect.Left, DrawImageRect.Top, AGraphic)
+  else ACanvas.StretchDraw(DrawImageRect, AGraphic);
 end;
 
-procedure TANDMR_CEdit.SetSeparatorVisible(const Value: Boolean);
+procedure TANDMR_CEdit.DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
+var LineX: Integer;
 begin
-  if FSeparatorVisible <> Value then
-  begin
-    FSeparatorVisible := Value;
-    Invalidate; // Layout and repaint needed
-  end;
+  if (ACanvas = nil) or (AThickness <= 0) or (ASepRect.Width <= 0) or (ASepRect.Height <= 0) then Exit;
+  LineX := ASepRect.Left + ASepRect.Width div 2; ACanvas.Pen.Color := AColor; ACanvas.Pen.Width := AThickness; ACanvas.Pen.Style := psSolid; ACanvas.MoveTo(LineX, ASepRect.Top); ACanvas.LineTo(LineX, ASepRect.Bottom);
 end;
 
-procedure TANDMR_CEdit.SetSeparatorColor(const Value: TColor);
+procedure TANDMR_CEdit.DrawEditBox(const ADrawArea: TRect; AGraphics: TGPGraphics; ABackgroundColor: TColor; ABorderColor: TColor);
+var LPath: TGPGraphicsPath; LBrush: TGPBrush; LPen: TGPPen; LRectF: TGPRectF; LRadiusValue: Single;
 begin
-  if FSeparatorColor <> Value then
-  begin
-    FSeparatorColor := Value;
-    if FSeparatorVisible then Invalidate; // Repaint if separator is visible
-  end;
-end;
-
-procedure TANDMR_CEdit.SetSeparatorThickness(const Value: Integer);
-var
-  ValidThickness: Integer;
-begin
-  ValidThickness := Max(0, Value); // Ensure non-negative
-  if FSeparatorThickness <> ValidThickness then
-  begin
-    FSeparatorThickness := ValidThickness;
-    if FSeparatorVisible then Invalidate; // Layout and repaint if separator is visible
-  end;
-end;
-
-procedure TANDMR_CEdit.SetSeparatorPadding(const Value: Integer);
-var
-  ValidPadding: Integer;
-begin
-  ValidPadding := Max(0, Value); // Ensure non-negative
-  if FSeparatorPadding <> ValidPadding then
-  begin
-    FSeparatorPadding := ValidPadding;
-    if FSeparatorVisible then Invalidate; // Layout and repaint if separator is visible
-  end;
-end;
-
-procedure TANDMR_CEdit.SetImage(const Value: TPicture);
-begin
-  FImage.Assign(Value); // TPicture.Assign handles nil and actual assignment
-  // OnChange event for TPicture is handled in constructor/destructor or when FImage is created
-  Invalidate;
-end;
-
-procedure TANDMR_CEdit.SetImageVisible(const Value: Boolean);
-begin
-  if FImageVisible <> Value then
-  begin
-    FImageVisible := Value;
-    Invalidate; // Layout and repaint needed
-  end;
-end;
-
-procedure TANDMR_CEdit.SetImagePosition(const Value: TImagePositionSide);
-begin
-  if FImagePosition <> Value then
-  begin
-    FImagePosition := Value;
-    Invalidate; // Layout and repaint needed
-  end;
-end;
-
-procedure TANDMR_CEdit.SetImageAlignment(const Value: TImageAlignmentVertical);
-begin
-  if FImageAlignment <> Value then
-  begin
-    FImageAlignment := Value;
-    Invalidate; // Repaint needed
-  end;
-end;
-
-procedure TANDMR_CEdit.SetImageMargins(const Value: TImageMarginsControl);
-begin
-  // Record comparison: check individual fields if direct comparison isn't ideal
-  if (FImageMargins.Left <> Value.Left) or (FImageMargins.Top <> Value.Top) or
-     (FImageMargins.Right <> Value.Right) or (FImageMargins.Bottom <> Value.Bottom) then
-  begin
-    FImageMargins := Value;
-    Invalidate; // Layout and repaint needed
-  end;
-end;
-
-procedure TANDMR_CEdit.ImageChanged(Sender: TObject);
-begin
-  Invalidate; // Repaint if the image content changes
+  if (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) or (AGraphics = nil) then Exit;
+  if FBorderThickness > 0 then LRectF := TGPRectF.Create(ADrawArea.Left + FBorderThickness / 2.0, ADrawArea.Top + FBorderThickness / 2.0, ADrawArea.Width - FBorderThickness, ADrawArea.Height - FBorderThickness)
+  else LRectF := TGPRectF.Create(ADrawArea.Left, ADrawArea.Top, ADrawArea.Width, ADrawArea.Height);
+  LRectF.Width := Max(0.0, LRectF.Width); LRectF.Height := Max(0.0, LRectF.Height);
+  LRadiusValue := Min(FCornerRadius, Min(LRectF.Width / 2.0, LRectF.Height / 2.0)); LRadiusValue := Max(0.0, LRadiusValue);
+  LPath := TGPGraphicsPath.Create; try CreateGPRoundedPath(LPath, LRectF, LRadiusValue, FRoundCornerType); if LPath.GetPointCount > 0 then begin if ABackgroundColor <> clNone then begin LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor)); try AGraphics.FillPath(LBrush, LPath); finally LBrush.Free; end; end; if (FBorderThickness > 0) and (ABorderColor <> clNone) then begin LPen := TGPPen.Create(ColorToARGB(ABorderColor), FBorderThickness); try case FBorderStyle of psSolid: LPen.SetDashStyle(DashStyleSolid); psDash: LPen.SetDashStyle(DashStyleDash); psDot: LPen.SetDashStyle(DashStyleDot); psDashDot: LPen.SetDashStyle(DashStyleDashDot); psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot); else LPen.SetDashStyle(DashStyleSolid); end; if FBorderStyle <> psClear then AGraphics.DrawPath(LPen, LPath); finally LPen.Free; end; end; end; finally LPath.Free; end;
 end;
 
 constructor TANDMR_CEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  // Initialization
-  ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable]; // Corrected ControlStyle
-  DoubleBuffered := True;
-  Width := 150; // Default width
-  Height := 25; // Default height
-  TabStop := True;
-  FText := '';
-  FMaxLength := 0;
-  FPasswordChar := #0;
-  FReadOnly := False;
-  FCornerRadius := 8;
-  FRoundCornerType := rctAll;
-  FActiveColor := clHighlight;
-  FInactiveColor := clBtnFace;
-  FBorderColor := clBlack;
-  FBorderThickness := 1;
-  FBorderStyle := psSolid;
-  // Initialize Font (using inherited Font property)
-  Font.Name := 'Segoe UI';
-  Font.Size := 9;
-  Font.Color := clWindowText;
-
-  FImage := TPicture.Create;
-  FImage.OnChange := Self.ImageChanged; // Assign the OnChange handler
-
-  // Initialize image properties
-  FImageVisible := True; // Matches property default
-  FImagePosition := ipsLeft; // Matches property default
-  FImageAlignment := iavCenter; // Matches property default
-  FImageMargins.Left := 2;
-  FImageMargins.Top := 2;
-  FImageMargins.Right := 2;
-  FImageMargins.Bottom := 2;
-
-  // Initialize new advanced image and separator fields
-  FImagePlacement := iplInsideBounds;     // Matches property default
-  FImageDrawMode := idmProportional;    // Matches property default
-
-  FSeparatorVisible := False;           // Matches property default
-  FSeparatorColor := clGrayText;        // Matches property default
-  FSeparatorThickness := 1;             // Matches property default
-  FSeparatorPadding := 2;               // Matches property default
-
-  FCaretVisible := False;
-  FCaretPosition := 0;
-  FCaretTimer := TTimer.Create(Self); // Self is the owner
-  FCaretTimer.Interval := GetCaretBlinkTime;
-  FCaretTimer.OnTimer := CaretTimerTick;
-  FCaretTimer.Enabled := False;
+  ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable];
+  DoubleBuffered := True; Width := 150; Height := 25; TabStop := True; FText := ''; FMaxLength := 0; FPasswordChar := #0; FReadOnly := False;
+  FCornerRadius := 8; FRoundCornerType := rctAll; FActiveColor := clHighlight; FInactiveColor := clBtnFace; FBorderColor := clBlack; FBorderThickness := 1; FBorderStyle := psSolid;
+  Font.Name := 'Segoe UI'; Font.Size := 9; Font.Color := clWindowText;
+  FImage := TPicture.Create; FImage.OnChange := Self.ImageChanged;
+  FImageMargins := TImageMarginsControl.Create; FImageMargins.OnChange := Self.ImageMarginsChanged;
+  FImageVisible := True; FImagePosition := ipsLeft; FImageAlignment := iavCenter;
+  FImagePlacement := iplInsideBounds; FImageDrawMode := idmProportional;
+  FSeparatorVisible := False; FSeparatorColor := clGrayText; FSeparatorThickness := 1; FSeparatorPadding := 2; FSeparatorHeightMode := shmFull; FSeparatorCustomHeight := 0;
+  FCaretVisible := False; FCaretPosition := 0; FCaretTimer := TTimer.Create(Self); FCaretTimer.Interval := GetCaretBlinkTime; FCaretTimer.OnTimer := CaretTimerTick; FCaretTimer.Enabled := False;
 end;
 
 destructor TANDMR_CEdit.Destroy;
 begin
-  FCaretTimer.Free; // Free the timer
-
-  if Assigned(FImage) then // Good practice to check if assigned
-  begin
-    FImage.OnChange := nil; // Clear the event handler
-    FImage.Free;
-  end;
-
+  FCaretTimer.Free; if Assigned(FImage) then begin FImage.OnChange := nil; FImage.Free; end; FImageMargins.Free;
   inherited Destroy;
 end;
 
 procedure TANDMR_CEdit.SetText(const Value: string);
-var
-  OldText: string;
-begin
-  OldText := FText; // Store old text for OnChange comparison
-  if FText <> Value then
-  begin
-    FText := Value;
-    FCaretPosition := Length(FText); // Move caret to the end of the new text
-
-    FCaretVisible := True; // Ensure caret is visible
-    if Focused then // Reset blink if focused
-    begin
-      FCaretTimer.Enabled := False;
-      FCaretTimer.Enabled := True;
-    end;
-
-    Invalidate;
-    if Assigned(FOnChange) and (OldText <> FText) then // Check if text actually changed
-    begin
-      FOnChange(Self);
-    end;
-  end;
+var OldText: string;
+begin OldText := FText; if FText <> Value then begin FText := Value; FCaretPosition := Length(FText); FCaretVisible := True; if Focused then begin FCaretTimer.Enabled := False; FCaretTimer.Enabled := True; end; Invalidate; if Assigned(FOnChange) and (OldText <> FText) then FOnChange(Self); end;
 end;
 
 procedure TANDMR_CEdit.SetMaxLength(const Value: Integer);
-var
-  OldText: string;
-  TextChanged: Boolean;
-begin
-  if FMaxLength <> Value then
-  begin
-    FMaxLength := Max(0, Value); // Ensure MaxLength is not negative
-    TextChanged := False;
-    OldText := FText;
-
-    if (FMaxLength > 0) and (Length(FText) > FMaxLength) then
-    begin
-      FText := Copy(FText, 1, FMaxLength);
-      if FCaretPosition > Length(FText) then
-        FCaretPosition := Length(FText);
-      TextChanged := True;
-    end;
-
-    if TextChanged then
-    begin
-      FCaretVisible := True; // Ensure caret is visible after potential text change
-      if Focused then // Reset blink if focused
-      begin
-        FCaretTimer.Enabled := False;
-        FCaretTimer.Enabled := True;
-      end;
-
-      if Assigned(FOnChange) then // No need to check OldText <> FText, TextChanged covers it
-      begin
-        FOnChange(Self);
-      end;
-      Invalidate;
-    end
-    else
-    begin
-      // Even if text didn't change, MaxLength value changed, which might be important.
-      // No direct visual change now, but could be in the future.
-      // Invalidate; // Optional: if MaxLength had a visual representation
-    end;
-  end;
+var OldText: string; TextChanged: Boolean;
+begin if FMaxLength <> Value then begin FMaxLength := Max(0, Value); TextChanged := False; OldText := FText; if (FMaxLength > 0) and (Length(FText) > FMaxLength) then begin FText := Copy(FText, 1, FMaxLength); if FCaretPosition > Length(FText) then FCaretPosition := Length(FText); TextChanged := True; end; if TextChanged then begin FCaretVisible := True; if Focused then begin FCaretTimer.Enabled := False; FCaretTimer.Enabled := True; end; if Assigned(FOnChange) then FOnChange(Self); Invalidate; end; end;
 end;
 
-procedure TANDMR_CEdit.SetPasswordChar(const Value: Char);
-begin
-  if FPasswordChar <> Value then
-  begin
-    FPasswordChar := Value;
-    Invalidate; // Text display will change
-  end;
-end;
-
-procedure TANDMR_CEdit.SetReadOnly(const Value: Boolean);
-begin
-  if FReadOnly <> Value then
-  begin
-    FReadOnly := Value;
-    // Keyboard input handling (KeyPress, KeyDown) already checks FReadOnly.
-    // No direct visual change, but affects interaction.
-    // If ReadOnly is true, caret might be styled differently (e.g. non-blinking or block),
-    // but current implementation just prevents input.
-    Invalidate; // In case future styling depends on ReadOnly
-  end;
-end;
-
-procedure TANDMR_CEdit.SetCornerRadius(const Value: Integer);
-begin
-  if FCornerRadius <> Value then
-  begin
-    FCornerRadius := Value;
-    Invalidate; // Redraw control
-  end;
-end;
-
-procedure TANDMR_CEdit.SetRoundCornerType(const Value: TRoundCornerType);
-begin
-  if FRoundCornerType <> Value then
-  begin
-    FRoundCornerType := Value;
-    Invalidate; // Redraw control
-  end;
-end;
-
-procedure TANDMR_CEdit.SetActiveColor(const Value: TColor);
-begin
-  if FActiveColor <> Value then
-  begin
-    FActiveColor := Value;
-    Invalidate; // Redraw control if active
-  end;
-end;
-
-procedure TANDMR_CEdit.SetInactiveColor(const Value: TColor);
-begin
-  if FInactiveColor <> Value then
-  begin
-    FInactiveColor := Value;
-    Invalidate; // Redraw control if inactive
-  end;
-end;
-
-procedure TANDMR_CEdit.SetBorderColor(const Value: TColor);
-begin
-  if FBorderColor <> Value then
-  begin
-    FBorderColor := Value;
-    Invalidate; // Redraw control
-  end;
-end;
-
-procedure TANDMR_CEdit.SetBorderThickness(const Value: Integer);
-begin
-  if FBorderThickness <> Value then
-  begin
-    FBorderThickness := Value;
-    Invalidate; // Redraw control
-  end;
-end;
-
-procedure TANDMR_CEdit.SetBorderStyle(const Value: TPenStyle);
-begin
-  if FBorderStyle <> Value then
-  begin
-    FBorderStyle := Value;
-    Invalidate;
-  end;
-end;
+procedure TANDMR_CEdit.SetPasswordChar(const Value: Char); begin if FPasswordChar <> Value then begin FPasswordChar := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetReadOnly(const Value: Boolean); begin if FReadOnly <> Value then begin FReadOnly := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetCornerRadius(const Value: Integer); begin if FCornerRadius <> Value then begin FCornerRadius := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetRoundCornerType(const Value: TRoundCornerType); begin if FRoundCornerType <> Value then begin FRoundCornerType := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetActiveColor(const Value: TColor); begin if FActiveColor <> Value then begin FActiveColor := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetInactiveColor(const Value: TColor); begin if FInactiveColor <> Value then begin FInactiveColor := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetBorderColor(const Value: TColor); begin if FBorderColor <> Value then begin FBorderColor := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetBorderThickness(const Value: Integer); begin if FBorderThickness <> Value then begin FBorderThickness := Value; Invalidate; end; end;
+procedure TANDMR_CEdit.SetBorderStyle(const Value: TPenStyle); begin if FBorderStyle <> Value then begin FBorderStyle := Value; Invalidate; end; end;
 
 procedure TANDMR_CEdit.Paint;
 var
   LG: TGPGraphics;
-  LPath: TGPGraphicsPath;
-  LBrush: TGPBrush;
-  LPen: TGPPen;
-  PathRectF: TGPRectF;
-  LRadiusValue: Single;
-  LBorderColorToUse: TColor;
-  LBackgroundColorToUse: TColor;
-  // DrawRect: TRect; // Replaced by PaddedTextRect for text drawing
+  // LPath, LBrush, LPen moved into DrawEditBox or local to GDI+ background
+  // PathRectF also moved into DrawEditBox or local to GDI+ background
+  // LRadiusValue also moved
+  // LBorderColorToUse, LBackgroundColorToUse replaced by EditBoxBGColor etc.
   TextToDisplay: string;
   TextFlags: Cardinal;
-  // PaddingX: Integer; // No longer used directly here
 
-  outImgRect, outTxtRect, outSepRect: TRect; // Output from CalculateLayout
-  // ActualImageWidth, ActualImageHeight: Integer; // Calculated within CalculateLayout if needed, or use FImage.Graphic
-  // AvailableContentHeight: Integer; // Calculated within CalculateLayout
+  imgR, txtR, sepR: TRect; // Output from CalculateLayout
 
-  // Variables for image drawing modes
-  DrawImageRect: TRect;
-  GraphicW, GraphicH: Integer;
-  rRatio, rRectRatio: Double;
-
+  EditBoxBGColor, EditBoxBorderColor, OverallBGColor: TColor;
+  RectToDrawEditBoxIn: TRect;
+  PaddedTextDrawArea: TRect;
+  InternalTextPaddingX, InternalTextPaddingY: Integer;
 begin
-  // Call CalculateLayout to get the rects
-  CalculateLayout(outImgRect, outTxtRect, outSepRect);
+  CalculateLayout(imgR, txtR, sepR);
 
-  Canvas.Lock; // Lock canvas for VCL drawing (text, caret)
+  InternalTextPaddingX := 4;
+  InternalTextPaddingY := 2;
+
+  Canvas.Lock;
   try
-    LBackgroundColorToUse := FInactiveColor;
-    if csDesigning in ComponentState then
-      LBackgroundColorToUse := clWhite;
-
-    if Focused then
-      LBorderColorToUse := FActiveColor
-    else
-      LBorderColorToUse := FBorderColor;
-
-    // Initialize GDI+
     LG := TGPGraphics.Create(Canvas.Handle);
-    try
+    try // GDI+ operations block
       LG.SetSmoothingMode(SmoothingModeAntiAlias);
       LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-      // Correctly initialize PathRectF using record field assignment
-      if FBorderThickness > 0 then
+      // Determine colors
+      if csDesigning in ComponentState then
       begin
-        PathRectF.X := FBorderThickness / 2.0;
-        PathRectF.Y := FBorderThickness / 2.0;
-        PathRectF.Width := Self.Width - FBorderThickness;
-        PathRectF.Height := Self.Height - FBorderThickness;
+        EditBoxBGColor := clWhite;
+        OverallBGColor := clBtnFace; // Background if iplOutsideBounds
       end
       else
       begin
-        PathRectF.X := 0.0;
-        PathRectF.Y := 0.0;
-        PathRectF.Width := Self.Width;
-        PathRectF.Height := Self.Height;
+        EditBoxBGColor := clWindow; // Default for text area
+        OverallBGColor := Self.Color; // Use component's color for overall background
       end;
 
-      PathRectF.Width := Max(0.0, PathRectF.Width); // Ensure non-negative float
-      PathRectF.Height := Max(0.0, PathRectF.Height); // Ensure non-negative float
+      if Self.Focused then
+        EditBoxBorderColor := FActiveColor
+      else
+        EditBoxBorderColor := FBorderColor;
 
-      LPath := TGPGraphicsPath.Create;
-      try
-        // LRadiusValue calculation should use PathRectF.Width / Height
-        LRadiusValue := Min(FCornerRadius, Min(PathRectF.Width / 2.0, PathRectF.Height / 2.0));
-        LRadiusValue := Max(0.0, LRadiusValue);
+      // Main drawing logic based on ImagePlacement
+      if FImagePlacement = iplInsideBounds then
+      begin
+        RectToDrawEditBoxIn := ClientRect; 
+        var CompBGColorWhenInside: TColor; // Renamed from CurrentComponentFillColor
+        if csDesigning in ComponentState then CompBGColorWhenInside := clWhite
+        else if Self.Focused then CompBGColorWhenInside := clWindow 
+        else CompBGColorWhenInside := FInactiveColor; 
 
-        // Call CreateGPRoundedPath with the correctly typed TGPRectF
-        CreateGPRoundedPath(LPath, PathRectF, LRadiusValue, FRoundCornerType);
+        DrawEditBox(RectToDrawEditBoxIn, LG, CompBGColorWhenInside, EditBoxBorderColor);
+        
+        if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
+          Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
+      end
+      else // iplOutsideBounds
+      begin
+        // Clear overall component background (e.g., to Self.Color)
+        // Use overallBGColor determined above for iplOutsideBounds case
+        if csDesigning in ComponentState then OverallBGColor := clBtnFace // Consistent design background
+        else OverallBGColor := Self.Color; // Runtime background for the whole component area
+        
+        LG.Clear(ColorToARGB(OverallBGColor)); // Clear with the chosen overall background
 
-        if LPath.GetPointCount > 0 then
-        begin
-          // Fill Background
-          if LBackgroundColorToUse <> clNone then
-          begin
-            LBrush := TGPSolidBrush.Create(ColorToARGB(LBackgroundColorToUse));
-            try
-              LG.FillPath(LBrush, LPath);
-            finally
-              LBrush.Free;
-            end;
-          end;
+        // Draw PNG image using GDI+ if it's outside bounds and PNG
+        if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
+          Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
 
-          // Draw Border
-          if (FBorderThickness > 0) and (LBorderColorToUse <> clNone) then
-          begin
-            LPen := TGPPen.Create(ColorToARGB(LBorderColorToUse), FBorderThickness);
-            try
-              case FBorderStyle of
-                psSolid: LPen.SetDashStyle(DashStyleSolid);
-                psDash: LPen.SetDashStyle(DashStyleDash);
-                psDot: LPen.SetDashStyle(DashStyleDot);
-                psDashDot: LPen.SetDashStyle(DashStyleDashDot);
-                psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot);
-                psClear: LPen.SetDashStyle(DashStyleSolid); // Effectively no border if color is clNone
-              else LPen.SetDashStyle(DashStyleSolid);
-              end;
-              if FBorderStyle <> psClear then // Only draw if not clear
-                LG.DrawPath(LPen, LPath);
-            finally
-              LPen.Free;
-            end;
-          end;
-        end;
-      finally
-        LPath.Free;
+        // Draw the text edit box separately
+        RectToDrawEditBoxIn := txtR; // Text rect is the edit box
+        DrawEditBox(RectToDrawEditBoxIn, LG, EditBoxBGColor, EditBoxBorderColor);
       end;
     finally
-      // LG.Free; // Moved to the outer try-finally block that wraps all GDI+ operations
-    // end; // Original end of GDI+ background/border try-finally block
+      LG.Free; 
+    end; // End of GDI+ operations
 
-    // --- Draw Image (GDI+ part for PNGs, must be within LG scope) ---
-    if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
-    begin
-      if (outImgRect.Width > 0) and (outImgRect.Height > 0) then
-      begin
-        GraphicW := FImage.Graphic.Width;
-        GraphicH := FImage.Graphic.Height;
+    // --- VCL Canvas Drawing (on top of GDI+ stuff or for non-GDI+ elements) ---
 
-        if (GraphicW > 0) and (GraphicH > 0) then
-        begin
-          case FImageDrawMode of
-            idmStretch: DrawImageRect := outImgRect;
-            idmProportional:
-              begin
-                rRatio := GraphicW / GraphicH;
-                if outImgRect.Height = 0 then rRectRatio := MaxDouble
-                else rRectRatio := outImgRect.Width / outImgRect.Height;
-                if rRectRatio > rRatio then
-                begin
-                  DrawImageRect.Height := outImgRect.Height;
-                  DrawImageRect.Width := Round(outImgRect.Height * rRatio);
-                end
-                else
-                begin
-                  DrawImageRect.Width := outImgRect.Width;
-                  if rRatio = 0 then DrawImageRect.Height := 0
-                  else DrawImageRect.Height := Round(outImgRect.Width / rRatio);
-                end;
-                DrawImageRect.Left := outImgRect.Left + (outImgRect.Width - DrawImageRect.Width) div 2;
-                DrawImageRect.Top := outImgRect.Top + (outImgRect.Height - DrawImageRect.Height) div 2;
-                DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
-                DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
-              end;
-            idmNormal:
-              begin
-                DrawImageRect.Width := GraphicW;
-                DrawImageRect.Height := GraphicH;
-                DrawImageRect.Left := outImgRect.Left + (outImgRect.Width - GraphicW) div 2;
-                DrawImageRect.Top := outImgRect.Top + (outImgRect.Height - GraphicH) div 2;
-                DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
-                DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
-              end;
-          else DrawImageRect := outImgRect; // Default to stretch
-          end;
+    // Draw Non-PNG image (if not drawn by GDI+ path)
+    if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and not (FImage.Graphic is TPNGImage) then
+      Self.DrawNonPNGImageWithCanvas(Canvas, FImage.Graphic, imgR, FImageDrawMode);
 
-          if (DrawImageRect.Width > 0) and (DrawImageRect.Height > 0) then
-          begin
-            if FImage.Graphic is TPNGImage then // PNG drawing uses LG
-            begin
-              var PngImage: TPNGImage;
-              var PngStream: TMemoryStream;
-              var GpSourceBitmap: TGPBitmap;
-              var Adapter: IStream;
-              PngImage := FImage.Graphic as TPNGImage;
-              PngStream := TMemoryStream.Create;
-              try
-                PngImage.SaveToStream(PngStream);
-                PngStream.Position := 0;
-                Adapter := TStreamAdapter.Create(PngStream, soReference);
-                GpSourceBitmap := TGPBitmap.Create(Adapter);
-                try
-                  if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then
-                     LG.SetInterpolationMode(InterpolationModeHighQualityBicubic)
-                  else
-                     LG.SetInterpolationMode(InterpolationModeDefault);
-                  LG.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height);
-                finally
-                  GpSourceBitmap.Free;
-                end;
-              finally
-                PngStream.Free;
-              end;
-            end;
-            // Non-PNG image drawing will be handled after LG is freed, using VCL Canvas
-          end;
-        end;
-      end;
-    end;
+    // Draw Separator (always with VCL Canvas for simplicity here)
+    if FSeparatorVisible and (FSeparatorThickness > 0) and (sepR.Width > 0) and (sepR.Height > 0) then
+      Self.DrawSeparatorWithCanvas(Canvas, sepR, FSeparatorColor, FSeparatorThickness);
+    
+    // Prepare and Draw Text
+    PaddedTextDrawArea := txtR; 
+    PaddedTextDrawArea.Left := txtR.Left + InternalTextPaddingX;
+    PaddedTextDrawArea.Top := txtR.Top + InternalTextPaddingY;
+    PaddedTextDrawArea.Right := txtR.Right - InternalTextPaddingX;
+    PaddedTextDrawArea.Bottom := txtR.Bottom - InternalTextPaddingY;
 
-  finally // This finally is for the LG instance
-    if Assigned(LG) then LG.Free;
-  end; // End of GDI+ operations scope (LG.Free)
+    if PaddedTextDrawArea.Right < PaddedTextDrawArea.Left then PaddedTextDrawArea.Right := PaddedTextDrawArea.Left;
+    if PaddedTextDrawArea.Bottom < PaddedTextDrawArea.Top then PaddedTextDrawArea.Bottom := PaddedTextDrawArea.Top;
+    
+    if (FPasswordChar <> #0) and not (csDesigning in ComponentState) then
+      TextToDisplay := StringOfChar(FPasswordChar, Length(FText))
+    else
+      TextToDisplay := FText;
 
-  // --- VCL Canvas Drawing Section (Non-PNG Image, Separator, Text, Caret) ---
-
-  // Draw Non-PNG Image (if applicable and not drawn by GDI+)
-  if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
-  begin
-    if not (FImage.Graphic is TPNGImage) then // Only if not already drawn as PNG
-    begin
-      if (outImgRect.Width > 0) and (outImgRect.Height > 0) then // Re-check outImgRect for context
-      begin
-        GraphicW := FImage.Graphic.Width; // Recalculate GraphicW/H if needed, or use from above if safe
-        GraphicH := FImage.Graphic.Height;
-        if (GraphicW > 0) and (GraphicH > 0) then
-        begin
-          // Recalculate DrawImageRect for non-PNG, similar to above
-          // This re-calculation is necessary as DrawImageRect might not be in scope here
-          // or to ensure clarity. For simplicity, we repeat the case logic.
-          var VCLDrawImageRect: TRect; // Use a new variable for VCL drawing rect
-          case FImageDrawMode of
-            idmStretch: VCLDrawImageRect := outImgRect;
-            idmProportional:
-              begin
-                rRatio := GraphicW / GraphicH;
-                if outImgRect.Height = 0 then rRectRatio := MaxDouble
-                else rRectRatio := outImgRect.Width / outImgRect.Height;
-                if rRectRatio > rRatio then
-                begin
-                  VCLDrawImageRect.Height := outImgRect.Height;
-                  VCLDrawImageRect.Width := Round(outImgRect.Height * rRatio);
-                end
-                else
-                begin
-                  VCLDrawImageRect.Width := outImgRect.Width;
-                  if rRatio = 0 then VCLDrawImageRect.Height := 0
-                  else VCLDrawImageRect.Height := Round(outImgRect.Width / rRatio);
-                end;
-                VCLDrawImageRect.Left := outImgRect.Left + (outImgRect.Width - VCLDrawImageRect.Width) div 2;
-                VCLDrawImageRect.Top := outImgRect.Top + (outImgRect.Height - VCLDrawImageRect.Height) div 2;
-                VCLDrawImageRect.Right := VCLDrawImageRect.Left + VCLDrawImageRect.Width;
-                VCLDrawImageRect.Bottom := VCLDrawImageRect.Top + VCLDrawImageRect.Height;
-              end;
-            idmNormal:
-              begin
-                VCLDrawImageRect.Width := GraphicW;
-                VCLDrawImageRect.Height := GraphicH;
-                VCLDrawImageRect.Left := outImgRect.Left + (outImgRect.Width - GraphicW) div 2;
-                VCLDrawImageRect.Top := outImgRect.Top + (outImgRect.Height - GraphicH) div 2;
-                VCLDrawImageRect.Right := VCLDrawImageRect.Left + VCLDrawImageRect.Width;
-                VCLDrawImageRect.Bottom := VCLDrawImageRect.Top + VCLDrawImageRect.Height;
-              end;
-          else VCLDrawImageRect := outImgRect; // Default
-          end;
-
-          if (VCLDrawImageRect.Width > 0) and (VCLDrawImageRect.Height > 0) then
-          begin
-            if FImageDrawMode = idmNormal then
-               Canvas.Draw(VCLDrawImageRect.Left, VCLDrawImageRect.Top, FImage.Graphic)
-            else // idmStretch, idmProportional
-               Canvas.StretchDraw(VCLDrawImageRect, FImage.Graphic);
-          end;
-        end;
-      end;
-    end;
-  end;
-
-  // --- Draw Separator ---
-    if FSeparatorVisible and (FSeparatorThickness > 0) and (outSepRect.Width > 0) and (outSepRect.Height > 0) then
-    begin
-      // The separator line is drawn in the middle of outSepRect horizontally
-      var LineX: Integer;
-      LineX := outSepRect.Left + outSepRect.Width div 2;
-
-      Canvas.Pen.Color := FSeparatorColor;
-      Canvas.Pen.Width := FSeparatorThickness;
-      Canvas.Pen.Style := psSolid; // Or make this a property later FSeparatorStyle
-
-      Canvas.MoveTo(LineX, outSepRect.Top);
-      Canvas.LineTo(LineX, outSepRect.Bottom);
-    end;
-
-    // --- VCL Canvas drawing for Text and Caret ---
     Canvas.Font.Assign(Self.Font);
     Canvas.Brush.Style := bsClear;
-
-    var
-      PaddedTextRect: TRect;
-      InternalTextPaddingX: Integer;
-      InternalTextPaddingY: Integer;
-
-    InternalTextPaddingX := 4;
-    InternalTextPaddingY := 2;
-
-    PaddedTextRect := outTxtRect; // Use outTxtRect from CalculateLayout
-    PaddedTextRect.Left := outTxtRect.Left + InternalTextPaddingX;
-    PaddedTextRect.Top := outTxtRect.Top + InternalTextPaddingY;
-    PaddedTextRect.Right := outTxtRect.Right - InternalTextPaddingX;
-    PaddedTextRect.Bottom := outTxtRect.Bottom - InternalTextPaddingY;
-
-    if PaddedTextRect.Right < PaddedTextRect.Left then PaddedTextRect.Right := PaddedTextRect.Left;
-    if PaddedTextRect.Bottom < PaddedTextRect.Top then PaddedTextRect.Bottom := PaddedTextRect.Top;
-
-    if (FPasswordChar <> #0) and not (csDesigning in ComponentState) then // Don't mask at design-time for usability
-    begin
-      TextToDisplay := StringOfChar(FPasswordChar, Length(FText));
-    end
-    else
-    begin
-      TextToDisplay := FText;
-    end;
-
-    // DrawRect is no longer taken from ClientRect here. It's PaddedTextRect.
-    // The InflateRect(-2,-2) logic is now replaced by explicit PaddedTextRect calculation.
-
     TextFlags := DT_LEFT or DT_VCENTER or DT_SINGLELINE or DT_NOPREFIX or DT_EDITCONTROL;
 
-    if Length(TextToDisplay) > 0 then
-    begin
-      // Use PaddedTextRect for DrawText
-      DrawText(Canvas.Handle, PChar(TextToDisplay), Length(TextToDisplay), PaddedTextRect, TextFlags);
-    end;
+    if Length(TextToDisplay) > 0 and (PaddedTextDrawArea.Width > 0) and (PaddedTextDrawArea.Height > 0) then
+      DrawText(Canvas.Handle, PChar(TextToDisplay), Length(TextToDisplay), PaddedTextDrawArea, TextFlags);
 
     // Draw Caret
-    if Focused and FCaretVisible then
+    if Self.Focused and FCaretVisible and (PaddedTextDrawArea.Width > 0) and (PaddedTextDrawArea.Height > 0) then
     begin
-      var CaretXBase: Integer;
-      var CaretTop, CaretHeight: Integer;
+      var CaretXBase, CaretTop, CaretHeight, CaretXOffset: Integer;
       var TextBeforeCaretVisible: string;
-      var CaretXOffset: Integer; // Declared here as it's specific to caret logic
-
       if (FPasswordChar <> #0) and not (csDesigning in ComponentState) then
         TextBeforeCaretVisible := StringOfChar(FPasswordChar, FCaretPosition)
       else
         TextBeforeCaretVisible := Copy(FText, 1, FCaretPosition);
 
-      CaretXBase := PaddedTextRect.Left; // Base X for caret is the start of padded text area
-
-      CaretHeight := Canvas.TextHeight('Tg'); // Or use Font.Height
-      // Center caret vertically within PaddedTextRect
-      CaretTop := PaddedTextRect.Top + (PaddedTextRect.Height - CaretHeight) div 2;
-      
+      CaretXBase := PaddedTextDrawArea.Left;
+      CaretHeight := Canvas.TextHeight('Tg');
+      CaretTop := PaddedTextDrawArea.Top + (PaddedTextDrawArea.Height - CaretHeight) div 2;
       CaretXOffset := Canvas.TextWidth(TextBeforeCaretVisible);
-
-      Canvas.Pen.Color := Font.Color;
+      Canvas.Pen.Color := Self.Font.Color;
       Canvas.Pen.Width := 1;
       Canvas.MoveTo(CaretXBase + CaretXOffset, CaretTop);
       Canvas.LineTo(CaretXBase + CaretXOffset, CaretTop + CaretHeight);
     end;
-
   finally
     Canvas.Unlock;
   end;
@@ -1340,3 +836,4 @@ begin
 end;
 
 end.
+[end of Source/ANDMR_CEdit.pas]

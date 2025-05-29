@@ -676,19 +676,16 @@ begin
           var PngImage: TPNGImage;
           var PngStream: TMemoryStream;
           var GpSourceBitmap: TGPBitmap;
-          var Adapter: IStream; // Requires Winapi.ActiveX in uses if not already there for IStream
-        begin
+          var Adapter: IStream;
+          // Removed redundant inner begin/end block
           PngImage := FImage.Graphic as TPNGImage;
           PngStream := TMemoryStream.Create;
           try
             PngImage.SaveToStream(PngStream);
             PngStream.Position := 0;
-            // Ensure Winapi.ActiveX is in the uses clause for IStream / TStreamAdapter
             Adapter := TStreamAdapter.Create(PngStream, soReference);
             GpSourceBitmap := TGPBitmap.Create(Adapter);
             try
-              // Use the already existing LG (TGPGraphics) instance
-              // Set interpolation mode for better quality if stretching occurs
               if (ImageRect.Width <> GpSourceBitmap.GetWidth()) or (ImageRect.Height <> GpSourceBitmap.GetHeight()) then
                  LG.SetInterpolationMode(InterpolationModeHighQualityBicubic)
               else
@@ -701,7 +698,7 @@ begin
           finally
             PngStream.Free;
           end;
-        end
+        end // This end now correctly closes the "if FImage.Graphic is TPNGImage then" block
         else // For non-PNG images (TBitmap, TJPEGImage, etc.)
         begin
           // Use VCL Canvas.StretchDraw for other types.

@@ -5,7 +5,8 @@ interface
 uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
-  Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX;
+  Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX,
+  Vcl.ExtCtrls, Vcl.Imaging.pngimage;
 
 type
   TImagePositionSide = (ipsLeft, ipsRight);
@@ -101,12 +102,12 @@ type
     procedure CMExit(var Message: TCMExit); message CM_EXIT;
 
   protected
-    procedure CalculateLayout(out outImgRect, out outTxtRect, out outSepRect: TRect); virtual;
+    procedure CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect); virtual; // CORRECTED
     procedure DrawEditBox(const ADrawArea: TRect; AGraphics: TGPGraphics; ABackgroundColor: TColor; ABorderColor: TColor);
     procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
     procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
     procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
-    procedure Paint; override;
+    procedure Paint; override; // Single Paint declaration
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
     procedure KeyPress(var Key: Char); override;
     procedure Click; override;
@@ -140,7 +141,7 @@ type
     property SeparatorThickness: Integer read FSeparatorThickness write SetSeparatorThickness default 1;
     property SeparatorPadding: Integer read FSeparatorPadding write SetSeparatorPadding default 2;
     property SeparatorHeightMode: TSeparatorHeightMode read FSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
-    property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0;
+    property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0; // Ensured semicolon
 
     property Align;
     property Anchors;
@@ -258,33 +259,59 @@ procedure TImageMarginsControl.SetRight(const Value: Integer); begin if FRight <
 procedure TImageMarginsControl.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
 
 { TANDMR_CEdit }
-procedure TANDMR_CEdit.CalculateLayout(out outImgRect, out outTxtRect, out outSepRect: TRect);
+procedure TANDMR_CEdit.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect); // Corrected signature
 var
   WorkArea: TRect; ImgW, ImgH, SepW: Integer;
+  CurrentX: Integer; 
+  CurrentX_End: Integer;
 begin
-  WorkArea := Self.ClientRect; InflateRect(WorkArea, -FBorderThickness, -FBorderThickness);
+  WorkArea := Self.ClientRect; InflateRect(WorkArea, -FBorderThickness, -FBorderThickness); // Available content area
   outImgRect := Rect(0,0,0,0); outSepRect := Rect(0,0,0,0); outTxtRect := WorkArea;
   ImgW := 0; ImgH := 0;
   if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
   begin ImgW := FImage.Graphic.Width; ImgH := FImage.Graphic.Height; end;
   SepW := 0;
   if FSeparatorVisible and (FSeparatorThickness > 0) then SepW := FSeparatorThickness;
+
+  // --- Horizontal Layout (Refined Logic) ---
   if FImageVisible and (ImgW > 0) then
   begin
     if FImagePosition = ipsLeft then
     begin
-      outImgRect.Left := WorkArea.Left + FImageMargins.Left; outImgRect.Right := outImgRect.Left + ImgW;
-      outTxtRect.Left := outImgRect.Right + FImageMargins.Right;
+      outImgRect.Left := WorkArea.Left + FImageMargins.Left;
+      outImgRect.Right := outImgRect.Left + ImgW;
+      CurrentX := outImgRect.Right + FImageMargins.Right;
       if FSeparatorVisible and (SepW > 0) then
-      begin outSepRect.Left := outTxtRect.Left + FSeparatorPadding; outSepRect.Right := outSepRect.Left + SepW; outTxtRect.Left := outSepRect.Right + FSeparatorPadding; end;
-    end else begin
-      outImgRect.Right := WorkArea.Right - FImageMargins.Right; outImgRect.Left := outImgRect.Right - ImgW;
-      outTxtRect.Right := outImgRect.Left - FImageMargins.Left;
+      begin
+        outSepRect.Left := CurrentX + FSeparatorPadding;
+        outSepRect.Right := outSepRect.Left + SepW;
+        CurrentX := outSepRect.Right + FSeparatorPadding;
+      end;
+      outTxtRect.Left := CurrentX; 
+    end
+    else // ipsRight
+    begin
+      outImgRect.Right := WorkArea.Right - FImageMargins.Right;
+      outImgRect.Left := outImgRect.Right - ImgW;
+      CurrentX_End := outImgRect.Left - FImageMargins.Left;
       if FSeparatorVisible and (SepW > 0) then
-      begin outSepRect.Right := outTxtRect.Right - FSeparatorPadding; outSepRect.Left := outSepRect.Right - SepW; outTxtRect.Right := outSepRect.Left - FSeparatorPadding; end;
+      begin
+        outSepRect.Right := CurrentX_End - FSeparatorPadding;
+        outSepRect.Left := outSepRect.Right - SepW;
+        CurrentX_End := outSepRect.Left - FSeparatorPadding;
+      end;
+      outTxtRect.Right := CurrentX_End; 
     end;
-  end else if FSeparatorVisible and (SepW > 0) then
-  begin outSepRect.Left := WorkArea.Left + FSeparatorPadding; outSepRect.Right := outSepRect.Left + SepW; outTxtRect.Left := outSepRect.Right + FSeparatorPadding; end;
+  end
+  else if FSeparatorVisible and (SepW > 0) then 
+  begin
+    outSepRect.Left := WorkArea.Left + FSeparatorPadding;
+    outSepRect.Right := outSepRect.Left + SepW;
+    outTxtRect.Left := outSepRect.Right + FSeparatorPadding;
+  end;
+  // --- End of Refined Horizontal Layout ---
+
+  // --- Vertical Layout ---
   if FImageVisible and (ImgW > 0) then
   begin
     var AvailHForImgLayout: Integer; AvailHForImgLayout := WorkArea.Height - FImageMargins.Top - FImageMargins.Bottom; AvailHForImgLayout := Max(0, AvailHForImgLayout);
@@ -313,6 +340,9 @@ begin
     if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom;
     if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
   end;
+  // --- End of Vertical Layout ---
+
+  // Final safety checks
   if outTxtRect.Left < WorkArea.Left then outTxtRect.Left := WorkArea.Left; if outTxtRect.Right > WorkArea.Right then outTxtRect.Right := WorkArea.Right; if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left;
   if outImgRect.Left < WorkArea.Left then outImgRect.Left := WorkArea.Left; if outImgRect.Right > WorkArea.Right then outImgRect.Right := WorkArea.Right; if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
   if outSepRect.Left < WorkArea.Left then outSepRect.Left := WorkArea.Left; if outSepRect.Right > WorkArea.Right then outSepRect.Right := WorkArea.Right; if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left;
@@ -429,15 +459,9 @@ procedure TANDMR_CEdit.SetBorderStyle(const Value: TPenStyle); begin if FBorderS
 procedure TANDMR_CEdit.Paint;
 var
   LG: TGPGraphics;
-  // LPath, LBrush, LPen moved into DrawEditBox or local to GDI+ background
-  // PathRectF also moved into DrawEditBox or local to GDI+ background
-  // LRadiusValue also moved
-  // LBorderColorToUse, LBackgroundColorToUse replaced by EditBoxBGColor etc.
   TextToDisplay: string;
   TextFlags: Cardinal;
-
-  imgR, txtR, sepR: TRect; // Output from CalculateLayout
-
+  imgR, txtR, sepR: TRect; 
   EditBoxBGColor, EditBoxBorderColor, OverallBGColor: TColor;
   RectToDrawEditBoxIn: TRect;
   PaddedTextDrawArea: TRect;
@@ -459,12 +483,12 @@ begin
       if csDesigning in ComponentState then
       begin
         EditBoxBGColor := clWhite;
-        OverallBGColor := clBtnFace; // Background if iplOutsideBounds
+        OverallBGColor := clBtnFace; 
       end
       else
       begin
-        EditBoxBGColor := clWindow; // Default for text area
-        OverallBGColor := Self.Color; // Use component's color for overall background
+        EditBoxBGColor := clWindow; 
+        OverallBGColor := Self.Color; 
       end;
 
       if Self.Focused then
@@ -472,11 +496,10 @@ begin
       else
         EditBoxBorderColor := FBorderColor;
 
-      // Main drawing logic based on ImagePlacement
       if FImagePlacement = iplInsideBounds then
       begin
         RectToDrawEditBoxIn := ClientRect; 
-        var CompBGColorWhenInside: TColor; // Renamed from CurrentComponentFillColor
+        var CompBGColorWhenInside: TColor; 
         if csDesigning in ComponentState then CompBGColorWhenInside := clWhite
         else if Self.Focused then CompBGColorWhenInside := clWindow 
         else CompBGColorWhenInside := FInactiveColor; 
@@ -488,36 +511,27 @@ begin
       end
       else // iplOutsideBounds
       begin
-        // Clear overall component background (e.g., to Self.Color)
-        // Use overallBGColor determined above for iplOutsideBounds case
-        if csDesigning in ComponentState then OverallBGColor := clBtnFace // Consistent design background
-        else OverallBGColor := Self.Color; // Runtime background for the whole component area
+        if csDesigning in ComponentState then OverallBGColor := clBtnFace 
+        else OverallBGColor := Self.Color; 
         
-        LG.Clear(ColorToARGB(OverallBGColor)); // Clear with the chosen overall background
+        LG.Clear(ColorToARGB(OverallBGColor)); 
 
-        // Draw PNG image using GDI+ if it's outside bounds and PNG
         if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and (FImage.Graphic is TPNGImage) then
           Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode);
 
-        // Draw the text edit box separately
-        RectToDrawEditBoxIn := txtR; // Text rect is the edit box
+        RectToDrawEditBoxIn := txtR; 
         DrawEditBox(RectToDrawEditBoxIn, LG, EditBoxBGColor, EditBoxBorderColor);
       end;
     finally
       LG.Free; 
     end; // End of GDI+ operations
 
-    // --- VCL Canvas Drawing (on top of GDI+ stuff or for non-GDI+ elements) ---
-
-    // Draw Non-PNG image (if not drawn by GDI+ path)
     if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty and not (FImage.Graphic is TPNGImage) then
       Self.DrawNonPNGImageWithCanvas(Canvas, FImage.Graphic, imgR, FImageDrawMode);
 
-    // Draw Separator (always with VCL Canvas for simplicity here)
     if FSeparatorVisible and (FSeparatorThickness > 0) and (sepR.Width > 0) and (sepR.Height > 0) then
       Self.DrawSeparatorWithCanvas(Canvas, sepR, FSeparatorColor, FSeparatorThickness);
     
-    // Prepare and Draw Text
     PaddedTextDrawArea := txtR; 
     PaddedTextDrawArea.Left := txtR.Left + InternalTextPaddingX;
     PaddedTextDrawArea.Top := txtR.Top + InternalTextPaddingY;
@@ -539,7 +553,6 @@ begin
     if Length(TextToDisplay) > 0 and (PaddedTextDrawArea.Width > 0) and (PaddedTextDrawArea.Height > 0) then
       DrawText(Canvas.Handle, PChar(TextToDisplay), Length(TextToDisplay), PaddedTextDrawArea, TextFlags);
 
-    // Draw Caret
     if Self.Focused and FCaretVisible and (PaddedTextDrawArea.Width > 0) and (PaddedTextDrawArea.Height > 0) then
     begin
       var CaretXBase, CaretTop, CaretHeight, CaretXOffset: Integer;
@@ -836,4 +849,8 @@ begin
 end;
 
 end.
+[end of Source/ANDMR_CEdit.pas]
+
+[end of Source/ANDMR_CEdit.pas]
+
 [end of Source/ANDMR_CEdit.pas]

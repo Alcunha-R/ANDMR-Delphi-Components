@@ -42,6 +42,8 @@ type
     FDisabledFontColor: TColor; // New field for Disabled Font Color
     FTransparentChildren: Boolean; // New field for TransparentChildren
     FWindowRegion: HRGN; // Field to store the handle to the window region
+    FHoverSettings: THoverSettings; // Field for Hover Settings
+    FIsHovering: Boolean; // Tracks if the mouse is currently over the panel
 
     // Property Setters
     procedure SetColor(const Value: TColor);
@@ -64,10 +66,14 @@ type
     procedure SetCaptionOffsetY(const Value: Integer); // New setter for Y Offset
     procedure SetDisabledFontColor(const Value: TColor); // New setter for Disabled Font Color
     procedure SetTransparentChildren(const Value: Boolean); // New setter for TransparentChildren
+    procedure SetHoverSettings(const Value: THoverSettings); // Setter for Hover Settings
 
     // Internal methods
     procedure FontChanged(Sender: TObject);
+    procedure HoverSettingsChanged(Sender: TObject); // Event handler for Hover Settings changes
     procedure UpdateRegion; // Method to update the window region
+    procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER; // Message handler for mouse enter
+    procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE; // Message handler for mouse leave
 
   protected
     // Method overrides
@@ -97,7 +103,8 @@ type
     property CaptionOffsetY: Integer read FCaptionOffsetY write SetCaptionOffsetY default 0;
     property DisabledFontColor: TColor read FDisabledFontColor write SetDisabledFontColor default clGrayText;
     property Font: TFont read FFont write SetComponentFont;
-    property TransparentChildren: Boolean read FTransparentChildren write SetTransparentChildren default False; // New property
+    property TransparentChildren: Boolean read FTransparentChildren write SetTransparentChildren default False;
+    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // Published Hover Settings
 
     property DropShadowEnabled: Boolean read FDropShadowEnabled write SetDropShadowEnabled default False;
     property DropShadowColor: TColor read FDropShadowColor write SetDropShadowColor default clBlack;
@@ -166,7 +173,9 @@ begin
   FDisabledFontColor := clGrayText; // Initialize Disabled Font Color
   FTransparentChildren := False; // Initialize TransparentChildren
   FWindowRegion := 0; // Initialize window region handle
-
+  FHoverSettings := THoverSettings.Create; // Create HoverSettings instance
+  FHoverSettings.OnChange := HoverSettingsChanged; // Assign OnChange event
+  FIsHovering := False; // Initialize hover state
   FDropShadowEnabled := False;
   FDropShadowColor := clBlack;
   FDropShadowOffset := Point(2, 2);
@@ -193,6 +202,8 @@ begin
     DeleteObject(FWindowRegion);
     FWindowRegion := 0;
   end;
+  FHoverSettings.OnChange := nil; // Clear OnChange before freeing
+  FHoverSettings.Free;
   FFont.Free;
   inherited Destroy;
 end;
@@ -353,7 +364,7 @@ var
   LShadowBrush: TGPSolidBrush;
   LBackgroundColor, LBorderColor: ARGB;
   LShadowColorAlpha: ARGB;
-  // DashStyle: TGPSDashStyle; // Removed intermediate variable
+  CurrentColor, CurrentBorderColor, CurrentCaptionColor: TColor; // For hover/disabled states
   LDrawTextFlags: Cardinal;
   LPathInset: Single; // For border adjustment
 begin
@@ -409,10 +420,25 @@ begin
     CreateGPRoundedPath(LPanelPath, LPathRect, Single(FCornerRadius), FRoundCornerType); // Call as a procedure
     // if LPanelPath = nil then Exit; // Path object itself existing is the check. If it's empty, drawing ops might be no-ops or error.
     try
-      // Fill the background
-      if (FColor <> clNone) and (FOpacity > 0) then
+      // Determine effective colors based on state (normal, hover, disabled)
+      // 1. Background Color
+      CurrentColor := FColor;
+      if FIsHovering and FHoverSettings.Enabled and (FHoverSettings.BackgroundColor <> clNone) then
       begin
-        LBackgroundColor := ColorToARGB(FColor, FOpacity);
+        CurrentColor := FHoverSettings.BackgroundColor;
+      end;
+
+      // 2. Border Color
+      CurrentBorderColor := FBorderColor;
+      if FIsHovering and FHoverSettings.Enabled and (FHoverSettings.BorderColor <> clNone) then
+      begin
+        CurrentBorderColor := FHoverSettings.BorderColor;
+      end;
+
+      // Fill the background
+      if (CurrentColor <> clNone) and (FOpacity > 0) then
+      begin
+        LBackgroundColor := ColorToARGB(CurrentColor, FOpacity);
         LBrush := TGPSolidBrush.Create(LBackgroundColor);
         try
           LG.FillPath(LBrush, LPanelPath);
@@ -422,9 +448,9 @@ begin
       end;
 
       // Draw the border
-      if (FBorderThickness > 0) and (FBorderStyle <> psClear) and (FBorderColor <> clNone) and (FOpacity > 0) then
+      if (FBorderThickness > 0) and (FBorderStyle <> psClear) and (CurrentBorderColor <> clNone) and (FOpacity > 0) then
       begin
-        LBorderColor := ColorToARGB(FBorderColor, FOpacity);
+        LBorderColor := ColorToARGB(CurrentBorderColor, FOpacity);
         LPen := TGPPen.Create(LBorderColor, FBorderThickness);
         try
           case FBorderStyle of
@@ -467,20 +493,24 @@ begin
       // Set text color with opacity. Note: VCL DrawText doesn't directly support alpha.
       // For true alpha-blended text, one would need to use GDI+ text rendering.
       // Here, we set the font color, which VCL will use.
+      // 3. Caption Font Color
       if Self.Enabled then
       begin
-        Self.Canvas.Font.Color := FFont.Color; // Use the regular font color from FFont
+        CurrentCaptionColor := FFont.Color; // Default from TFont
+        if FIsHovering and FHoverSettings.Enabled and (FHoverSettings.FontColor <> clNone) then
+        begin
+          CurrentCaptionColor := FHoverSettings.FontColor;
+        end;
       end
-      else
+      else // Disabled
       begin
-        // If FDisabledFontColor is clNone, it implies we should use a system default for disabled text.
-        // clGrayText is a common representation of this.
-        // If FDisabledFontColor has a specific color (even if it's clGrayText set by user), use that.
         if FDisabledFontColor = clNone then
-            Self.Canvas.Font.Color := clGrayText
+          CurrentCaptionColor := clGrayText
         else
-            Self.Canvas.Font.Color := FDisabledFontColor; // Use the user-defined or default FDisabledFontColor
+          CurrentCaptionColor := FDisabledFontColor;
+        // Note: Hover effect on caption color is not applied if panel is disabled.
       end;
+      Self.Canvas.Font.Color := CurrentCaptionColor;
 
       LDrawTextFlags := DT_NOPREFIX; // Base flags, DT_SINGLELINE or DT_WORDBREAK will be added later
 
@@ -608,6 +638,19 @@ begin
   end;
 end;
 
+procedure TANDMR_CPanel.SetHoverSettings(const Value: THoverSettings);
+begin
+  FHoverSettings.Assign(Value);
+  // Repaint if hover is enabled, as changes might affect appearance even if not currently hovering.
+  if FHoverSettings.Enabled then
+    Invalidate;
+end;
+
+procedure TANDMR_CPanel.HoverSettingsChanged(Sender: TObject);
+begin
+  Invalidate; // Always repaint if hover settings change
+end;
+
 procedure TANDMR_CPanel.Resize;
 begin
   inherited Resize;
@@ -678,7 +721,7 @@ begin
   // Apply the new region (or clear if NewRegion is 0 and OldRegion was not 0)
   // Only call SetWindowRgn if the new region is different from the old one,
   // or if we are explicitly trying to clear a region when one was previously set.
-  if (HandleAllocated) and ((NewRegion <> OldRegion) or ((NewRegion = 0) And (OldRegion <> 0) )) then
+  if (HandleAllocated) and ((NewRegion <> OldRegion) or (NewRegion = 0 And OldRegion <> 0 )) then
   begin
     SetWindowRgn(Self.Handle, NewRegion, True); // True to force repaint
     FWindowRegion := NewRegion; // Update the stored region handle
@@ -690,7 +733,7 @@ begin
       DeleteObject(OldRegion);
     end;
   end
-  else if (NewRegion <> 0) And (NewRegion <> OldRegion) then
+  else if NewRegion <> 0 And NewRegion <> OldRegion then
   begin
     // If SetWindowRgn was not called (e.g. Handle not allocated yet) but we created a new region
     // that's different from OldRegion, we need to delete this new region as it won't be owned by the system.
@@ -699,7 +742,7 @@ begin
     if OldRegion <> 0 then DeleteObject(OldRegion);
     FWindowRegion := 0; // No region is currently set
   end
-  else if (NewRegion = 0) And (OldRegion <> 0) And not HandleAllocated then
+  else if NewRegion = 0 And OldRegion <> 0 And not HandleAllocated then
   begin
     // If we intended to clear the region (NewRegion is 0) but couldn't call SetWindowRgn,
     // we still need to delete the OldRegion.
@@ -709,6 +752,28 @@ begin
   // If NewRegion is 0 and OldRegion is 0, nothing to do.
   // If NewRegion is same as OldRegion (and not 0), nothing to do regarding SetWindowRgn or deletion.
 
+end;
+
+procedure TANDMR_CPanel.CMMouseEnter(var Message: TMessage);
+begin
+  inherited; // Call inherited handler first
+  if not FIsHovering then
+  begin
+    FIsHovering := True;
+    if FHoverSettings.Enabled then // Only invalidate if hover effects are active
+      Invalidate;
+  end;
+end;
+
+procedure TANDMR_CPanel.CMMouseLeave(var Message: TMessage);
+begin
+  inherited; // Call inherited handler first
+  if FIsHovering then
+  begin
+    FIsHovering := False;
+    if FHoverSettings.Enabled then // Only invalidate if hover effects were active
+      Invalidate;
+  end;
 end;
 
 end.

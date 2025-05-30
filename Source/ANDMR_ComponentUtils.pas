@@ -3,10 +3,11 @@ unit ANDMR_ComponentUtils;
 interface
 
 uses
-  System.SysUtils, System.Classes, Vcl.Graphics, Vcl.Themes, Vcl.Controls, Vcl.StdCtrls, Winapi.Windows; // Added Vcl.StdCtrls, Winapi.Windows for TFont, TColor etc.
+  System.SysUtils, System.Classes, Vcl.Graphics, Vcl.Themes, Vcl.Controls, Vcl.StdCtrls, Winapi.Windows,
+  Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Vcl.Imaging.pngimage; // Ensure GDIP units are here
 
 type
-  // Delphi type definitions will be moved here from ANDMR_CEdit.pas
+  // Delphi type definitions (TRoundCornerType, etc. are already here)
 
   TImagePositionSide = (ipsLeft, ipsRight);
   TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
@@ -23,6 +24,16 @@ type
   TInputType = (itNormal, itLettersOnly, itNumbersOnly, itNoSpecialChars, itAlphaNumericOnly);
   TTextCase = (tcNormal, tcUppercase, tcLowercase);
   TCaptionPosition = (cpAbove, cpBelow, cpLeft, cpRight);
+
+  TPredefinedMaskType = (
+    pmtNone,
+    pmtCustom,
+    pmtCPF,
+    pmtCNPJ,
+    pmtCEP,
+    pmtPhoneBR,
+    pmtDateDMY
+  );
 
   TImageMarginsControl = class(TPersistent)
   private
@@ -55,7 +66,7 @@ type
     FOffset: Integer;
     FWordWrap: Boolean;
     FOnChange: TNotifyEvent;
-    FOwnerControl: TWinControl; 
+    FOwnerControl: TWinControl;
     procedure SetVisible(const Value: Boolean);
     procedure SetText(const Value: string);
     procedure SetPosition(const Value: TCaptionPosition);
@@ -68,7 +79,7 @@ type
   protected
     procedure Changed; virtual;
   public
-    constructor Create(AOwner: TWinControl); 
+    constructor Create(AOwner: TWinControl);
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
   published
@@ -77,7 +88,7 @@ type
     property Position: TCaptionPosition read FPosition write SetPosition default cpAbove;
     property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify;
     property Font: TFont read FFont write SetFont;
-    property Color: TColor read FColor write SetColor default clWindowText; 
+    property Color: TColor read FColor write SetColor default clWindowText;
     property Offset: Integer read FOffset write SetOffset default 2;
     property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
@@ -123,14 +134,26 @@ type
     constructor Create;
     procedure Assign(Source: TPersistent); override;
   published
-    property Left: Integer read FLeft write SetLeft default 4; 
-    property Top: Integer read FTop write SetTop default 2;   
-    property Right: Integer read FRight write SetRight default 4; 
-    property Bottom: Integer read FBottom write SetBottom default 2; 
+    property Left: Integer read FLeft write SetLeft default 4;
+    property Top: Integer read FTop write SetTop default 2;
+    property Right: Integer read FRight write SetRight default 4;
+    property Bottom: Integer read FBottom write SetBottom default 2;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+// Helper function declarations
+function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
+procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
+procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
+procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
+procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
+
 implementation
+
+uses
+  System.Math,     // For Min, Max
+  Winapi.ActiveX;  // For IStream, TStreamAdapter
 
 { TImageMarginsControl }
 constructor TImageMarginsControl.Create;
@@ -172,14 +195,17 @@ begin
   FAlignment := taLeftJustify;
   FFont := TFont.Create;
   FFont.OnChange := FontChanged;
-  if Assigned(AOwner) and (AOwner is TCustomControl) then // Assuming AOwner is the component itself
-     FFont.Assign((AOwner as TCustomControl).Font)
-  else
-  begin
-    FFont.Name := 'Segoe UI';
-    FFont.Size := 9;
-  end;
-  FColor := clWindowText;
+
+  // --- Modification Start ---
+  // Always use a hardcoded default font to avoid the E2362 error.
+  // The attempt to inherit font via FOwnerControl.Font has proven problematic.
+  FFont.Name := 'Segoe UI';
+  FFont.Size := 9;
+  // Optionally, set other FFont properties like FFont.Color if a specific default is needed.
+  // FFont.Color := clWindowText; // This is already the default for TFont.
+  // --- Modification End ---
+
+  FColor := clWindowText; // This is TCaptionSettings.FColor, the text color of the caption
   FOffset := 2;
   FWordWrap := False;
 end;
@@ -295,5 +321,217 @@ procedure TTextMargins.SetLeft(const Value: Integer); begin if FLeft <> Value th
 procedure TTextMargins.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
 procedure TTextMargins.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
 procedure TTextMargins.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
+
+function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
+var
+  ColorRef: LongWord;
+  EffectiveAlpha: Byte;
+begin
+  EffectiveAlpha := Alpha;
+  if AColor = clNone then
+  begin
+    Result := (UInt32(EffectiveAlpha) shl 24);
+    Exit;
+  end;
+  ColorRef := ColorToRGB(AColor); // BGR format from VCL
+  Result := (UInt32(EffectiveAlpha) shl 24) or
+            ((ColorRef and $000000FF) shl 16) or
+            (ColorRef and $0000FF00) or
+            ((ColorRef and $00FF0000) shr 16);
+end;
+
+procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
+const
+  MIN_RADIUS_FOR_PATH = 0.1;
+var
+  LRadius, LDiameter: Single;
+  RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
+  Rect: TGPRectF;
+begin
+  APath.Reset;
+  Rect := ARect;
+
+  if Rect.Width < 0 then Rect.Width := 0;
+  if Rect.Height < 0 then Rect.Height := 0;
+
+  if (Rect.Width = 0) or (Rect.Height = 0) then
+  begin
+    if (Rect.Width > 0) and (Rect.Height > 0) then
+       APath.AddRectangle(Rect);
+    Exit;
+  end;
+
+  LRadius := ARadiusValue;
+  LRadius := Min(LRadius, Rect.Width / 2.0);
+  LRadius := Min(LRadius, Rect.Height / 2.0);
+  LRadius := Max(0.0, LRadius);
+
+  LDiameter := LRadius * 2.0;
+
+  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) or (Rect.Width < LDiameter) or (Rect.Height < LDiameter) then
+  begin
+    APath.AddRectangle(Rect);
+    Exit;
+  end;
+
+  RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
+  RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
+  RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
+  RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
+
+  APath.StartFigure;
+
+  if RoundTL then
+    APath.AddArc(Rect.X, Rect.Y, LDiameter, LDiameter, 180, 90)
+  else
+    APath.AddLine(Rect.X, Rect.Y, Rect.X, Rect.Y);
+
+  APath.AddLine(Rect.X + LRadius, Rect.Y, Rect.X + Rect.Width - LRadius, Rect.Y);
+
+  if RoundTR then
+    APath.AddArc(Rect.X + Rect.Width - LDiameter, Rect.Y, LDiameter, LDiameter, 270, 90)
+  else
+    APath.AddLine(Rect.X + Rect.Width, Rect.Y, Rect.X + Rect.Width, Rect.Y);
+
+  APath.AddLine(Rect.X + Rect.Width, Rect.Y + LRadius, Rect.X + Rect.Width, Rect.Y + Rect.Height - LRadius);
+
+  if RoundBR then
+    APath.AddArc(Rect.X + Rect.Width - LDiameter, Rect.Y + Rect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
+  else
+    APath.AddLine(Rect.X + Rect.Width, Rect.Y + Rect.Height, Rect.X + Rect.Width, Rect.Y + Rect.Height);
+
+  APath.AddLine(Rect.X + Rect.Width - LRadius, Rect.Y + Rect.Height, Rect.X + LRadius, Rect.Y + Rect.Height);
+
+  if RoundBL then
+    APath.AddArc(Rect.X, Rect.Y + Rect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
+  else
+    APath.AddLine(Rect.X, Rect.Y + Rect.Height, Rect.X, Rect.Y + Rect.Height);
+
+  APath.CloseFigure;
+end;
+
+procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
+var
+  LPath: TGPGraphicsPath;
+  LBrush: TGPBrush;
+  LPen: TGPPen;
+  LRectF: TGPRectF;
+  LRadiusValue: Single;
+  LBorderThicknessValue: Single; // Use a Single for GDI+ operations
+begin
+  if (AGraphics = nil) or (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) then // Basic check
+    Exit;
+
+  LBorderThicknessValue := ABorderThickness; // Use parameter
+
+  // Define the rectangle for path creation.
+  // If there's a border, the path should trace the centerline of the border stroke.
+  // This means the rectangle for the path is inset by half the border thickness.
+  if LBorderThicknessValue > 0 then
+  begin
+    LRectF.X      := ADrawArea.Left + LBorderThicknessValue / 2.0;
+    LRectF.Y      := ADrawArea.Top + LBorderThicknessValue / 2.0;
+    LRectF.Width  := ADrawArea.Width - LBorderThicknessValue;
+    LRectF.Height := ADrawArea.Height - LBorderThicknessValue;
+  end
+  else // No border, path is the ADrawArea itself
+  begin
+    LRectF.X      := ADrawArea.Left;
+    LRectF.Y      := ADrawArea.Top;
+    LRectF.Width  := ADrawArea.Width;
+    LRectF.Height := ADrawArea.Height;
+  end;
+
+  // Ensure dimensions are not negative for path creation.
+  LRectF.Width  := Max(0.0, LRectF.Width);
+  LRectF.Height := Max(0.0, LRectF.Height);
+
+  if (LRectF.Width = 0) or (LRectF.Height = 0) then // Cannot draw if path rect is empty
+    Exit;
+
+  // Calculate effective radius for rounding, cannot exceed half of the smallest dimension of LRectF.
+  LRadiusValue := ACornerRadius; // Use parameter
+  LRadiusValue := Min(LRadiusValue, LRectF.Width / 2.0);
+  LRadiusValue := Min(LRadiusValue, LRectF.Height / 2.0);
+  LRadiusValue := Max(0.0, LRadiusValue); // Ensure non-negative radius
+
+  LPath := TGPGraphicsPath.Create;
+  try
+    CreateGPRoundedPath(LPath, LRectF, LRadiusValue, ARoundCornerType); // Use parameter
+
+    if LPath.GetPointCount > 0 then // Check if path creation was successful
+    begin
+      // Fill Background
+      if ABackgroundColor <> clNone then
+      begin
+        // Use AOpacity for the alpha component of the background color
+        LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor, AOpacity)); // Use parameter
+        try
+          AGraphics.FillPath(LBrush, LPath);
+        finally
+          LBrush.Free;
+        end;
+      end;
+
+      // Draw Border
+      if (LBorderThicknessValue > 0) and (ABorderColor <> clNone) and (ABorderStyle <> psClear) then // Use parameters
+      begin
+        // Use AOpacity for the alpha component of the border color
+        LPen := TGPPen.Create(ColorToARGB(ABorderColor, AOpacity), LBorderThicknessValue); // Use parameters
+        try
+          case ABorderStyle of // Use parameter
+            psSolid:      LPen.SetDashStyle(DashStyleSolid);
+            psDash:       LPen.SetDashStyle(DashStyleDash);
+            psDot:        LPen.SetDashStyle(DashStyleDot);
+            psDashDot:    LPen.SetDashStyle(DashStyleDashDot);
+            psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot);
+            else          LPen.SetDashStyle(DashStyleSolid);
+          end;
+          AGraphics.DrawPath(LPen, LPath);
+        finally
+          LPen.Free;
+        end;
+      end;
+    end;
+  finally
+    LPath.Free;
+  end;
+end;
+
+procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
+var DrawImageRect: TRect; GraphicW, GraphicH: Integer; rRatio, rRectRatio: Double; PngStream: TMemoryStream; GpSourceBitmap: TGPBitmap; Adapter: IStream;
+begin
+  if (AGraphics = nil) or (APNG = nil) or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+  GraphicW := APNG.Width; GraphicH := APNG.Height; if (GraphicW <= 0) or (GraphicH <= 0) then Exit;
+  case ADrawMode of
+    idmStretch: DrawImageRect := ADestRect;
+    idmProportional: begin rRatio := GraphicW / GraphicH; if ADestRect.Height = 0 then rRectRatio := MaxDouble else rRectRatio := ADestRect.Width / ADestRect.Height; if rRectRatio > rRatio then begin DrawImageRect.Height := ADestRect.Height; DrawImageRect.Width := Round(ADestRect.Height * rRatio); end else begin DrawImageRect.Width := ADestRect.Width; if rRatio = 0 then DrawImageRect.Height := 0 else DrawImageRect.Height := Round(ADestRect.Width / rRatio); end; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
+    idmNormal: begin DrawImageRect.Width := GraphicW; DrawImageRect.Height := GraphicH; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
+  else DrawImageRect := ADestRect; end;
+  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
+  PngStream := TMemoryStream.Create; try APNG.SaveToStream(PngStream); PngStream.Position := 0; Adapter := TStreamAdapter.Create(PngStream, soReference); GpSourceBitmap := TGPBitmap.Create(Adapter); try if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic) else AGraphics.SetInterpolationMode(InterpolationModeDefault); AGraphics.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height); finally GpSourceBitmap.Free; end; finally PngStream.Free; end;
+end;
+
+procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+var DrawImageRect: TRect; GraphicW, GraphicH: Integer; rRatio, rRectRatio: Double;
+begin
+  if (ACanvas = nil) or (AGraphic = nil) or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+  GraphicW := AGraphic.Width; GraphicH := AGraphic.Height; if (GraphicW <= 0) or (GraphicH <= 0) then Exit;
+  case ADrawMode of
+    idmStretch: DrawImageRect := ADestRect;
+    idmProportional: begin rRatio := GraphicW / GraphicH; if ADestRect.Height = 0 then rRectRatio := MaxDouble else rRectRatio := ADestRect.Width / ADestRect.Height; if rRectRatio > rRatio then begin DrawImageRect.Height := ADestRect.Height; DrawImageRect.Width := Round(ADestRect.Height * rRatio); end else begin DrawImageRect.Width := ADestRect.Width; if rRatio = 0 then DrawImageRect.Height := 0 else DrawImageRect.Height := Round(ADestRect.Width / rRatio); end; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
+    idmNormal: begin DrawImageRect.Width := GraphicW; DrawImageRect.Height := GraphicH; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
+  else DrawImageRect := ADestRect; end;
+  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
+  if ADrawMode = idmNormal then ACanvas.Draw(DrawImageRect.Left, DrawImageRect.Top, AGraphic)
+  else ACanvas.StretchDraw(DrawImageRect, AGraphic);
+end;
+
+procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
+var LineX: Integer;
+begin
+  if (ACanvas = nil) or (AThickness <= 0) or (ASepRect.Width <= 0) or (ASepRect.Height <= 0) then Exit;
+  LineX := ASepRect.Left + ASepRect.Width div 2; ACanvas.Pen.Color := AColor; ACanvas.Pen.Width := AThickness; ACanvas.Pen.Style := psSolid; ACanvas.MoveTo(LineX, ASepRect.Top); ACanvas.LineTo(LineX, ASepRect.Bottom);
+end;
 
 end.

@@ -6,7 +6,7 @@ uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX,
-  Vcl.ExtCtrls, Vcl.Imaging.pngimage;
+  Vcl.ExtCtrls, Vcl.Imaging.pngimage, System.ComponentModel; // Added here
 
 type
   TImagePositionSide = (ipsLeft, ipsRight);
@@ -14,6 +14,16 @@ type
   TImagePlacement = (iplInsideBounds, iplOutsideBounds);
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
+
+  TPredefinedMaskType = (
+    pmtNone,          // No predefined mask, FInputMask is used as is or is empty
+    pmtCustom,        // User-defined FInputMask
+    pmtCPF,           // 000.000.000-00
+    pmtCNPJ,          // 00.000.000/0000-00
+    pmtCEP,           // 00000-000
+    pmtPhoneBR,       // (00) 90000-0000 (prioritizing 9-digit mobile)
+    pmtDateDMY        // 00/00/0000
+  );
 
   TImageMarginsControl = class(TPersistent)
   private
@@ -31,6 +41,26 @@ type
     property Left: Integer read FLeft write SetLeft default 2;
     property Top: Integer read FTop write SetTop default 2;
     property Right: Integer read FRight write SetRight default 2;
+    property Bottom: Integer read FBottom write SetBottom default 2;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  TTextMargins = class(TPersistent)
+  private
+    FLeft, FTop, FRight, FBottom: Integer;
+    FOnChange: TNotifyEvent;
+    procedure SetLeft(const Value: Integer);
+    procedure SetTop(const Value: Integer);
+    procedure SetRight(const Value: Integer);
+    procedure SetBottom(const Value: Integer);
+    procedure Changed;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Left: Integer read FLeft write SetLeft default 4;
+    property Top: Integer read FTop write SetTop default 2;
+    property Right: Integer read FRight write SetRight default 4;
     property Bottom: Integer read FBottom write SetBottom default 2;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
@@ -162,6 +192,8 @@ type
     FCaptionRect: TRect;
     FHoverSettings: THoverSettings; // New Field
     FHovered: Boolean;
+    FTextMargins: TTextMargins; // New Field for Text Margins
+    FPredefinedMask: TPredefinedMaskType; // New Field for Predefined Mask
     FOnExit: TNotifyEvent;
     FOnChange: TNotifyEvent;
     FOnEnter: TNotifyEvent;             // New Field
@@ -212,6 +244,9 @@ type
     procedure CaptionSettingsChanged(Sender: TObject);
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure HoverSettingsChanged(Sender: TObject);
+    procedure TextMarginsChanged(Sender: TObject); // New Method for Text Margins
+    procedure SetTextMargins(const Value: TTextMargins); // New Setter for Text Margins
+    procedure SetPredefinedMask(const Value: TPredefinedMaskType); // New Setter for Predefined Mask
 
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER; // Changed to TMessage
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE; // Changed to TMessage
@@ -235,32 +270,54 @@ type
     destructor Destroy; override;
 
   published
-    property Text: string read FText write SetText;
-    property MaxLength: Integer read FMaxLength write SetMaxLength default 0;
-    property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
-    property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
-    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 8;
-    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight;
-    property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clBtnFace;
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
-    property Image: TPicture read FImage write SetImage;
-    property ImageVisible: Boolean read FImageVisible write SetImageVisible default True;
-    property ImagePosition: TImagePositionSide read FImagePosition write SetImagePosition default ipsLeft;
-    property ImageAlignment: TImageAlignmentVertical read FImageAlignment write SetImageAlignment default iavCenter;
-    property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins;
-    property ImagePlacement: TImagePlacement read FImagePlacement write SetImagePlacement default iplInsideBounds;
-    property ImageDrawMode: TImageDrawMode read FImageDrawMode write SetImageDrawMode default idmProportional;
-    property SeparatorVisible: Boolean read FSeparatorVisible write SetSeparatorVisible default False;
-    property SeparatorColor: TColor read FSeparatorColor write SetSeparatorColor default clGrayText;
-    property SeparatorThickness: Integer read FSeparatorThickness write SetSeparatorThickness default 1;
-    property SeparatorPadding: Integer read FSeparatorPadding write SetSeparatorPadding default 2;
-    property SeparatorHeightMode: TSeparatorHeightMode read FSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
-    property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0; // Ensured semicolon
+  [Category('Data')]
+  property Text: string read FText write SetText;
+  [Category('Data')]
+  property MaxLength: Integer read FMaxLength write SetMaxLength default 0;
+  [Category('Behavior')]
+  property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
+  [Category('Behavior')]
+  property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
+  [Category('Appearance - General')]
+  property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 8;
+  [Category('Appearance - General')]
+  property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
+  [Category('Appearance - Focus')]
+  property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight;
+  [Category('Appearance - General')]
+  property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clBtnFace;
+  [Category('Appearance - General')]
+  property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
+  [Category('Appearance - General')]
+  property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
+  [Category('Appearance - General')]
+  property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
+  property Image: TPicture read FImage write SetImage; // Keep Image property without specific category for now or assign to a general one if preferred
+  [Category('Appearance - Image')]
+  property ImageVisible: Boolean read FImageVisible write SetImageVisible default True;
+  [Category('Appearance - Image')]
+  property ImagePosition: TImagePositionSide read FImagePosition write SetImagePosition default ipsLeft;
+  [Category('Appearance - Image')]
+  property ImageAlignment: TImageAlignmentVertical read FImageAlignment write SetImageAlignment default iavCenter;
+  property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins; // This is a class, often left uncategorized or in specific 'Margins' category
+  [Category('Appearance - Image')]
+  property ImagePlacement: TImagePlacement read FImagePlacement write SetImagePlacement default iplInsideBounds;
+  [Category('Appearance - Image')]
+  property ImageDrawMode: TImageDrawMode read FImageDrawMode write SetImageDrawMode default idmProportional;
+  [Category('Appearance - Separator')]
+  property SeparatorVisible: Boolean read FSeparatorVisible write SetSeparatorVisible default False;
+  [Category('Appearance - Separator')]
+  property SeparatorColor: TColor read FSeparatorColor write SetSeparatorColor default clGrayText;
+  [Category('Appearance - Separator')]
+  property SeparatorThickness: Integer read FSeparatorThickness write SetSeparatorThickness default 1;
+  [Category('Appearance - Separator')]
+  property SeparatorPadding: Integer read FSeparatorPadding write SetSeparatorPadding default 2;
+  [Category('Appearance - Separator')]
+  property SeparatorHeightMode: TSeparatorHeightMode read FSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
+  [Category('Appearance - Separator')]
+  property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0; // Ensured semicolon
 
-    property Align;
+  property Align;
     property Anchors;
     property Constraints;
     property Enabled;
@@ -284,21 +341,37 @@ type
     property OnKeyUp;
 
     // New published properties
-    property FocusBorderColor: TColor read FFocusBorderColor write SetFocusBorderColor;
-    property FocusBorderColorVisible: Boolean read FFocusBorderColorVisible write SetFocusBorderColorVisible;
-    property FocusBackgroundColor: TColor read FFocusBackgroundColor write SetFocusBackgroundColor;
-    property FocusBackgroundColorVisible: Boolean read FFocusBackgroundColorVisible write SetFocusBackgroundColorVisible;
-    property FocusUnderlineColor: TColor read FFocusUnderlineColor write SetFocusUnderlineColor;
-    property FocusUnderlineVisible: Boolean read FFocusUnderlineVisible write SetFocusUnderlineVisible;
-    property FocusUnderlineThickness: Integer read FFocusUnderlineThickness write SetFocusUnderlineThickness;
-    property FocusUnderlineStyle: TPenStyle read FFocusUnderlineStyle write SetFocusUnderlineStyle;
-    property Opacity: Byte read FOpacity write SetOpacity;
-    property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
-    property InputType: TInputType read FInputType write SetInputType default itNormal;
-    property TextCase: TTextCase read FTextCase write SetTextCase default tcNormal;
-    property InputMask: string read FInputMask write SetInputMask;
-    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
-    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // New Property
+  [Category('Appearance - Focus')]
+  property FocusBorderColor: TColor read FFocusBorderColor write SetFocusBorderColor;
+  [Category('Appearance - Focus')]
+  property FocusBorderColorVisible: Boolean read FFocusBorderColorVisible write SetFocusBorderColorVisible;
+  [Category('Appearance - Focus')]
+  property FocusBackgroundColor: TColor read FFocusBackgroundColor write SetFocusBackgroundColor;
+  [Category('Appearance - Focus')]
+  property FocusBackgroundColorVisible: Boolean read FFocusBackgroundColorVisible write SetFocusBackgroundColorVisible;
+  [Category('Appearance - Focus')]
+  property FocusUnderlineColor: TColor read FFocusUnderlineColor write SetFocusUnderlineColor;
+  [Category('Appearance - Focus')]
+  property FocusUnderlineVisible: Boolean read FFocusUnderlineVisible write SetFocusUnderlineVisible;
+  [Category('Appearance - Focus')]
+  property FocusUnderlineThickness: Integer read FFocusUnderlineThickness write SetFocusUnderlineThickness;
+  [Category('Appearance - Focus')]
+  property FocusUnderlineStyle: TPenStyle read FFocusUnderlineStyle write SetFocusUnderlineStyle;
+  [Category('Appearance - General')]
+  property Opacity: Byte read FOpacity write SetOpacity;
+  [Category('Behavior')]
+  property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
+  [Category('Behavior')]
+  property InputType: TInputType read FInputType write SetInputType default itNormal;
+  [Category('Behavior')]
+  property TextCase: TTextCase read FTextCase write SetTextCase default tcNormal;
+  [Category('Data')]
+  property InputMask: string read FInputMask write SetInputMask;
+  property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
+  property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // New Property
+  property TextMargins: TTextMargins read FTextMargins write SetTextMargins; // New Property for Text Margins
+  [Category('Data')]
+  property PredefinedMask: TPredefinedMaskType read FPredefinedMask write SetPredefinedMask default pmtNone; // New Property for Predefined Mask
   end;
 
 procedure Register;
@@ -659,6 +732,40 @@ procedure TImageMarginsControl.SetTop(const Value: Integer); begin if FTop <> Va
 procedure TImageMarginsControl.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
 procedure TImageMarginsControl.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
 
+{ TTextMargins }
+constructor TTextMargins.Create;
+begin
+  inherited Create;
+  FLeft := 4; FTop := 2; FRight := 4; FBottom := 2;
+end;
+
+procedure TTextMargins.Assign(Source: TPersistent);
+begin
+  if Source is TTextMargins then
+  begin
+    Self.FLeft := TTextMargins(Source).FLeft;
+    Self.FTop := TTextMargins(Source).FTop;
+    Self.FRight := TTextMargins(Source).FRight;
+    Self.FBottom := TTextMargins(Source).FBottom;
+    // No direct Changed call here, assuming setters will call it if needed,
+    // or if direct field access is used elsewhere, Changed might be called manually.
+    // If setters are the only way to change these, and they call Changed, this is fine.
+    // However, standard practice for Assign is often to call Changed at the end
+    // if any value was potentially altered. Let's add it for safety.
+    Changed; // Call Changed if values might have been updated.
+  end else inherited Assign(Source);
+end;
+
+procedure TTextMargins.Changed;
+begin
+  if Assigned(FOnChange) then FOnChange(Self);
+end;
+
+procedure TTextMargins.SetLeft(const Value: Integer); begin if FLeft <> Value then begin FLeft := Value; Changed; end; end;
+procedure TTextMargins.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
+procedure TTextMargins.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
+procedure TTextMargins.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
+
 { TANDMR_CEdit }
 procedure TANDMR_CEdit.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
 var
@@ -1001,10 +1108,14 @@ begin
   FHoverSettings := THoverSettings.Create; // Create HoverSettings
   FHoverSettings.OnChange := HoverSettingsChanged; // Assign OnChange handler
   FHovered := False; // Initialize FHovered
+  FTextMargins := TTextMargins.Create; // Create TextMargins
+  FTextMargins.OnChange := TextMarginsChanged; // Assign OnChange handler
+  FPredefinedMask := pmtNone; // Initialize PredefinedMask
 end;
 
 destructor TANDMR_CEdit.Destroy;
 begin
+  FTextMargins.Free; // Free TextMargins
   FHoverSettings.Free; // Free HoverSettings
   FCaptionSettings.Free;
   FCaretTimer.Free; if Assigned(FImage) then begin FImage.OnChange := nil; FImage.Free; end; FImageMargins.Free;
@@ -1044,7 +1155,7 @@ begin
     begin
       MaskChar := FInputMask[MaskIndex];
       // Define literals as characters not in the set of placeholders
-      IsLiteral := not (MaskChar IN ['9', 'L', 'A', '#']); // Assuming '#' is a generic placeholder for now
+      IsLiteral := not (MaskChar IN ['9', '0', 'L', 'A', '#']); // Added '0' as a placeholder
 
       if IsLiteral then
       begin
@@ -1057,7 +1168,7 @@ begin
           CharToTest := ProcessedRawText[RawIndex];
           CharAllowed := False;
           case MaskChar of
-            '9': CharAllowed := CharToTest IN ['0'..'9'];
+            '9', '0': CharAllowed := CharToTest IN ['0'..'9']; // Added '0'
             'L': CharAllowed := System.Character.IsLetter(CharToTest);
             'A': CharAllowed := System.Character.IsLetterOrDigit(CharToTest);
             '#': CharAllowed := True; // Example: '#' accepts any char from raw text
@@ -1287,17 +1398,22 @@ begin
 end;
 
 procedure TANDMR_CEdit.SetInputMask(const Value: string);
+var
+  OldRawText: string;
 begin
   if FInputMask <> Value then
   begin
+    OldRawText := FRawText; // Preserve raw text
     FInputMask := Value;
-    // When mask changes, clear existing text (FRawText, FMaskedText, and FText which is display).
-    // SetText('') will handle resetting FRawText and FMaskedText and then FText.
-    SetText(''); // This effectively clears FRawText and FMaskedText (via current SetText logic path)
-                 // and then updates FText to the empty masked representation.
-    FCaretPosition := 0; // Reset caret
-    Invalidate;
-    // A more advanced implementation might try to reformat FRawText based on the new mask.
+
+    if FInputMask = '' then
+      FPredefinedMask := pmtNone // If mask string is cleared, no predefined type applies
+    else
+      FPredefinedMask := pmtCustom; // Any direct non-empty mask string implies custom type
+
+    // Re-apply the old raw text to the new mask format
+    SetText(OldRawText);
+    Invalidate; // Ensure repaint for property change in designer
   end;
 end;
 
@@ -1328,6 +1444,54 @@ procedure TANDMR_CEdit.HoverSettingsChanged(Sender: TObject);
 begin
   if FHovered or (not FHoverSettings.Enabled) then // Repaint if currently hovered or if hover effect is disabled (to revert)
     Invalidate;
+end;
+
+procedure TANDMR_CEdit.TextMarginsChanged(Sender: TObject);
+begin
+  Invalidate; // Recalculate and repaint
+end;
+
+procedure TANDMR_CEdit.SetTextMargins(const Value: TTextMargins);
+begin
+  FTextMargins.Assign(Value);
+  // TextMarginsChanged will be called by FTextMargins.Assign if values actually change
+  // and if FTextMargins.Assign calls Changed.
+  // To be safe, we can call Invalidate here if direct assignment might not trigger OnChange.
+  // However, the current TTextMargins.Assign does call Changed.
+end;
+
+procedure TANDMR_CEdit.SetPredefinedMask(const Value: TPredefinedMaskType);
+var
+  NewMaskValue: string;
+  OldRawText: string;
+begin
+  if FPredefinedMask <> Value then
+  begin
+    OldRawText := FRawText; // Preserve raw text
+    FPredefinedMask := Value;
+
+    case FPredefinedMask of
+      pmtCPF:     NewMaskValue := '000\.000\.000-00';
+      pmtCNPJ:    NewMaskValue := '00\.000\.000/0000-00';
+      pmtCEP:     NewMaskValue := '00000-000';
+      pmtPhoneBR: NewMaskValue := '(00) 90000-0000';
+      pmtDateDMY: NewMaskValue := '00/00/0000';
+      pmtCustom:  Exit; // Do nothing, FInputMask is king
+      pmtNone:    NewMaskValue := '';
+    else
+      NewMaskValue := ''; // Should not happen, but default to no mask
+    end;
+
+    // Directly change FInputMask to avoid feedback loop with SetInputMask property setter
+    if FInputMask <> NewMaskValue then
+    begin
+      FInputMask := NewMaskValue;
+      // Now re-apply the old raw text to the new mask format.
+      // SetText handles FRawText, FMaskedText, FText, and Invalidation.
+      SetText(OldRawText);
+    end;
+    Invalidate; // Ensure repaint for property change in designer
+  end;
 end;
 
 procedure TANDMR_CEdit.CMMouseEnter(var Message: TMessage); // Changed to TMessage
@@ -1361,7 +1525,6 @@ var
   //OverallBGColor: TColor; // Superseded by Actual* logic
   RectToDrawEditBoxIn: TRect; // Used for FocusUnderline, should be the EditBoxDrawingRect
   PaddedTextDrawArea: TRect;
-  InternalTextPaddingX, InternalTextPaddingY: Integer;
   FullClientRect: TRect;
 
   // Variables for determined colors based on state
@@ -1372,9 +1535,6 @@ var
 begin
   FullClientRect := Self.ClientRect; // Cache client rect
   CalculateLayout(imgR, txtR, sepR); // This sets FCaptionRect and out params for edit area
-
-  InternalTextPaddingX := 4;
-  InternalTextPaddingY := 2;
 
   Canvas.Lock;
   try
@@ -1517,10 +1677,10 @@ begin
 
     // --- Text Rendering (using Canvas, relative to txtR) ---
     PaddedTextDrawArea := txtR;
-    PaddedTextDrawArea.Left := txtR.Left + InternalTextPaddingX;
-    PaddedTextDrawArea.Top := txtR.Top + InternalTextPaddingY;
-    PaddedTextDrawArea.Right := txtR.Right - InternalTextPaddingX;
-    PaddedTextDrawArea.Bottom := txtR.Bottom - InternalTextPaddingY;
+    PaddedTextDrawArea.Left := txtR.Left + FTextMargins.Left;
+    PaddedTextDrawArea.Top := txtR.Top + FTextMargins.Top;
+    PaddedTextDrawArea.Right := txtR.Right - FTextMargins.Right;
+    PaddedTextDrawArea.Bottom := txtR.Bottom - FTextMargins.Bottom;
 
     if PaddedTextDrawArea.Right < PaddedTextDrawArea.Left then PaddedTextDrawArea.Right := PaddedTextDrawArea.Left;
     if PaddedTextDrawArea.Bottom < PaddedTextDrawArea.Top then PaddedTextDrawArea.Bottom := PaddedTextDrawArea.Top;
@@ -1854,7 +2014,7 @@ begin
       var MaskPlaceholdersCount: Integer := 0;
       var i: Integer;
       for i := 1 to Length(FInputMask) do
-        if FInputMask[i] IN ['9','L','A','#'] then Inc(MaskPlaceholdersCount);
+        if FInputMask[i] IN ['9','0','L','A','#'] then Inc(MaskPlaceholdersCount); // Added '0'
 
       if Length(FRawText) >= MaskPlaceholdersCount then
       begin
@@ -1876,7 +2036,7 @@ begin
       for MaskIdx := 1 to Length(FInputMask) do
       begin
         MaskDefChar := FInputMask[MaskIdx];
-        IsLit := not (MaskDefChar IN ['9', 'L', 'A', '#']);
+        IsLit := not (MaskDefChar IN ['9', '0', 'L', 'A', '#']); // Added '0'
         if IsLit then
         begin
           BuildMaskedText := BuildMaskedText + MaskDefChar;
@@ -1888,7 +2048,7 @@ begin
             CharToIns := TempRawText[RawIdx];
             CharOK := False;
             case MaskDefChar of
-              '9': CharOK := CharToIns IN ['0'..'9'];
+              '9', '0': CharOK := CharToIns IN ['0'..'9']; // Added '0'
               'L': CharOK := System.Character.IsLetter(CharToIns);
               'A': CharOK := System.Character.IsLetterOrDigit(CharToIns);
               '#': CharOK := True;
@@ -1982,22 +2142,17 @@ var
   TextToMeasure: string;
   LayoutImgRect, LayoutTxtRect, LayoutSepRect: TRect; // To store results from CalculateLayout
   PaddedTextClickArea: TRect; // The actual clickable area for text
-  InternalTextPaddingX_Mouse, InternalTextPaddingY_Mouse: Integer;
 begin
   inherited MouseDown(Button, Shift, X, Y);
 
   Self.CalculateLayout(LayoutImgRect, LayoutTxtRect, LayoutSepRect); // Get current layout
 
-  // Define internal padding (must match Paint's PaddedTextRect calculation)
-  InternalTextPaddingX_Mouse := 4; // Matches Paint's InternalTextPaddingX
-  InternalTextPaddingY_Mouse := 2; // Matches Paint's InternalTextPaddingY
-
-  // Calculate the actual clickable area for text based on LayoutTxtRect and padding
+  // Calculate the actual clickable area for text based on LayoutTxtRect and FTextMargins
   PaddedTextClickArea := LayoutTxtRect;
-  PaddedTextClickArea.Left := LayoutTxtRect.Left + InternalTextPaddingX_Mouse;
-  PaddedTextClickArea.Top := LayoutTxtRect.Top + InternalTextPaddingY_Mouse;
-  PaddedTextClickArea.Right := LayoutTxtRect.Right - InternalTextPaddingX_Mouse;
-  PaddedTextClickArea.Bottom := LayoutTxtRect.Bottom - InternalTextPaddingY_Mouse;
+  PaddedTextClickArea.Left := LayoutTxtRect.Left + FTextMargins.Left;
+  PaddedTextClickArea.Top := LayoutTxtRect.Top + FTextMargins.Top;
+  PaddedTextClickArea.Right := LayoutTxtRect.Right - FTextMargins.Right;
+  PaddedTextClickArea.Bottom := LayoutTxtRect.Bottom - FTextMargins.Bottom;
 
   // Ensure padded rect is not inverted
   if PaddedTextClickArea.Right < PaddedTextClickArea.Left then PaddedTextClickArea.Right := PaddedTextClickArea.Left;

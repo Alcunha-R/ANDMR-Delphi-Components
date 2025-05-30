@@ -166,6 +166,7 @@ begin
   FDisabledFontColor := clGrayText; // Initialize Disabled Font Color
   FTransparentChildren := False; // Initialize TransparentChildren
   FWindowRegion := 0; // Initialize window region handle
+
   FDropShadowEnabled := False;
   FDropShadowColor := clBlack;
   FDropShadowOffset := Point(2, 2);

@@ -499,32 +499,216 @@ begin
 end;
 
 procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
-var DrawImageRect: TRect; GraphicW, GraphicH: Integer; rRatio, rRectRatio: Double; PngStream: TMemoryStream; GpSourceBitmap: TGPBitmap; Adapter: IStream;
+var
+  DrawImageRect: TRect;
+  GraphicW, GraphicH: Integer;
+  rRatio, rRectRatio: Double;
+  tempCalculatedW, tempCalculatedH: Double; // For checking pre-rounding values
+  PngStream: TMemoryStream;
+  GpSourceBitmap: TGPBitmap;
+  Adapter: IStream;
+  E: Exception; // For the exception handler
 begin
-  if (AGraphics = nil) or (APNG = nil) or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
-  GraphicW := APNG.Width; GraphicH := APNG.Height; if (GraphicW <= 0) or (GraphicH <= 0) then Exit;
+  if (AGraphics = nil) or (APNG = nil) then Exit;
+  if (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+
+  GraphicW := APNG.Width;
+  GraphicH := APNG.Height;
+
+  if (GraphicW <= 0) or (GraphicH <= 0) then
+  begin
+    if ADrawMode = idmNormal then
+    begin
+      // For idmNormal, proceed with current GraphicW/H.
+    end
+    else
+    begin
+      Exit;
+    end;
+  end;
+
   case ADrawMode of
-    idmStretch: DrawImageRect := ADestRect;
-    idmProportional: begin rRatio := GraphicW / GraphicH; if ADestRect.Height = 0 then rRectRatio := MaxDouble else rRectRatio := ADestRect.Width / ADestRect.Height; if rRectRatio > rRatio then begin DrawImageRect.Height := ADestRect.Height; DrawImageRect.Width := Round(ADestRect.Height * rRatio); end else begin DrawImageRect.Width := ADestRect.Width; if rRatio = 0 then DrawImageRect.Height := 0 else DrawImageRect.Height := Round(ADestRect.Width / rRatio); end; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
-    idmNormal: begin DrawImageRect.Width := GraphicW; DrawImageRect.Height := GraphicH; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
-  else DrawImageRect := ADestRect; end;
-  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
-  PngStream := TMemoryStream.Create; try APNG.SaveToStream(PngStream); PngStream.Position := 0; Adapter := TStreamAdapter.Create(PngStream, soReference); GpSourceBitmap := TGPBitmap.Create(Adapter); try if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic) else AGraphics.SetInterpolationMode(InterpolationModeDefault); AGraphics.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height); finally GpSourceBitmap.Free; end; finally PngStream.Free; end;
-end;
+    idmStretch:
+      DrawImageRect := ADestRect;
+    idmProportional:
+      begin
+        rRatio := GraphicW / GraphicH;
+
+        if ADestRect.Height > 0 then
+          rRectRatio := ADestRect.Width / ADestRect.Height
+        else
+          rRectRatio := MaxDouble;
+
+        if rRectRatio > rRatio then
+        begin
+          DrawImageRect.Height := ADestRect.Height;
+          tempCalculatedW := ADestRect.Height * rRatio;
+          DrawImageRect.Width := Round(tempCalculatedW);
+          if (DrawImageRect.Width = 0) and (tempCalculatedW > 0) and (ADestRect.Width > 0) then
+            DrawImageRect.Width := 1;
+        end
+        else
+        begin
+          DrawImageRect.Width := ADestRect.Width;
+          if rRatio > 0 then
+          begin
+            tempCalculatedH := ADestRect.Width / rRatio;
+            DrawImageRect.Height := Round(tempCalculatedH);
+            if (DrawImageRect.Height = 0) and (tempCalculatedH > 0) and (ADestRect.Height > 0) then
+              DrawImageRect.Height := 1;
+          end
+          else
+            DrawImageRect.Height := 0;
+        end;
+
+        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2;
+        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2;
+        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+      end;
+    idmNormal:
+      begin
+        DrawImageRect.Width := GraphicW;
+        DrawImageRect.Height := GraphicH;
+        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2;
+        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2;
+        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+      end;
+  else
+    DrawImageRect := ADestRect;
+  end;
+
+  if ((DrawImageRect.Right <= DrawImageRect.Left) or (DrawImageRect.Bottom <= DrawImageRect.Top) or (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0)) then
+    Exit;
+
+  PngStream := TMemoryStream.Create;
+  try // Outer try-finally for PngStream
+    APNG.SaveToStream(PngStream);
+    PngStream.Position := 0;
+    Adapter := TStreamAdapter.Create(PngStream, soReference);
+    GpSourceBitmap := TGPBitmap.Create(Adapter); // This can raise an exception
+    try // Inner try-finally for GpSourceBitmap
+      if (GpSourceBitmap = nil) or (GpSourceBitmap.GetLastStatus <> Ok) then
+      begin
+        // If GpSourceBitmap creation failed, exit without trying to use it
+        // GpSourceBitmap.Free will be called in the finally block
+        Exit;
+      end;
+
+      if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then
+        AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic)
+      else
+        AGraphics.SetInterpolationMode(InterpolationModeDefault);
+
+      AGraphics.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height);
+    finally
+      GpSourceBitmap.Free; // Free GpSourceBitmap in all cases (success or exception during DrawImage)
+    end;
+  except // Exception handler for the outer try (e.g., issues with PngStream, Adapter, GpSourceBitmap.Create)
+    on E: Exception do
+    begin
+      // Optional: Log or handle exception E
+      // For example: System.Diagnostics.OutputDebugString(PChar('Error creating/processing PNG: ' + E.Message));
+    end;
+  end; // End of outer try-except
+    PngStream.Free; // Free PngStream in all cases
+end; // End of procedure
 
 procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
-var DrawImageRect: TRect; GraphicW, GraphicH: Integer; rRatio, rRectRatio: Double;
+var
+  DrawImageRect: TRect;
+  GraphicW, GraphicH: Integer;
+  rRatio, rRectRatio: Double;
+  tempCalculatedW, tempCalculatedH: Double; // For checking pre-rounding values
+  E: Exception;
 begin
-  if (ACanvas = nil) or (AGraphic = nil) or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
-  GraphicW := AGraphic.Width; GraphicH := AGraphic.Height; if (GraphicW <= 0) or (GraphicH <= 0) then Exit;
+  if (ACanvas = nil) or (AGraphic = nil) or (AGraphic.Empty) then Exit;
+  if (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+
+  GraphicW := AGraphic.Width;
+  GraphicH := AGraphic.Height;
+
+  if (GraphicW <= 0) or (GraphicH <= 0) then
+  begin
+    if ADrawMode = idmNormal then
+    begin
+      // For idmNormal, proceed.
+    end
+    else // For idmProportional or idmStretch, a 0-area source is invalid
+    begin
+      Exit;
+    end;
+  end;
+
   case ADrawMode of
-    idmStretch: DrawImageRect := ADestRect;
-    idmProportional: begin rRatio := GraphicW / GraphicH; if ADestRect.Height = 0 then rRectRatio := MaxDouble else rRectRatio := ADestRect.Width / ADestRect.Height; if rRectRatio > rRatio then begin DrawImageRect.Height := ADestRect.Height; DrawImageRect.Width := Round(ADestRect.Height * rRatio); end else begin DrawImageRect.Width := ADestRect.Width; if rRatio = 0 then DrawImageRect.Height := 0 else DrawImageRect.Height := Round(ADestRect.Width / rRatio); end; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
-    idmNormal: begin DrawImageRect.Width := GraphicW; DrawImageRect.Height := GraphicH; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
-  else DrawImageRect := ADestRect; end;
-  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
-  if ADrawMode = idmNormal then ACanvas.Draw(DrawImageRect.Left, DrawImageRect.Top, AGraphic)
-  else ACanvas.StretchDraw(DrawImageRect, AGraphic);
+    idmStretch:
+      DrawImageRect := ADestRect;
+    idmProportional:
+      begin
+        // This case assumes GraphicW > 0 and GraphicH > 0 due to the check above for idmProportional
+
+        rRatio := GraphicW / GraphicH;
+
+        if ADestRect.Height > 0 then
+          rRectRatio := ADestRect.Width / ADestRect.Height
+        else
+          rRectRatio := MaxDouble;
+
+        if rRectRatio > rRatio then // Fit to height
+        begin
+          DrawImageRect.Height := ADestRect.Height;
+          tempCalculatedW := ADestRect.Height * rRatio;
+          DrawImageRect.Width := Round(tempCalculatedW);
+          if (DrawImageRect.Width = 0) and (tempCalculatedW > 0) and (ADestRect.Width > 0) then
+            DrawImageRect.Width := 1;
+        end
+        else // Fit to width
+        begin
+          DrawImageRect.Width := ADestRect.Width;
+          if rRatio > 0 then
+          begin
+            tempCalculatedH := ADestRect.Width / rRatio;
+            DrawImageRect.Height := Round(tempCalculatedH);
+            if (DrawImageRect.Height = 0) and (tempCalculatedH > 0) and (ADestRect.Height > 0) then
+              DrawImageRect.Height := 1;
+          end
+          else
+            DrawImageRect.Height := 0;
+        end;
+
+        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2;
+        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2;
+        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+      end;
+    idmNormal:
+      begin
+        DrawImageRect.Width := GraphicW;
+        DrawImageRect.Height := GraphicH;
+        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2;
+        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2;
+        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+      end;
+  else
+    DrawImageRect := ADestRect; // Should not happen
+  end;
+
+  if ((DrawImageRect.Right <= DrawImageRect.Left) or (DrawImageRect.Bottom <= DrawImageRect.Top) or (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0)) then
+    Exit;
+
+  try
+    if ADrawMode = idmNormal then
+      ACanvas.Draw(DrawImageRect.Left, DrawImageRect.Top, AGraphic)
+    else
+      ACanvas.StretchDraw(DrawImageRect, AGraphic);
+  except
+    on E: Exception do
+    begin
+      // Optional: Log or handle
+    end;
+  end;
 end;
 
 procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);

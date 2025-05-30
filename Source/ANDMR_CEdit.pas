@@ -6,7 +6,7 @@ uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX,
-  Vcl.ExtCtrls, Vcl.Imaging.pngimage;
+  Vcl.ExtCtrls, Vcl.Imaging.pngimage, System.ComponentModel; // Added here
 
 type
   TImagePositionSide = (ipsLeft, ipsRight);
@@ -270,32 +270,54 @@ type
     destructor Destroy; override;
 
   published
-    property Text: string read FText write SetText;
-    property MaxLength: Integer read FMaxLength write SetMaxLength default 0;
-    property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
-    property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
-    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 8;
-    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight;
-    property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clBtnFace;
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
-    property Image: TPicture read FImage write SetImage;
-    property ImageVisible: Boolean read FImageVisible write SetImageVisible default True;
-    property ImagePosition: TImagePositionSide read FImagePosition write SetImagePosition default ipsLeft;
-    property ImageAlignment: TImageAlignmentVertical read FImageAlignment write SetImageAlignment default iavCenter;
-    property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins;
-    property ImagePlacement: TImagePlacement read FImagePlacement write SetImagePlacement default iplInsideBounds;
-    property ImageDrawMode: TImageDrawMode read FImageDrawMode write SetImageDrawMode default idmProportional;
-    property SeparatorVisible: Boolean read FSeparatorVisible write SetSeparatorVisible default False;
-    property SeparatorColor: TColor read FSeparatorColor write SetSeparatorColor default clGrayText;
-    property SeparatorThickness: Integer read FSeparatorThickness write SetSeparatorThickness default 1;
-    property SeparatorPadding: Integer read FSeparatorPadding write SetSeparatorPadding default 2;
-    property SeparatorHeightMode: TSeparatorHeightMode read FSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
-    property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0; // Ensured semicolon
+  [Category('Data')]
+  property Text: string read FText write SetText;
+  [Category('Data')]
+  property MaxLength: Integer read FMaxLength write SetMaxLength default 0;
+  [Category('Behavior')]
+  property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
+  [Category('Behavior')]
+  property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
+  [Category('Appearance - General')]
+  property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 8;
+  [Category('Appearance - General')]
+  property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
+  [Category('Appearance - Focus')]
+  property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight;
+  [Category('Appearance - General')]
+  property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clBtnFace;
+  [Category('Appearance - General')]
+  property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
+  [Category('Appearance - General')]
+  property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
+  [Category('Appearance - General')]
+  property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
+  property Image: TPicture read FImage write SetImage; // Keep Image property without specific category for now or assign to a general one if preferred
+  [Category('Appearance - Image')]
+  property ImageVisible: Boolean read FImageVisible write SetImageVisible default True;
+  [Category('Appearance - Image')]
+  property ImagePosition: TImagePositionSide read FImagePosition write SetImagePosition default ipsLeft;
+  [Category('Appearance - Image')]
+  property ImageAlignment: TImageAlignmentVertical read FImageAlignment write SetImageAlignment default iavCenter;
+  property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins; // This is a class, often left uncategorized or in specific 'Margins' category
+  [Category('Appearance - Image')]
+  property ImagePlacement: TImagePlacement read FImagePlacement write SetImagePlacement default iplInsideBounds;
+  [Category('Appearance - Image')]
+  property ImageDrawMode: TImageDrawMode read FImageDrawMode write SetImageDrawMode default idmProportional;
+  [Category('Appearance - Separator')]
+  property SeparatorVisible: Boolean read FSeparatorVisible write SetSeparatorVisible default False;
+  [Category('Appearance - Separator')]
+  property SeparatorColor: TColor read FSeparatorColor write SetSeparatorColor default clGrayText;
+  [Category('Appearance - Separator')]
+  property SeparatorThickness: Integer read FSeparatorThickness write SetSeparatorThickness default 1;
+  [Category('Appearance - Separator')]
+  property SeparatorPadding: Integer read FSeparatorPadding write SetSeparatorPadding default 2;
+  [Category('Appearance - Separator')]
+  property SeparatorHeightMode: TSeparatorHeightMode read FSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
+  [Category('Appearance - Separator')]
+  property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0; // Ensured semicolon
 
-    property Align;
+  property Align;
     property Anchors;
     property Constraints;
     property Enabled;
@@ -319,23 +341,37 @@ type
     property OnKeyUp;
 
     // New published properties
-    property FocusBorderColor: TColor read FFocusBorderColor write SetFocusBorderColor;
-    property FocusBorderColorVisible: Boolean read FFocusBorderColorVisible write SetFocusBorderColorVisible;
-    property FocusBackgroundColor: TColor read FFocusBackgroundColor write SetFocusBackgroundColor;
-    property FocusBackgroundColorVisible: Boolean read FFocusBackgroundColorVisible write SetFocusBackgroundColorVisible;
-    property FocusUnderlineColor: TColor read FFocusUnderlineColor write SetFocusUnderlineColor;
-    property FocusUnderlineVisible: Boolean read FFocusUnderlineVisible write SetFocusUnderlineVisible;
-    property FocusUnderlineThickness: Integer read FFocusUnderlineThickness write SetFocusUnderlineThickness;
-    property FocusUnderlineStyle: TPenStyle read FFocusUnderlineStyle write SetFocusUnderlineStyle;
-    property Opacity: Byte read FOpacity write SetOpacity;
-    property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
-    property InputType: TInputType read FInputType write SetInputType default itNormal;
-    property TextCase: TTextCase read FTextCase write SetTextCase default tcNormal;
-    property InputMask: string read FInputMask write SetInputMask;
-    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
-    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // New Property
-    property TextMargins: TTextMargins read FTextMargins write SetTextMargins; // New Property for Text Margins
-    property PredefinedMask: TPredefinedMaskType read FPredefinedMask write SetPredefinedMask default pmtNone; // New Property for Predefined Mask
+  [Category('Appearance - Focus')]
+  property FocusBorderColor: TColor read FFocusBorderColor write SetFocusBorderColor;
+  [Category('Appearance - Focus')]
+  property FocusBorderColorVisible: Boolean read FFocusBorderColorVisible write SetFocusBorderColorVisible;
+  [Category('Appearance - Focus')]
+  property FocusBackgroundColor: TColor read FFocusBackgroundColor write SetFocusBackgroundColor;
+  [Category('Appearance - Focus')]
+  property FocusBackgroundColorVisible: Boolean read FFocusBackgroundColorVisible write SetFocusBackgroundColorVisible;
+  [Category('Appearance - Focus')]
+  property FocusUnderlineColor: TColor read FFocusUnderlineColor write SetFocusUnderlineColor;
+  [Category('Appearance - Focus')]
+  property FocusUnderlineVisible: Boolean read FFocusUnderlineVisible write SetFocusUnderlineVisible;
+  [Category('Appearance - Focus')]
+  property FocusUnderlineThickness: Integer read FFocusUnderlineThickness write SetFocusUnderlineThickness;
+  [Category('Appearance - Focus')]
+  property FocusUnderlineStyle: TPenStyle read FFocusUnderlineStyle write SetFocusUnderlineStyle;
+  [Category('Appearance - General')]
+  property Opacity: Byte read FOpacity write SetOpacity;
+  [Category('Behavior')]
+  property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
+  [Category('Behavior')]
+  property InputType: TInputType read FInputType write SetInputType default itNormal;
+  [Category('Behavior')]
+  property TextCase: TTextCase read FTextCase write SetTextCase default tcNormal;
+  [Category('Data')]
+  property InputMask: string read FInputMask write SetInputMask;
+  property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
+  property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // New Property
+  property TextMargins: TTextMargins read FTextMargins write SetTextMargins; // New Property for Text Margins
+  [Category('Data')]
+  property PredefinedMask: TPredefinedMaskType read FPredefinedMask write SetPredefinedMask default pmtNone; // New Property for Predefined Mask
   end;
 
 procedure Register;

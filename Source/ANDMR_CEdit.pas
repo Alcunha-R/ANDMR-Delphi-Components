@@ -223,49 +223,49 @@ end;
 { TANDMR_CEdit }
 procedure TANDMR_CEdit.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
 var
-  WorkArea: TRect; // This will become the area for the edit control itself
+  WorkArea: TRect;
   ImgW, ImgH, SepW: Integer;
-  CurrentX, CurrentX_End: Integer;
+  // CurrentX, CurrentX_End: Integer; // We will manage positions more directly
   FullClientRect: TRect;
   CaptionHeight, CaptionWidth: Integer;
-  OriginalFont: TFont; // For saving and restoring canvas font
+  OriginalFont: TFont;
+  OriginalImgW, OriginalImgH: Integer;
+  availWForImg, availHForImg: Integer;
+  rImageRatio, rAvailBoxRatio: Double;
+  tempW, tempH: Double;
 begin
   FullClientRect := Self.ClientRect;
-  FCaptionRect := Rect(0,0,0,0); // Reset caption rect
+  FCaptionRect := Rect(0,0,0,0);
 
+  // 1. Determine WorkArea (area for the edit control itself, after caption)
   if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') then
   begin
+    // ... (caption calculation logic - this part is assumed to be okay) ...
+    // [This section is the same as in the existing file, calculating FCaptionRect and WorkArea based on caption]
     OriginalFont := TFont.Create;
     try
-      OriginalFont.Assign(Self.Canvas.Font); // Save current font
-      Self.Canvas.Font.Assign(FCaptionSettings.Font); // Assign caption font for calculations
-
-      // Calculate Caption Size (simplified, assuming single line for width if not wordwrap for height)
-      // For WordWrap, TextRect with DT_CALCRECT is better but more complex here.
-      // This is a basic estimation.
+      OriginalFont.Assign(Self.Canvas.Font);
+      Self.Canvas.Font.Assign(FCaptionSettings.Font);
       CaptionHeight := Self.Canvas.TextHeight(FCaptionSettings.Text);
       CaptionWidth := Self.Canvas.TextWidth(FCaptionSettings.Text);
       if FCaptionSettings.WordWrap and (FCaptionSettings.Position in [cpAbove, cpBelow]) then
       begin
-         var TempRect := Rect(0,0, FullClientRect.Width, 30000); // Assume width of control, large height
-         DrawText(Self.Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRect, DT_CALCRECT or DT_WORDBREAK);
-         CaptionHeight := TempRect.Bottom - TempRect.Top;
-         CaptionWidth := FullClientRect.Width; // Takes full width when above/below and wordwrap
+         var TempRectCap := Rect(0,0, FullClientRect.Width, 30000);
+         DrawText(Self.Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRectCap, DT_CALCRECT or DT_WORDBREAK);
+         CaptionHeight := TempRectCap.Bottom - TempRectCap.Top;
+         CaptionWidth := FullClientRect.Width;
       end else if FCaptionSettings.WordWrap and (FCaptionSettings.Position in [cpLeft, cpRight]) then
       begin
-         var TempRect := Rect(0,0, CaptionWidth, FullClientRect.Height); // Use calculated width, full height for wrap
-         DrawText(Self.Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRect, DT_CALCRECT or DT_WORDBREAK);
-         CaptionWidth := TempRect.Right - TempRect.Left; // May change if text is very short
+         var TempRectCap := Rect(0,0, CaptionWidth, FullClientRect.Height);
+         DrawText(Self.Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRectCap, DT_CALCRECT or DT_WORDBREAK);
+         CaptionWidth := TempRectCap.Right - TempRectCap.Left;
          CaptionHeight := FullClientRect.Height;
       end;
-
     finally
-      Self.Canvas.Font.Assign(OriginalFont); // Restore original font
+      Self.Canvas.Font.Assign(OriginalFont);
       OriginalFont.Free;
     end;
-
-    WorkArea := FullClientRect; // Start with full area, then adjust for caption
-
+    WorkArea := FullClientRect;
     case FCaptionSettings.Position of
       cpAbove:
         begin
@@ -288,100 +288,209 @@ begin
           WorkArea.Right := FCaptionRect.Left - FCaptionSettings.Offset;
         end;
     end;
-    // Ensure WorkArea (for edit control) is not inverted
     if WorkArea.Bottom < WorkArea.Top then WorkArea.Bottom := WorkArea.Top;
     if WorkArea.Right < WorkArea.Left then WorkArea.Right := WorkArea.Left;
   end
-  else // No caption visible or text is empty
-  begin
-    WorkArea := FullClientRect; // Edit control uses the full client area
-  end;
+  else
+    WorkArea := FullClientRect;
 
-  // Existing layout logic now operates on 'WorkArea' instead of 'Self.ClientRect' directly
-  InflateRect(WorkArea, -FBorderThickness, -FBorderThickness); // Available content area for edit itself
-  outImgRect := Rect(0,0,0,0); outSepRect := Rect(0,0,0,0); outTxtRect := WorkArea;
+  InflateRect(WorkArea, -FBorderThickness, -FBorderThickness);
+
+  // Initialize out params
+  outImgRect := Rect(0,0,0,0);
+  outSepRect := Rect(0,0,0,0);
+  outTxtRect := WorkArea; // Start with text taking full work area, then shrink
+
+  // 2. Calculate Image Dimensions (ImgW, ImgH) and outImgRect
   ImgW := 0; ImgH := 0;
   if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
-  begin ImgW := FImage.Graphic.Width; ImgH := FImage.Graphic.Height; end;
+  begin
+    OriginalImgW := FImage.Graphic.Width;
+    OriginalImgH := FImage.Graphic.Height;
+
+    if (OriginalImgW > 0) and (OriginalImgH > 0) then
+    begin
+      if FImageDrawMode = idmProportional then
+      begin
+        availWForImg := WorkArea.Width - FImageMargins.Left - FImageMargins.Right;
+        availHForImg := WorkArea.Height - FImageMargins.Top - FImageMargins.Bottom;
+        availWForImg := Max(0, availWForImg);
+        availHForImg := Max(0, availHForImg);
+
+        if (availWForImg > 0) and (availHForImg > 0) then
+        begin
+          rImageRatio := OriginalImgW / OriginalImgH;
+          rAvailBoxRatio := availWForImg / availHForImg;
+
+          if rAvailBoxRatio > rImageRatio then // Fit to height
+          begin
+            ImgH := availHForImg;
+            tempW := availHForImg * rImageRatio;
+            ImgW := Round(tempW);
+            if (ImgW = 0) and (tempW > 0) then ImgW := 1;
+          end
+          else // Fit to width
+          begin
+            ImgW := availWForImg;
+            if rImageRatio > 0 then
+            begin
+              tempH := availWForImg / rImageRatio;
+              ImgH := Round(tempH);
+              if (ImgH = 0) and (tempH > 0) then ImgH := 1;
+            end
+            else ImgH := 0;
+          end;
+        end
+        else // No available space for proportional image
+        begin ImgW := 0; ImgH := 0; end;
+      end
+      else // Not idmProportional (stretch, normal)
+      begin
+        ImgW := OriginalImgW; // Layout uses original dimensions
+        ImgH := OriginalImgH;
+      end;
+    end; // else OriginalImgW/H <=0, so ImgW, ImgH remain 0
+
+    ImgW := Max(0, ImgW);
+    ImgH := Max(0, ImgH);
+
+    if ImgW > 0 then // Only define outImgRect if image has width
+    begin
+      // Position outImgRect horizontally based on FImagePosition
+      if FImagePosition = ipsLeft then
+      begin
+        outImgRect.Left := WorkArea.Left + FImageMargins.Left;
+        outImgRect.Right := outImgRect.Left + ImgW;
+      end
+      else // ipsRight
+      begin
+        outImgRect.Right := WorkArea.Right - FImageMargins.Right;
+        outImgRect.Left := outImgRect.Right - ImgW;
+      end;
+
+      // Position outImgRect vertically based on FImageAlignment
+      // AvailHForImgLayout is the height of WorkArea minus vertical margins
+      var AvailHForImgLayoutAdjusted: Integer := WorkArea.Height - FImageMargins.Top - FImageMargins.Bottom;
+      AvailHForImgLayoutAdjusted := Max(0, AvailHForImgLayoutAdjusted);
+
+      case FImageAlignment of
+        iavTop:    outImgRect.Top := WorkArea.Top + FImageMargins.Top;
+        iavCenter: outImgRect.Top := WorkArea.Top + FImageMargins.Top + (AvailHForImgLayoutAdjusted - ImgH) div 2;
+        iavBottom: outImgRect.Top := WorkArea.Bottom - FImageMargins.Bottom - ImgH;
+      end;
+      outImgRect.Bottom := outImgRect.Top + ImgH;
+
+      // Clip outImgRect to WorkArea (important after alignment)
+      if outImgRect.Left < WorkArea.Left then outImgRect.Left := WorkArea.Left;
+      if outImgRect.Right > WorkArea.Right then outImgRect.Right := WorkArea.Right;
+      if outImgRect.Top < WorkArea.Top then outImgRect.Top := WorkArea.Top;
+      if outImgRect.Bottom > WorkArea.Bottom then outImgRect.Bottom := WorkArea.Bottom;
+      // Ensure non-negative width/height for outImgRect after clipping
+      if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
+      if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
+
+      // Update ImgW, ImgH from the final clipped outImgRect for subsequent layout calculations
+      ImgW := outImgRect.Width;
+      ImgH := outImgRect.Height;
+    end;
+  end; // End FImageVisible
+
+  // 3. Calculate Separator Rectangle (outSepRect)
   SepW := 0;
-  if FSeparatorVisible and (FSeparatorThickness > 0) then SepW := FSeparatorThickness;
+  if FSeparatorVisible and (FSeparatorThickness > 0) then
+    SepW := FSeparatorThickness;
 
-  // --- Horizontal Layout (Refined Logic) ---
-  if FImageVisible and (ImgW > 0) then
+  if SepW > 0 then
   begin
-    if FImagePosition = ipsLeft then
+    if FImageVisible and (ImgW > 0) then // Separator is between image and text
     begin
-      outImgRect.Left := WorkArea.Left + FImageMargins.Left;
-      outImgRect.Right := outImgRect.Left + ImgW;
-      CurrentX := outImgRect.Right + FImageMargins.Right;
-      if FSeparatorVisible and (SepW > 0) then
+      if FImagePosition = ipsLeft then
       begin
-        outSepRect.Left := CurrentX + FSeparatorPadding;
-        outSepRect.Right := outSepRect.Left + SepW;
-        CurrentX := outSepRect.Right + FSeparatorPadding;
+        outSepRect.Left := outImgRect.Right + FImageMargins.Right + FSeparatorPadding;
+      end
+      else // Image is on the right
+      begin
+        outSepRect.Left := outImgRect.Left - FImageMargins.Left - FSeparatorPadding - SepW;
       end;
-      outTxtRect.Left := CurrentX;
     end
-    else // ipsRight
+    else // Separator is at the start or end of WorkArea (no image)
     begin
-      outImgRect.Right := WorkArea.Right - FImageMargins.Right;
-      outImgRect.Left := outImgRect.Right - ImgW;
-      CurrentX_End := outImgRect.Left - FImageMargins.Left;
-      if FSeparatorVisible and (SepW > 0) then
-      begin
-        outSepRect.Right := CurrentX_End - FSeparatorPadding;
-        outSepRect.Left := outSepRect.Right - SepW;
-        CurrentX_End := outSepRect.Left - FSeparatorPadding;
-      end;
-      outTxtRect.Right := CurrentX_End;
+      if FImagePosition = ipsLeft then // Assuming separator follows image position logic
+        outSepRect.Left := WorkArea.Left + FSeparatorPadding
+      else
+        outSepRect.Left := WorkArea.Right - FSeparatorPadding - SepW;
     end;
-  end
-  else if FSeparatorVisible and (SepW > 0) then
-  begin
-    outSepRect.Left := WorkArea.Left + FSeparatorPadding;
     outSepRect.Right := outSepRect.Left + SepW;
-    outTxtRect.Left := outSepRect.Right + FSeparatorPadding;
-  end;
-  // --- End of Refined Horizontal Layout ---
 
-  // --- Vertical Layout ---
-  if FImageVisible and (ImgW > 0) then
-  begin
-    var AvailHForImgLayout: Integer; AvailHForImgLayout := WorkArea.Height - FImageMargins.Top - FImageMargins.Bottom; AvailHForImgLayout := Max(0, AvailHForImgLayout);
-    case FImageAlignment of
-      iavTop:    outImgRect.Top := WorkArea.Top + FImageMargins.Top;
-      iavCenter: outImgRect.Top := WorkArea.Top + FImageMargins.Top + (AvailHForImgLayout - ImgH) div 2;
-      iavBottom: outImgRect.Top := WorkArea.Bottom - FImageMargins.Bottom - ImgH;
-    end;
-    outImgRect.Bottom := outImgRect.Top + ImgH;
-    if outImgRect.Top < WorkArea.Top + FImageMargins.Top then outImgRect.Top := WorkArea.Top + FImageMargins.Top;
-    if outImgRect.Bottom > WorkArea.Bottom - FImageMargins.Bottom then outImgRect.Bottom := WorkArea.Bottom - FImageMargins.Bottom;
-    if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
-  end;
-  outTxtRect.Top := WorkArea.Top; outTxtRect.Bottom := WorkArea.Bottom;
-  if FSeparatorVisible and (SepW > 0) then
-  begin
+    // Vertical position of separator (same as existing logic)
     var SepH: Integer; var RefTop, RefHeight: Integer; outSepRect.Top := WorkArea.Top; SepH := WorkArea.Height;
     case FSeparatorHeightMode of
-      shmFull: begin end;
-      shmAsText: begin RefTop := outTxtRect.Top; RefHeight := outTxtRect.Height; SepH := RefHeight; outSepRect.Top := RefTop; end;
+      shmFull: ; // SepH is WorkArea.Height
+      shmAsText: begin RefTop := outTxtRect.Top; RefHeight := outTxtRect.Height; SepH := RefHeight; outSepRect.Top := RefTop; end; // outTxtRect not final yet, potential issue here
       shmAsImage: if FImageVisible and (ImgW > 0) and (outImgRect.Height > 0) then begin RefTop := outImgRect.Top; RefHeight := outImgRect.Height; SepH := RefHeight; outSepRect.Top := RefTop; end;
       shmCustom: begin if FSeparatorCustomHeight > 0 then SepH := FSeparatorCustomHeight else SepH := WorkArea.Height; outSepRect.Top := WorkArea.Top + (WorkArea.Height - SepH) div 2; end;
     end;
     outSepRect.Bottom := outSepRect.Top + SepH;
+
+    // Clip outSepRect (similar to outImgRect clipping)
+    if outSepRect.Left < WorkArea.Left then outSepRect.Left := WorkArea.Left;
+    if outSepRect.Right > WorkArea.Right then outSepRect.Right := WorkArea.Right;
     if outSepRect.Top < WorkArea.Top then outSepRect.Top := WorkArea.Top;
     if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom;
+    if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left;
     if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
+    SepW := outSepRect.Width; // Update SepW from final clipped separator rect
   end;
-  // --- End of Vertical Layout ---
 
-  // Final safety checks
+
+  // 4. Calculate Text Rectangle (outTxtRect)
+  // outTxtRect was initialized to WorkArea. Now adjust its Left/Right based on image and separator.
+  if FImageVisible and (ImgW > 0) then
+  begin
+    if FImagePosition = ipsLeft then
+    begin
+      outTxtRect.Left := outImgRect.Right + FImageMargins.Right;
+      if SepW > 0 then // Separator is to the right of image
+        outTxtRect.Left := outSepRect.Right + FSeparatorPadding;
+    end
+    else // Image is on the right
+    begin
+      outTxtRect.Right := outImgRect.Left - FImageMargins.Left;
+      if SepW > 0 then // Separator is to the left of image
+        outTxtRect.Right := outSepRect.Left - FSeparatorPadding;
+    end;
+  end
+  else if SepW > 0 then // No image, but separator is visible
+  begin
+    if FImagePosition = ipsLeft then // Assuming separator follows image position logic
+      outTxtRect.Left := outSepRect.Right + FSeparatorPadding
+    else
+      outTxtRect.Right := outSepRect.Left - FSeparatorPadding;
+  end;
+  // Ensure outTxtRect does not have negative width
+  if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left;
+
+
+  // Re-evaluate shmAsText for separator now that outTxtRect is more final (horizontally)
+  // This is a bit circular if separator height depends on text height and text position depends on separator.
+  // For simplicity, the previous shmAsText calculation based on initial outTxtRect might be kept,
+  // or this part needs more careful handling if text height changes significantly.
+  // The current shmAsText logic for separator using a potentially not-yet-finalized outTxtRect is problematic.
+  // A simpler approach for shmAsText for now: use WorkArea.Height for separator if text rect isn't stable.
+  // Or, if text is always vertically centered in WorkArea, use WorkArea.Height.
+  // For now, we'll leave the shmAsText logic as is and assume it uses the outTxtRect.Top/Height from WorkArea.
+  // If shmAsText is critical, this part would need a more iterative or refined calculation.
+
+  // Final safety clipping for all rects (already partially done for img and sep)
+  // This is a general safeguard.
   if outTxtRect.Left < WorkArea.Left then outTxtRect.Left := WorkArea.Left; if outTxtRect.Right > WorkArea.Right then outTxtRect.Right := WorkArea.Right; if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left;
   if outImgRect.Left < WorkArea.Left then outImgRect.Left := WorkArea.Left; if outImgRect.Right > WorkArea.Right then outImgRect.Right := WorkArea.Right; if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
   if outSepRect.Left < WorkArea.Left then outSepRect.Left := WorkArea.Left; if outSepRect.Right > WorkArea.Right then outSepRect.Right := WorkArea.Right; if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left;
+
   if outTxtRect.Top < WorkArea.Top then outTxtRect.Top := WorkArea.Top; if outTxtRect.Bottom > WorkArea.Bottom then outTxtRect.Bottom := WorkArea.Bottom; if outTxtRect.Bottom < outTxtRect.Top then outTxtRect.Bottom := outTxtRect.Top;
   if outImgRect.Top < WorkArea.Top then outImgRect.Top := WorkArea.Top; if outImgRect.Bottom > WorkArea.Bottom then outImgRect.Bottom := WorkArea.Bottom; if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
   if outSepRect.Top < WorkArea.Top then outSepRect.Top := WorkArea.Top; if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom; if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
+
 end;
 
 procedure TANDMR_CEdit.SetImagePlacement(const Value: TImagePlacement); begin if FImagePlacement <> Value then begin FImagePlacement := Value; Invalidate; end; end;

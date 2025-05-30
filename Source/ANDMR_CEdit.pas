@@ -6,8 +6,8 @@ uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX,
-  Vcl.ExtCtrls, Vcl.Imaging.pngimage, System.ComponentModel, // Added here
-  ANDMR_ComponentUtils; // Added ANDMR_ComponentUtils
+  Vcl.ExtCtrls, Vcl.Imaging.pngimage,
+  ANDMR_ComponentUtils;
 
 type
   TANDMR_CEdit = class(TCustomControl)
@@ -122,10 +122,7 @@ type
 
   protected
     procedure CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect); virtual; // CORRECTED
-    procedure DrawEditBox(const ADrawArea: TRect; AGraphics: TGPGraphics; ABackgroundColor: TColor; ABorderColor: TColor);
-    procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
-    procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
-    procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
+    // Removed Declarations: DrawEditBox, DrawPNGImageWithGDI, DrawNonPNGImageWithCanvas, DrawSeparatorWithCanvas
     procedure Paint; override; // Single Paint declaration
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
     procedure KeyPress(var Key: Char); override;
@@ -137,52 +134,30 @@ type
     destructor Destroy; override;
 
   published
-  [Category('Data')]
   property Text: string read FText write SetText;
-  [Category('Data')]
   property MaxLength: Integer read FMaxLength write SetMaxLength default 0;
-  [Category('Behavior')]
   property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
-  [Category('Behavior')]
   property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
-  [Category('Appearance - General')]
   property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 8;
-  [Category('Appearance - General')]
   property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
-  [Category('Appearance - Focus')]
   property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight;
-  [Category('Appearance - General')]
   property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clBtnFace;
-  [Category('Appearance - General')]
   property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
-  [Category('Appearance - General')]
   property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
-  [Category('Appearance - General')]
   property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
-  property Image: TPicture read FImage write SetImage; // Keep Image property without specific category for now or assign to a general one if preferred
-  [Category('Appearance - Image')]
+  property Image: TPicture read FImage write SetImage;
   property ImageVisible: Boolean read FImageVisible write SetImageVisible default True;
-  [Category('Appearance - Image')]
   property ImagePosition: TImagePositionSide read FImagePosition write SetImagePosition default ipsLeft;
-  [Category('Appearance - Image')]
   property ImageAlignment: TImageAlignmentVertical read FImageAlignment write SetImageAlignment default iavCenter;
-  property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins; // This is a class, often left uncategorized or in specific 'Margins' category
-  [Category('Appearance - Image')]
+  property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins;
   property ImagePlacement: TImagePlacement read FImagePlacement write SetImagePlacement default iplInsideBounds;
-  [Category('Appearance - Image')]
   property ImageDrawMode: TImageDrawMode read FImageDrawMode write SetImageDrawMode default idmProportional;
-  [Category('Appearance - Separator')]
   property SeparatorVisible: Boolean read FSeparatorVisible write SetSeparatorVisible default False;
-  [Category('Appearance - Separator')]
   property SeparatorColor: TColor read FSeparatorColor write SetSeparatorColor default clGrayText;
-  [Category('Appearance - Separator')]
   property SeparatorThickness: Integer read FSeparatorThickness write SetSeparatorThickness default 1;
-  [Category('Appearance - Separator')]
   property SeparatorPadding: Integer read FSeparatorPadding write SetSeparatorPadding default 2;
-  [Category('Appearance - Separator')]
   property SeparatorHeightMode: TSeparatorHeightMode read FSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
-  [Category('Appearance - Separator')]
-  property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0; // Ensured semicolon
+  property SeparatorCustomHeight: Integer read FSeparatorCustomHeight write SetSeparatorCustomHeight default 0;
 
   property Align;
     property Anchors;
@@ -208,56 +183,42 @@ type
     property OnKeyUp;
 
     // New published properties
-  [Category('Appearance - Focus')]
   property FocusBorderColor: TColor read FFocusBorderColor write SetFocusBorderColor;
-  [Category('Appearance - Focus')]
   property FocusBorderColorVisible: Boolean read FFocusBorderColorVisible write SetFocusBorderColorVisible;
-  [Category('Appearance - Focus')]
   property FocusBackgroundColor: TColor read FFocusBackgroundColor write SetFocusBackgroundColor;
-  [Category('Appearance - Focus')]
   property FocusBackgroundColorVisible: Boolean read FFocusBackgroundColorVisible write SetFocusBackgroundColorVisible;
-  [Category('Appearance - Focus')]
   property FocusUnderlineColor: TColor read FFocusUnderlineColor write SetFocusUnderlineColor;
-  [Category('Appearance - Focus')]
   property FocusUnderlineVisible: Boolean read FFocusUnderlineVisible write SetFocusUnderlineVisible;
-  [Category('Appearance - Focus')]
   property FocusUnderlineThickness: Integer read FFocusUnderlineThickness write SetFocusUnderlineThickness;
-  [Category('Appearance - Focus')]
   property FocusUnderlineStyle: TPenStyle read FFocusUnderlineStyle write SetFocusUnderlineStyle;
-  [Category('Appearance - General')]
   property Opacity: Byte read FOpacity write SetOpacity;
-  [Category('Behavior')]
   property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
-  [Category('Behavior')]
   property InputType: TInputType read FInputType write SetInputType default itNormal;
-  [Category('Behavior')]
   property TextCase: TTextCase read FTextCase write SetTextCase default tcNormal;
-  [Category('Data')]
   property InputMask: string read FInputMask write SetInputMask;
   property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
-  property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // New Property
-  property TextMargins: TTextMargins read FTextMargins write SetTextMargins; // New Property for Text Margins
-  [Category('Data')]
-  property PredefinedMask: TPredefinedMaskType read FPredefinedMask write SetPredefinedMask default pmtNone; // New Property for Predefined Mask
+  property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
+  property TextMargins: TTextMargins read FTextMargins write SetTextMargins;
+  property PredefinedMask: TPredefinedMaskType read FPredefinedMask write SetPredefinedMask default pmtNone;
   end;
 
 procedure Register;
 
 implementation
 
-uses System.Character; // Added for ToUpper/ToLower
+uses
+  System.Character; // Added for ToUpper/ToLower
+  // ANDMR_ComponentUtils; // Removed as it's in the interface uses clause
 
 procedure Register;
 begin
   RegisterComponents('ANDMR', [TANDMR_CEdit]);
 end;
 
-// --- Helper Functions (ColorToARGB, CreateGPRoundedPath) ---
-
 // Implementations for TCaptionSettings, THoverSettings are in ANDMR_ComponentUtils.pas
 // TImageMarginsControl implementation is in ANDMR_ComponentUtils.pas
 // TTextMargins implementation is in ANDMR_ComponentUtils.pas
-// Helper functions ColorToARGB, CreateGPRoundedPath are in ANDMR_ComponentUtils.pas
+// Helper functions ColorToARGB, CreateGPRoundedPath, DrawEditBox, DrawPNGImageWithGDI, DrawNonPNGImageWithCanvas, DrawSeparatorWithCanvas are in ANDMR_ComponentUtils.pas
 
 { TANDMR_CEdit }
 procedure TANDMR_CEdit.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
@@ -440,129 +401,7 @@ procedure TANDMR_CEdit.SetImageMargins(const Value: TImageMarginsControl); begin
 procedure TANDMR_CEdit.ImageChanged(Sender: TObject); begin Invalidate; end;
 procedure TANDMR_CEdit.ImageMarginsChanged(Sender: TObject); begin Invalidate; end;
 
-procedure TANDMR_CEdit.DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
-var DrawImageRect: TRect; GraphicW, GraphicH: Integer; rRatio, rRectRatio: Double; PngStream: TMemoryStream; GpSourceBitmap: TGPBitmap; Adapter: IStream;
-begin
-  if (AGraphics = nil) or (APNG = nil) or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
-  GraphicW := APNG.Width; GraphicH := APNG.Height; if (GraphicW <= 0) or (GraphicH <= 0) then Exit;
-  case ADrawMode of
-    idmStretch: DrawImageRect := ADestRect;
-    idmProportional: begin rRatio := GraphicW / GraphicH; if ADestRect.Height = 0 then rRectRatio := MaxDouble else rRectRatio := ADestRect.Width / ADestRect.Height; if rRectRatio > rRatio then begin DrawImageRect.Height := ADestRect.Height; DrawImageRect.Width := Round(ADestRect.Height * rRatio); end else begin DrawImageRect.Width := ADestRect.Width; if rRatio = 0 then DrawImageRect.Height := 0 else DrawImageRect.Height := Round(ADestRect.Width / rRatio); end; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
-    idmNormal: begin DrawImageRect.Width := GraphicW; DrawImageRect.Height := GraphicH; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
-  else DrawImageRect := ADestRect; end;
-  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
-  PngStream := TMemoryStream.Create; try APNG.SaveToStream(PngStream); PngStream.Position := 0; Adapter := TStreamAdapter.Create(PngStream, soReference); GpSourceBitmap := TGPBitmap.Create(Adapter); try if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic) else AGraphics.SetInterpolationMode(InterpolationModeDefault); AGraphics.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height); finally GpSourceBitmap.Free; end; finally PngStream.Free; end;
-end;
-
-procedure TANDMR_CEdit.DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
-var DrawImageRect: TRect; GraphicW, GraphicH: Integer; rRatio, rRectRatio: Double;
-begin
-  if (ACanvas = nil) or (AGraphic = nil) or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
-  GraphicW := AGraphic.Width; GraphicH := AGraphic.Height; if (GraphicW <= 0) or (GraphicH <= 0) then Exit;
-  case ADrawMode of
-    idmStretch: DrawImageRect := ADestRect;
-    idmProportional: begin rRatio := GraphicW / GraphicH; if ADestRect.Height = 0 then rRectRatio := MaxDouble else rRectRatio := ADestRect.Width / ADestRect.Height; if rRectRatio > rRatio then begin DrawImageRect.Height := ADestRect.Height; DrawImageRect.Width := Round(ADestRect.Height * rRatio); end else begin DrawImageRect.Width := ADestRect.Width; if rRatio = 0 then DrawImageRect.Height := 0 else DrawImageRect.Height := Round(ADestRect.Width / rRatio); end; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
-    idmNormal: begin DrawImageRect.Width := GraphicW; DrawImageRect.Height := GraphicH; DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2; DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2; DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width; DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height; end;
-  else DrawImageRect := ADestRect; end;
-  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
-  if ADrawMode = idmNormal then ACanvas.Draw(DrawImageRect.Left, DrawImageRect.Top, AGraphic)
-  else ACanvas.StretchDraw(DrawImageRect, AGraphic);
-end;
-
-procedure TANDMR_CEdit.DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
-var LineX: Integer;
-begin
-  if (ACanvas = nil) or (AThickness <= 0) or (ASepRect.Width <= 0) or (ASepRect.Height <= 0) then Exit;
-  LineX := ASepRect.Left + ASepRect.Width div 2; ACanvas.Pen.Color := AColor; ACanvas.Pen.Width := AThickness; ACanvas.Pen.Style := psSolid; ACanvas.MoveTo(LineX, ASepRect.Top); ACanvas.LineTo(LineX, ASepRect.Bottom);
-end;
-
-procedure TANDMR_CEdit.DrawEditBox(const ADrawArea: TRect; AGraphics: TGPGraphics; ABackgroundColor: TColor; ABorderColor: TColor);
-var
-  LPath: TGPGraphicsPath;
-  LBrush: TGPBrush;
-  LPen: TGPPen;
-  LRectF: TGPRectF;
-  LRadiusValue: Single;
-  LBorderThicknessValue: Single; // Use a Single for GDI+ operations
-begin
-  if (AGraphics = nil) or (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) then // Basic check
-    Exit;
-
-  LBorderThicknessValue := Self.FBorderThickness; // Use the actual field value for consistency
-
-  // Define the rectangle for path creation.
-  // If there's a border, the path should trace the centerline of the border stroke.
-  // This means the rectangle for the path is inset by half the border thickness.
-  if LBorderThicknessValue > 0 then
-  begin
-    LRectF.X      := ADrawArea.Left + LBorderThicknessValue / 2.0;
-    LRectF.Y      := ADrawArea.Top + LBorderThicknessValue / 2.0;
-    LRectF.Width  := ADrawArea.Width - LBorderThicknessValue;
-    LRectF.Height := ADrawArea.Height - LBorderThicknessValue;
-  end
-  else // No border, path is the ADrawArea itself
-  begin
-    LRectF.X      := ADrawArea.Left;
-    LRectF.Y      := ADrawArea.Top;
-    LRectF.Width  := ADrawArea.Width;
-    LRectF.Height := ADrawArea.Height;
-  end;
-
-  // Ensure dimensions are not negative for path creation.
-  LRectF.Width  := Max(0.0, LRectF.Width);
-  LRectF.Height := Max(0.0, LRectF.Height);
-
-  if (LRectF.Width = 0) or (LRectF.Height = 0) then // Cannot draw if path rect is empty
-    Exit;
-
-  // Calculate effective radius for rounding, cannot exceed half of the smallest dimension of LRectF.
-  LRadiusValue := Self.FCornerRadius; // Use Self consistently
-  LRadiusValue := Min(LRadiusValue, LRectF.Width / 2.0);
-  LRadiusValue := Min(LRadiusValue, LRectF.Height / 2.0);
-  LRadiusValue := Max(0.0, LRadiusValue); // Ensure non-negative radius
-
-  LPath := TGPGraphicsPath.Create;
-  try
-    CreateGPRoundedPath(LPath, LRectF, LRadiusValue, Self.FRoundCornerType); // Use Self
-
-    if LPath.GetPointCount > 0 then // Check if path creation was successful
-    begin
-      // Fill Background
-      if ABackgroundColor <> clNone then
-      begin
-        // Use Self.FOpacity for the alpha component of the background color
-        LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor, Self.FOpacity));
-        try
-          AGraphics.FillPath(LBrush, LPath);
-        finally
-          LBrush.Free;
-        end;
-      end;
-
-      // Draw Border
-      if (LBorderThicknessValue > 0) and (ABorderColor <> clNone) and (Self.FBorderStyle <> psClear) then // Use Self
-      begin
-        // Use Self.FOpacity for the alpha component of the border color
-        LPen := TGPPen.Create(ColorToARGB(ABorderColor, Self.FOpacity), LBorderThicknessValue);
-        try
-          case Self.FBorderStyle of // Use Self
-            psSolid:      LPen.SetDashStyle(DashStyleSolid);
-            psDash:       LPen.SetDashStyle(DashStyleDash);
-            psDot:        LPen.SetDashStyle(DashStyleDot);
-            psDashDot:    LPen.SetDashStyle(DashStyleDashDot);
-            psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot);
-            else          LPen.SetDashStyle(DashStyleSolid);
-          end;
-          AGraphics.DrawPath(LPen, LPath);
-        finally
-          LPen.Free;
-        end;
-      end;
-    end;
-  finally
-    LPath.Free;
-  end;
-end;
+// Implementations of DrawPNGImageWithGDI, DrawNonPNGImageWithCanvas, DrawSeparatorWithCanvas, DrawEditBox were moved to ANDMR_ComponentUtils
 
 constructor TANDMR_CEdit.Create(AOwner: TComponent);
 begin
@@ -1118,7 +957,7 @@ begin
       RectToDrawEditBoxIn := EditBoxDrawingRect; // For focus underline, it should relate to what was just drawn by DrawEditBox.
 
       // 3. Draw the main edit box (background and border)
-      DrawEditBox(EditBoxDrawingRect, LG, BGForDrawEditBox, ActualEditBorderColor);
+      DrawEditBox(LG, EditBoxDrawingRect, BGForDrawEditBox, ActualEditBorderColor, FBorderThickness, FBorderStyle, FCornerRadius, FRoundCornerType, FOpacity);
 
       // 4. Draw Image
       // For iplInsideBounds, image is drawn on top of BGForDrawEditBox.
@@ -1126,14 +965,14 @@ begin
       if FImageVisible and Assigned(FImage.Graphic) and not FImage.Graphic.Empty then
       begin
         if (FImage.Graphic is TPNGImage) then
-          Self.DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode)
+          DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, imgR, FImageDrawMode)
         else
-          Self.DrawNonPNGImageWithCanvas(Canvas, FImage.Graphic, imgR, FImageDrawMode);
+          DrawNonPNGImageWithCanvas(Canvas, FImage.Graphic, imgR, FImageDrawMode);
       end;
 
       // 5. Draw Separator (drawn on top of whatever is beneath it)
       if FSeparatorVisible and (FSeparatorThickness > 0) and (sepR.Width > 0) and (sepR.Height > 0) then
-        Self.DrawSeparatorWithCanvas(Canvas, sepR, FSeparatorColor, FSeparatorThickness);
+        DrawSeparatorWithCanvas(Canvas, sepR, FSeparatorColor, FSeparatorThickness);
 
       // 6. Draw Focus Underline
       if Self.Focused and FFocusUnderlineVisible and (FFocusUnderlineThickness > 0) then

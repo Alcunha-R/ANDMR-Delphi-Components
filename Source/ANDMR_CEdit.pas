@@ -326,13 +326,17 @@ begin
   FAlignment := taLeftJustify;
   FFont := TFont.Create;
   FFont.OnChange := FontChanged;
-//  if Assigned(FOwnerControl) then // Initialize with owner's font if available
-//    FFont.Assign((FOwnerControl as TCustomControl).Font)
-//  else // Otherwise, set a common default
-//  begin
-//    FFont.Name := 'Segoe UI';
-//    FFont.Size := 9;
-//  end;
+  // Check if AOwner is specifically a TANDMR_CEdit and then try to access its Font property
+  if Assigned(AOwner) and (AOwner is TANDMR_CEdit) then 
+  begin
+    FFont.Assign((AOwner as TANDMR_CEdit).Font); 
+  end
+  else
+  begin
+    // Fallback if AOwner is not TANDMR_CEdit or is nil
+    FFont.Name := 'Segoe UI';
+    FFont.Size := 9;
+  end;
   FColor := clWindowText;
   FOffset := 2;
   FWordWrap := False;
@@ -663,38 +667,40 @@ var
   CurrentX, CurrentX_End: Integer;
   FullClientRect: TRect;
   CaptionHeight, CaptionWidth: Integer;
-  TempCanvas: TCanvas; // For text size calculation
+  OriginalFont: TFont; // For saving and restoring canvas font
 begin
   FullClientRect := Self.ClientRect;
   FCaptionRect := Rect(0,0,0,0); // Reset caption rect
 
   if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') then
   begin
-    TempCanvas := TCanvas.Create;
+    OriginalFont := TFont.Create;
     try
-      TempCanvas.Font.Assign(FCaptionSettings.Font);
+      OriginalFont.Assign(Self.Canvas.Font); // Save current font
+      Self.Canvas.Font.Assign(FCaptionSettings.Font); // Assign caption font for calculations
+
       // Calculate Caption Size (simplified, assuming single line for width if not wordwrap for height)
       // For WordWrap, TextRect with DT_CALCRECT is better but more complex here.
       // This is a basic estimation.
-      CaptionHeight := TempCanvas.TextHeight(FCaptionSettings.Text);
-      CaptionWidth := TempCanvas.TextWidth(FCaptionSettings.Text);
+      CaptionHeight := Self.Canvas.TextHeight(FCaptionSettings.Text);
+      CaptionWidth := Self.Canvas.TextWidth(FCaptionSettings.Text);
       if FCaptionSettings.WordWrap and (FCaptionSettings.Position in [cpAbove, cpBelow]) then
       begin
          var TempRect := Rect(0,0, FullClientRect.Width, 30000); // Assume width of control, large height
-         DrawText(TempCanvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRect, DT_CALCRECT or DT_WORDBREAK);
+         DrawText(Self.Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRect, DT_CALCRECT or DT_WORDBREAK);
          CaptionHeight := TempRect.Bottom - TempRect.Top;
          CaptionWidth := FullClientRect.Width; // Takes full width when above/below and wordwrap
       end else if FCaptionSettings.WordWrap and (FCaptionSettings.Position in [cpLeft, cpRight]) then
       begin
          var TempRect := Rect(0,0, CaptionWidth, FullClientRect.Height); // Use calculated width, full height for wrap
-         DrawText(TempCanvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRect, DT_CALCRECT or DT_WORDBREAK);
+         DrawText(Self.Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRect, DT_CALCRECT or DT_WORDBREAK);
          CaptionWidth := TempRect.Right - TempRect.Left; // May change if text is very short
          CaptionHeight := FullClientRect.Height;
       end;
 
-
     finally
-      TempCanvas.Free;
+      Self.Canvas.Font.Assign(OriginalFont); // Restore original font
+      OriginalFont.Free;
     end;
 
     WorkArea := FullClientRect; // Start with full area, then adjust for caption

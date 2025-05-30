@@ -268,7 +268,7 @@ begin
   RegisterComponents('ANDMR', [TANDMR_CButton]);
 end;
 
-function DarkerColor(Color: TColor; Percent: Byte = 20): TColor;
+function DarkerColor(Color: TColor; Percent: Byte = 30): TColor;
 var
   R, G, B: Byte;
 begin
@@ -283,7 +283,7 @@ begin
   Result := RGB(R, G, B);
 end;
 
-function LighterColor(Color: TColor; Percent: Byte = 20): TColor;
+function LighterColor(Color: TColor; Percent: Byte = 30): TColor;
 var
   R, G, B: Byte;
 begin
@@ -711,11 +711,11 @@ begin
       // Red for delete (Material Design Red 500: #F44336 -> BGR: $003643F4)
       cptDelete:   begin BaseColor := TColor($003643F4); PresetCaption := 'Excluir';   NewTitleColor := clWhite; end;
       // Light Blue for next/continue (Material Design Light Blue 500: #03A9F4 -> BGR: $00F4A903)
-      cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'Avançar';   NewTitleColor := clWhite; end;
+      cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'AvanÃ§ar';   NewTitleColor := clWhite; end;
       // Lighter Grey for previous/back (Material Design Grey 500: #9E9E9E -> BGR: $009E9E9E)
       cptPrevious: begin BaseColor := TColor($009E9E9E); PresetCaption := 'Voltar';    NewTitleColor := clBlack; end;
       // Calm Light Blue for info (Material Design Light Blue 400: #29B6F6 -> BGR: $00F6B629, using 400 for differentiation: #4FC3F7 -> BGR: $00F7C34F)
-      cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'Informação';NewTitleColor := clBlack; end;
+      cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'InformaÃ§Ã£o';NewTitleColor := clBlack; end;
       // Yellow for warning (Material Design Yellow 500: #FFEB3B -> BGR: $003BEBFF)
       cptWarning:  begin BaseColor := TColor($003BEBFF); PresetCaption := 'Aviso';     NewTitleColor := clBlack; end;
       // Distinct Blue Grey for help (Material Design Blue Grey 500: #607D8B -> BGR: $008B7D60)
@@ -725,10 +725,10 @@ begin
     end;
 
     Self.ActiveColor := BaseColor;
-    Self.BorderColor := DarkerColor(BaseColor, 20);
-    Self.HoverColor := LighterColor(BaseColor, 15);
+    Self.BorderColor := DarkerColor(BaseColor, 30);
+    Self.HoverColor := LighterColor(BaseColor, 25);
     Self.HoverBorderColor := BaseColor;
-    Self.ClickColor := DarkerColor(BaseColor, 15);
+    Self.ClickColor := DarkerColor(BaseColor, 25);
     Self.ClickBorderColor := DarkerColor(BaseColor, 30);
     Self.TitleFont.Color := NewTitleColor;
 
@@ -1242,9 +1242,9 @@ begin
       cptSave: LPresetDefaultCaption := 'Salvar';
       cptEdit: LPresetDefaultCaption := 'Editar';
       cptDelete: LPresetDefaultCaption := 'Excluir';
-      cptNext: LPresetDefaultCaption := 'Avançar';
+      cptNext: LPresetDefaultCaption := 'AvanÃ§ar';
       cptPrevious: LPresetDefaultCaption := 'Voltar';
-      cptInfo: LPresetDefaultCaption := 'Informação';
+      cptInfo: LPresetDefaultCaption := 'InformaÃ§Ã£o';
       cptWarning: LPresetDefaultCaption := 'Aviso';
       cptHelp: LPresetDefaultCaption := 'Ajuda';
     end;

@@ -678,7 +678,7 @@ begin
   // Apply the new region (or clear if NewRegion is 0 and OldRegion was not 0)
   // Only call SetWindowRgn if the new region is different from the old one,
   // or if we are explicitly trying to clear a region when one was previously set.
-  if (HandleAllocated) and ((NewRegion <> OldRegion) or (NewRegion = 0 And OldRegion <> 0 )) then
+  if (HandleAllocated) and ((NewRegion <> OldRegion) or ((NewRegion = 0) And (OldRegion <> 0) )) then
   begin
     SetWindowRgn(Self.Handle, NewRegion, True); // True to force repaint
     FWindowRegion := NewRegion; // Update the stored region handle
@@ -690,7 +690,7 @@ begin
       DeleteObject(OldRegion);
     end;
   end
-  else if NewRegion <> 0 And NewRegion <> OldRegion then
+  else if (NewRegion <> 0) And (NewRegion <> OldRegion) then
   begin
     // If SetWindowRgn was not called (e.g. Handle not allocated yet) but we created a new region
     // that's different from OldRegion, we need to delete this new region as it won't be owned by the system.
@@ -699,7 +699,7 @@ begin
     if OldRegion <> 0 then DeleteObject(OldRegion);
     FWindowRegion := 0; // No region is currently set
   end
-  else if NewRegion = 0 And OldRegion <> 0 And not HandleAllocated then
+  else if (NewRegion = 0) And (OldRegion <> 0) And not HandleAllocated then
   begin
     // If we intended to clear the region (NewRegion is 0) but couldn't call SetWindowRgn,
     // we still need to delete the OldRegion.

@@ -41,6 +41,7 @@ type
     FCaptionOffsetY: Integer; // New field for Caption Y Offset
     FDisabledFontColor: TColor; // New field for Disabled Font Color
     FTransparentChildren: Boolean; // New field for TransparentChildren
+    FWindowRegion: HRGN; // Field to store the handle to the window region
 
     // Property Setters
     procedure SetColor(const Value: TColor);
@@ -66,12 +67,15 @@ type
 
     // Internal methods
     procedure FontChanged(Sender: TObject);
+    procedure UpdateRegion; // Method to update the window region
 
   protected
     // Method overrides
     procedure Paint; override;
     procedure Loaded; override; // For initial setup after properties are loaded
     // procedure WndProc(var Message: TMessage); override; // If specific message handling is needed
+    procedure Resize; override;
+    procedure CreateWnd; override; // Added for UpdateRegion call on handle creation
 
   public
     constructor Create(AOwner: TComponent); override;
@@ -161,6 +165,8 @@ begin
   FCaptionOffsetY := 0; // Initialize Y Offset
   FDisabledFontColor := clGrayText; // Initialize Disabled Font Color
   FTransparentChildren := False; // Initialize TransparentChildren
+  FWindowRegion := 0; // Initialize window region handle
+
   FDropShadowEnabled := False;
   FDropShadowColor := clBlack;
   FDropShadowOffset := Point(2, 2);
@@ -176,10 +182,17 @@ begin
 
   FOpacity := 255; // Default to fully opaque
   SetOpacity(FOpacity); // Apply initial opacity and set ControlStyle flags accordingly
+
+  // UpdateRegion; // Removed: Called too early, before handle and parent are set.
 end;
 
 destructor TANDMR_CPanel.Destroy;
 begin
+  if FWindowRegion <> 0 then
+  begin
+    DeleteObject(FWindowRegion);
+    FWindowRegion := 0;
+  end;
   FFont.Free;
   inherited Destroy;
 end;
@@ -231,6 +244,7 @@ begin
   if FCornerRadius <> CorrectedValue then
   begin
     FCornerRadius := CorrectedValue;
+    UpdateRegion; // Update region when corner radius changes
     Invalidate;
   end;
 end;
@@ -240,6 +254,7 @@ begin
   if FRoundCornerType <> Value then
   begin
     FRoundCornerType := Value;
+    UpdateRegion; // Update region when corner type changes
     Invalidate;
   end;
 end;
@@ -319,6 +334,7 @@ begin
     begin
       ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
     end;
+    UpdateRegion; // Update region as opacity can affect if it's needed (indirectly, via UpdateRegion's own logic)
     Invalidate;
   end;
 end;
@@ -518,6 +534,7 @@ begin
   end;
   // No need to call SetOpacity(FOpacity) directly as that would be a redundant check.
   // We've already loaded FOpacity and now we're just ensuring ControlStyle matches.
+  UpdateRegion; // Ensure region is set after DFM properties are loaded
   Invalidate; // Ensure a repaint after loading and ControlStyle adjustment
 end;
 
@@ -589,6 +606,109 @@ begin
     // A more advanced implementation might iterate child controls or use other techniques.
     Invalidate; // Repaint to reflect any conceptual change or if visual cues were added.
   end;
+end;
+
+procedure TANDMR_CPanel.Resize;
+begin
+  inherited Resize;
+  UpdateRegion;
+end;
+
+procedure TANDMR_CPanel.CreateWnd;
+begin
+  inherited CreateWnd;
+  UpdateRegion; // Ensure region is set when window handle is created
+end;
+
+procedure TANDMR_CPanel.UpdateRegion;
+var
+  LPath: TGPGraphicsPath;
+  LGDIRgn: TGPRegion;
+  LG: TGPGraphics;
+  LClientRect: TRect;
+  LPathRect: TGPRectF;
+  NewRegion: HRGN; // Store the newly created region
+  OldRegion: HRGN; // Store the current FWindowRegion before changing it
+begin
+  if not HandleAllocated then // Safeguard: Exit if handle is not allocated
+    Exit;
+
+  OldRegion := FWindowRegion; // Keep track of the current region
+  NewRegion := 0;             // Initialize new region to null
+
+  LClientRect := Self.ClientRect;
+
+  // Only create a custom region if corners are rounded and dimensions are valid
+  if (FCornerRadius > 0) and (LClientRect.Width > 0) and (LClientRect.Height > 0) then
+  begin
+    LPath := TGPGraphicsPath.Create;
+    try
+      LPathRect.X := 0; // Region coordinates are relative to the window's client area
+      LPathRect.Y := 0;
+      LPathRect.Width := LClientRect.Width;
+      LPathRect.Height := LClientRect.Height;
+
+      // Ensure width and height are not negative (already checked for LClientRect but good practice for LPathRect if modified)
+      if LPathRect.Width < 0 then LPathRect.Width := 0;
+      if LPathRect.Height < 0 then LPathRect.Height := 0;
+
+      if (LPathRect.Width > 0) and (LPathRect.Height > 0) then // Double check after potential adjustments
+      begin
+        ANDMR_ComponentUtils.CreateGPRoundedPath(LPath, LPathRect, Single(FCornerRadius), FRoundCornerType);
+
+        // Create a GDI+ region from this path
+        // A temporary TGPGraphics object is needed for TGPRegion.GetHRGN
+        LG := TGPGraphics.Create(Self.Handle);
+        try
+          LGDIRgn := TGPRegion.Create(LPath);
+          try
+            NewRegion := LGDIRgn.GetHRGN(LG); // This is the new region handle
+          finally
+            LGDIRgn.Free;
+          end;
+        finally
+          LG.Free;
+        end;
+      end; // else NewRegion remains 0
+    finally
+      LPath.Free;
+    end;
+  end; // Else, NewRegion remains 0, effectively clearing or not setting a custom region.
+
+  // Apply the new region (or clear if NewRegion is 0 and OldRegion was not 0)
+  // Only call SetWindowRgn if the new region is different from the old one,
+  // or if we are explicitly trying to clear a region when one was previously set.
+  if (HandleAllocated) and ((NewRegion <> OldRegion) or (NewRegion = 0 And OldRegion <> 0 )) then
+  begin
+    SetWindowRgn(Self.Handle, NewRegion, True); // True to force repaint
+    FWindowRegion := NewRegion; // Update the stored region handle
+
+    // If there was an old region, and it's different from the new one, delete the old one.
+    // The system takes ownership of NewRegion if NewRegion is not 0 and SetWindowRgn is successful.
+    if (OldRegion <> 0) and (OldRegion <> NewRegion) then
+    begin
+      DeleteObject(OldRegion);
+    end;
+  end
+  else if NewRegion <> 0 And NewRegion <> OldRegion then
+  begin
+    // If SetWindowRgn was not called (e.g. Handle not allocated yet) but we created a new region
+    // that's different from OldRegion, we need to delete this new region as it won't be owned by the system.
+    // And also delete OldRegion if it exists.
+    DeleteObject(NewRegion);
+    if OldRegion <> 0 then DeleteObject(OldRegion);
+    FWindowRegion := 0; // No region is currently set
+  end
+  else if NewRegion = 0 And OldRegion <> 0 And not HandleAllocated then
+  begin
+    // If we intended to clear the region (NewRegion is 0) but couldn't call SetWindowRgn,
+    // we still need to delete the OldRegion.
+     DeleteObject(OldRegion);
+     FWindowRegion := 0;
+  end;
+  // If NewRegion is 0 and OldRegion is 0, nothing to do.
+  // If NewRegion is same as OldRegion (and not 0), nothing to do regarding SetWindowRgn or deletion.
+
 end;
 
 end.

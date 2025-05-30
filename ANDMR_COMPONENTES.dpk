@@ -35,6 +35,8 @@ requires
 
 contains
   ANDMR_CButton in 'Source\ANDMR_CButton.pas',
-  ANDMR_CEdit in 'Source\ANDMR_CEdit.pas';
+  ANDMR_CEdit in 'Source\ANDMR_CEdit.pas',
+  ANDMR_ComponentUtils in 'Source\ANDMR_ComponentUtils.pas',
+  ANDMR_CPanel in 'Source\ANDMR_CPanel.pas';
 
 end.

@@ -3,28 +3,36 @@ unit ANDMR_ComponentUtils;
 interface
 
 uses
-  System.SysUtils, System.Classes, Vcl.Graphics, Winapi.Windows, System.Math,
-  System.UITypes, Winapi.GDIPOBJ, Winapi.GDIPAPI; // Common units needed
+  System.SysUtils, System.Classes, Vcl.Graphics, Vcl.Themes, Vcl.Controls, Vcl.StdCtrls, Winapi.Windows; // Added Vcl.StdCtrls, Winapi.Windows for TFont, TColor etc.
 
 type
-  // Common Type Definitions
+  // Delphi type definitions will be moved here from ANDMR_CEdit.pas
+
+  TImagePositionSide = (ipsLeft, ipsRight);
+  TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
+  TImagePlacement = (iplInsideBounds, iplOutsideBounds);
+  TImageDrawMode = (idmStretch, idmProportional, idmNormal);
+  TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
+
   TRoundCornerType = (
     rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight,
     rctTop, rctBottom, rctLeft, rctRight,
     rctTopLeftBottomRight, rctTopRightBottomLeft
   );
 
-  TEdgeMargins = class(TPersistent)
+  TInputType = (itNormal, itLettersOnly, itNumbersOnly, itNoSpecialChars, itAlphaNumericOnly);
+  TTextCase = (tcNormal, tcUppercase, tcLowercase);
+  TCaptionPosition = (cpAbove, cpBelow, cpLeft, cpRight);
+
+  TImageMarginsControl = class(TPersistent)
   private
     FLeft, FTop, FRight, FBottom: Integer;
     FOnChange: TNotifyEvent;
-    procedure SetValue(var AField: Integer; const AValue: Integer); // Helper for setters
     procedure SetLeft(const Value: Integer);
     procedure SetTop(const Value: Integer);
     procedure SetRight(const Value: Integer);
     procedure SetBottom(const Value: Integer);
-  protected
-    procedure Changed; virtual;
+    procedure Changed;
   public
     constructor Create;
     procedure Assign(Source: TPersistent); override;
@@ -36,204 +44,256 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-// Declarations of Helper Functions
-function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
-procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-function DarkerColor(Color: TColor; Percent: Byte = 20): TColor;
-function LighterColor(Color: TColor; Percent: Byte = 20): TColor;
-function BlendColors(Color1, Color2: TColor; Factor: Single): TColor;
+  TCaptionSettings = class(TPersistent)
+  private
+    FVisible: Boolean;
+    FText: string;
+    FPosition: TCaptionPosition;
+    FAlignment: TAlignment; // Vcl.Themes.TAlignment
+    FFont: TFont;
+    FColor: TColor;
+    FOffset: Integer;
+    FWordWrap: Boolean;
+    FOnChange: TNotifyEvent;
+    FOwnerControl: TWinControl; 
+    procedure SetVisible(const Value: Boolean);
+    procedure SetText(const Value: string);
+    procedure SetPosition(const Value: TCaptionPosition);
+    procedure SetAlignment(const Value: TAlignment);
+    procedure SetFont(const Value: TFont);
+    procedure SetColor(const Value: TColor);
+    procedure SetOffset(const Value: Integer);
+    procedure SetWordWrap(const Value: Boolean);
+    procedure FontChanged(Sender: TObject);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create(AOwner: TWinControl); 
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property Text: string read FText write SetText;
+    property Position: TCaptionPosition read FPosition write SetPosition default cpAbove;
+    property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify;
+    property Font: TFont read FFont write SetFont;
+    property Color: TColor read FColor write SetColor default clWindowText; 
+    property Offset: Integer read FOffset write SetOffset default 2;
+    property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  THoverSettings = class(TPersistent)
+  private
+    FBackgroundColor: TColor;
+    FBorderColor: TColor;
+    FFontColor: TColor;
+    FCaptionFontColor: TColor;
+    FEnabled: Boolean;
+    FOnChange: TNotifyEvent;
+    procedure SetBackgroundColor(const Value: TColor);
+    procedure SetBorderColor(const Value: TColor);
+    procedure SetFontColor(const Value: TColor);
+    procedure SetCaptionFontColor(const Value: TColor);
+    procedure SetEnabled(const Value: Boolean);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Enabled: Boolean read FEnabled write SetEnabled default False;
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clInfoBk;
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clHighlight;
+    property FontColor: TColor read FFontColor write SetFontColor default clInfoText;
+    property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clInfoText;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  TTextMargins = class(TPersistent)
+  private
+    FLeft, FTop, FRight, FBottom: Integer;
+    FOnChange: TNotifyEvent;
+    procedure SetLeft(const Value: Integer);
+    procedure SetTop(const Value: Integer);
+    procedure SetRight(const Value: Integer);
+    procedure SetBottom(const Value: Integer);
+    procedure Changed;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Left: Integer read FLeft write SetLeft default 4; 
+    property Top: Integer read FTop write SetTop default 2;   
+    property Right: Integer read FRight write SetRight default 4; 
+    property Bottom: Integer read FBottom write SetBottom default 2; 
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
 
 implementation
 
-{ TEdgeMargins }
-constructor TEdgeMargins.Create;
+{ TImageMarginsControl }
+constructor TImageMarginsControl.Create;
 begin
   inherited Create;
-  FLeft := 2;
-  FTop := 2;
-  FRight := 2;
-  FBottom := 2;
+  FLeft := 2; FTop := 2; FRight := 2; FBottom := 2;
 end;
 
-procedure TEdgeMargins.Assign(Source: TPersistent);
+procedure TImageMarginsControl.Assign(Source: TPersistent);
 begin
-  if Source is TEdgeMargins then
+  if Source is TImageMarginsControl then
   begin
-    Self.FLeft := TEdgeMargins(Source).FLeft;
-    Self.FTop := TEdgeMargins(Source).FTop;
-    Self.FRight := TEdgeMargins(Source).FRight;
-    Self.FBottom := TEdgeMargins(Source).FBottom;
-    // Assign usually does not trigger OnChange, only direct property changes do.
-    // If a change notification is needed after Assign, the caller should handle it.
-    // Changed; // Typically not called in Assign
+    Self.FLeft := TImageMarginsControl(Source).FLeft;
+    Self.FTop := TImageMarginsControl(Source).FTop;
+    Self.FRight := TImageMarginsControl(Source).FRight;
+    Self.FBottom := TImageMarginsControl(Source).FBottom;
+    Changed; // Ensure OnChange is triggered if assigned
+  end else inherited Assign(Source);
+end;
+
+procedure TImageMarginsControl.Changed;
+begin
+  if Assigned(FOnChange) then FOnChange(Self);
+end;
+
+procedure TImageMarginsControl.SetLeft(const Value: Integer); begin if FLeft <> Value then begin FLeft := Value; Changed; end; end;
+procedure TImageMarginsControl.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
+procedure TImageMarginsControl.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
+procedure TImageMarginsControl.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
+
+{ TCaptionSettings }
+constructor TCaptionSettings.Create(AOwner: TWinControl);
+begin
+  inherited Create;
+  FOwnerControl := AOwner;
+  FVisible := True;
+  FText := '';
+  FPosition := cpAbove;
+  FAlignment := taLeftJustify;
+  FFont := TFont.Create;
+  FFont.OnChange := FontChanged;
+  if Assigned(AOwner) and (AOwner is TCustomControl) then // Assuming AOwner is the component itself
+     FFont.Assign((AOwner as TCustomControl).Font)
+  else
+  begin
+    FFont.Name := 'Segoe UI';
+    FFont.Size := 9;
+  end;
+  FColor := clWindowText;
+  FOffset := 2;
+  FWordWrap := False;
+end;
+
+destructor TCaptionSettings.Destroy;
+begin
+  FFont.OnChange := nil;
+  FFont.Free;
+  inherited Destroy;
+end;
+
+procedure TCaptionSettings.Assign(Source: TPersistent);
+begin
+  if Source is TCaptionSettings then
+  begin
+    FVisible := TCaptionSettings(Source).FVisible;
+    FText := TCaptionSettings(Source).FText;
+    FPosition := TCaptionSettings(Source).FPosition;
+    FAlignment := TCaptionSettings(Source).FAlignment;
+    FFont.Assign(TCaptionSettings(Source).FFont);
+    FColor := TCaptionSettings(Source).FColor;
+    FOffset := TCaptionSettings(Source).FOffset;
+    FWordWrap := TCaptionSettings(Source).FWordWrap;
+    Changed;
   end
   else
     inherited Assign(Source);
 end;
 
-procedure TEdgeMargins.Changed;
+procedure TCaptionSettings.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
-procedure TEdgeMargins.SetValue(var AField: Integer; const AValue: Integer);
+procedure TCaptionSettings.FontChanged(Sender: TObject);
 begin
-  if AField <> AValue then
+  Changed;
+end;
+
+procedure TCaptionSettings.SetAlignment(const Value: TAlignment); begin if FAlignment <> Value then begin FAlignment := Value; Changed; end; end;
+procedure TCaptionSettings.SetColor(const Value: TColor); begin if FColor <> Value then begin FColor := Value; Changed; end; end;
+procedure TCaptionSettings.SetFont(const Value: TFont); begin FFont.Assign(Value); Changed; end;
+procedure TCaptionSettings.SetOffset(const Value: Integer); begin if FOffset <> Value then begin FOffset := Value; Changed; end; end;
+procedure TCaptionSettings.SetPosition(const Value: TCaptionPosition); begin if FPosition <> Value then begin FPosition := Value; Changed; end; end;
+procedure TCaptionSettings.SetText(const Value: string); begin if FText <> Value then begin FText := Value; Changed; end; end;
+procedure TCaptionSettings.SetVisible(const Value: Boolean); begin if FVisible <> Value then begin FVisible := Value; Changed; end; end;
+procedure TCaptionSettings.SetWordWrap(const Value: Boolean); begin if FWordWrap <> Value then begin FWordWrap := Value; Changed; end; end;
+
+{ THoverSettings }
+constructor THoverSettings.Create;
+begin
+  inherited Create;
+  FEnabled := False;
+  FBackgroundColor := clInfoBk;
+  FBorderColor := clHighlight;
+  FFontColor := clInfoText;
+  FCaptionFontColor := clInfoText;
+end;
+
+procedure THoverSettings.Assign(Source: TPersistent);
+begin
+  if Source is THoverSettings then
   begin
-    AField := AValue;
+    FEnabled := THoverSettings(Source).FEnabled;
+    FBackgroundColor := THoverSettings(Source).FBackgroundColor;
+    FBorderColor := THoverSettings(Source).FBorderColor;
+    FFontColor := THoverSettings(Source).FFontColor;
+    FCaptionFontColor := THoverSettings(Source).FCaptionFontColor;
     Changed;
-  end;
+  end
+  else
+    inherited Assign(Source);
 end;
 
-procedure TEdgeMargins.SetLeft(const Value: Integer);
+procedure THoverSettings.Changed;
 begin
-  SetValue(FLeft, Value);
+  if Assigned(FOnChange) then
+    FOnChange(Self);
 end;
 
-procedure TEdgeMargins.SetTop(const Value: Integer);
+procedure THoverSettings.SetBackgroundColor(const Value: TColor); begin if FBackgroundColor <> Value then begin FBackgroundColor := Value; Changed; end; end;
+procedure THoverSettings.SetBorderColor(const Value: TColor); begin if FBorderColor <> Value then begin FBorderColor := Value; Changed; end; end;
+procedure THoverSettings.SetCaptionFontColor(const Value: TColor); begin if FCaptionFontColor <> Value then begin FCaptionFontColor := Value; Changed; end; end;
+procedure THoverSettings.SetEnabled(const Value: Boolean); begin if FEnabled <> Value then begin FEnabled := Value; Changed; end; end;
+procedure THoverSettings.SetFontColor(const Value: TColor); begin if FFontColor <> Value then begin FFontColor := Value; Changed; end; end;
+
+{ TTextMargins }
+constructor TTextMargins.Create;
 begin
-  SetValue(FTop, Value);
+  inherited Create;
+  FLeft := 4; FTop := 2; FRight := 4; FBottom := 2;
 end;
 
-procedure TEdgeMargins.SetRight(const Value: Integer);
+procedure TTextMargins.Assign(Source: TPersistent);
 begin
-  SetValue(FRight, Value);
-end;
-
-procedure TEdgeMargins.SetBottom(const Value: Integer);
-begin
-  SetValue(FBottom, Value);
-end;
-
-// Implementation of Helper Functions
-function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
-var
-  ColorRef: LongWord;
-begin
-  if AColor = clNone then
+  if Source is TTextMargins then
   begin
-    Result := (Alpha shl 24);
-    Exit;
-  end;
-  ColorRef := ColorToRGB(AColor); // Vcl.Graphics.ColorToRGB
-  Result := (Alpha shl 24) or
-            ((ColorRef and $000000FF) shl 16) or // B
-            (ColorRef and $0000FF00) or          // G
-            ((ColorRef and $00FF0000) shr 16);   // R
+    Self.FLeft := TTextMargins(Source).FLeft;
+    Self.FTop := TTextMargins(Source).FTop;
+    Self.FRight := TTextMargins(Source).FRight;
+    Self.FBottom := TTextMargins(Source).FBottom;
+    Changed;
+  end else inherited Assign(Source);
 end;
 
-procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-const
-  MIN_RADIUS_FOR_PATH = 0.5; // Ensure this is Single
-var
-  LRadius, LDiameter: Single;
-  RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
+procedure TTextMargins.Changed;
 begin
-  APath.Reset;
-  if (ARect.Width <= 0) or (ARect.Height <= 0) then Exit;
-
-  LRadius := ARadiusValue;
-  LRadius := Min(LRadius, Min(ARect.Width / 2.0, ARect.Height / 2.0)); // Use 2.0 for float division
-  LRadius := Max(0.0, LRadius); // Use 0.0 for float comparison
-  LDiameter := LRadius * 2.0;
-
-  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) then
-  begin
-    APath.AddRectangle(ARect);
-    Exit;
-  end;
-
-  RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
-  RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
-  RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
-  RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
-
-  APath.StartFigure;
-  if RoundTL then APath.AddArc(ARect.X, ARect.Y, LDiameter, LDiameter, 180, 90)
-  else APath.AddLine(ARect.X, ARect.Y, ARect.X, ARect.Y);
-
-  APath.AddLine(ARect.X + IfThen(RoundTL, LRadius, 0.0), ARect.Y, ARect.X + ARect.Width - IfThen(RoundTR, LRadius, 0.0), ARect.Y);
-
-  if RoundTR then APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y, LDiameter, LDiameter, 270, 90)
-  else APath.AddLine(ARect.X + ARect.Width, ARect.Y, ARect.X + ARect.Width, ARect.Y);
-
-  APath.AddLine(ARect.X + ARect.Width, ARect.Y + IfThen(RoundTR, LRadius, 0.0), ARect.X + ARect.Width, ARect.Y + ARect.Height - IfThen(RoundBR, LRadius, 0.0));
-
-  if RoundBR then APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
-  else APath.AddLine(ARect.X + ARect.Width, ARect.Y + ARect.Height, ARect.X + ARect.Width, ARect.Y + ARect.Height);
-
-  APath.AddLine(ARect.X + ARect.Width - IfThen(RoundBR, LRadius, 0.0), ARect.Y + ARect.Height, ARect.X + IfThen(RoundBL, LRadius, 0.0), ARect.Y + ARect.Height);
-
-  if RoundBL then APath.AddArc(ARect.X, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
-  else APath.AddLine(ARect.X, ARect.Y + ARect.Height, ARect.X, ARect.Y + ARect.Height);
-  
-  APath.CloseFigure;
+  if Assigned(FOnChange) then FOnChange(Self);
 end;
 
-function DarkerColor(Color: TColor; Percent: Byte = 20): TColor;
-var
-  R, G, B: Byte;
-begin
-  if Color = clNone then Exit(clNone);
-  Color := ColorToRGB(Color);
-  R := GetRValue(Color);
-  G := GetGValue(Color);
-  B := GetBValue(Color);
-  R := Max(0, Round(R * (100 - Percent) / 100.0)); // Use 100.0 for float division
-  G := Max(0, Round(G * (100 - Percent) / 100.0));
-  B := Max(0, Round(B * (100 - Percent) / 100.0));
-  Result := RGB(R, G, B);
-end;
-
-function LighterColor(Color: TColor; Percent: Byte = 20): TColor;
-var
-  R, G, B: Byte;
-begin
-  if Color = clNone then Exit(clNone);
-  Color := ColorToRGB(Color);
-  R := GetRValue(Color);
-  G := GetGValue(Color);
-  B := GetBValue(Color);
-  R := Min(255, Round(R + (255 - R) * Percent / 100.0)); // Use 100.0 for float division
-  G := Min(255, Round(G + (255 - G) * Percent / 100.0));
-  B := Min(255, Round(B + (255 - B) * Percent / 100.0));
-  Result := RGB(R, G, B);
-end;
-
-function BlendColors(Color1, Color2: TColor; Factor: Single): TColor;
-var
-  R1, G1, B1, R2, G2, B2, R, G, B: Byte;
-begin
-  if Factor <= 0.0 then Exit(Color1);
-  if Factor >= 1.0 then Exit(Color2);
-
-  // Simplified transparency handling for E1012 fix
-  if Color1 = clNone then
-  begin
-    // If Color1 is transparent, return Color2 as is.
-    // This includes Color2's original alpha if it's an TAlphaColor.
-    Exit(Color2);
-  end;
-  if Color2 = clNone then
-  begin
-    // If Color2 is transparent, return Color1 as is.
-    Exit(Color1);
-  end;
-
-  // Proceed with RGB blending.
-  // ColorToRGB extracts pure RGB, effectively stripping any incoming alpha for these calculations.
-  R1 := GetRValue(ColorToRGB(Color1));
-  G1 := GetGValue(ColorToRGB(Color1));
-  B1 := GetBValue(ColorToRGB(Color1));
-  R2 := GetRValue(ColorToRGB(Color2));
-  G2 := GetGValue(ColorToRGB(Color2));
-  B2 := GetBValue(ColorToRGB(Color2));
-
-  R := Round(R1 + (R2 - R1) * Factor);
-  G := Round(G1 + (G2 - G1) * Factor);
-  B := Round(B1 + (B2 - B1) * Factor);
-  Result := RGB(R, G, B); // Result is an opaque TColor (alpha byte $00).
-end;
+procedure TTextMargins.SetLeft(const Value: Integer); begin if FLeft <> Value then begin FLeft := Value; Changed; end; end;
+procedure TTextMargins.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
+procedure TTextMargins.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
+procedure TTextMargins.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
 
 end.

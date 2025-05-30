@@ -16,6 +16,8 @@ uses
   ANDMR_ComponentUtils;
 
 type
+  TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom); // New enum for vertical alignment
+
   TANDMR_CPanel = class(TCustomControl)
   private
     // Private fields for properties
@@ -33,6 +35,12 @@ type
     FDropShadowBlurRadius: Integer; // For a softer shadow effect
     FOpacity: Byte; // Added for opacity control
     FCaptionAlignment: System.Classes.TAlignment; // Added for caption alignment
+    FCaptionVerticalAlignment: TCaptionVerticalAlignment; // New field for vertical alignment
+    FCaptionWordWrap: Boolean; // New field for WordWrap
+    FCaptionOffsetX: Integer; // New field for Caption X Offset
+    FCaptionOffsetY: Integer; // New field for Caption Y Offset
+    FDisabledFontColor: TColor; // New field for Disabled Font Color
+    FTransparentChildren: Boolean; // New field for TransparentChildren
 
     // Property Setters
     procedure SetColor(const Value: TColor);
@@ -49,6 +57,12 @@ type
     procedure SetDropShadowBlurRadius(const Value: Integer);
     procedure SetOpacity(const Value: Byte); // Added for opacity control
     procedure SetCaptionAlignment(const Value: System.Classes.TAlignment); // Added for caption alignment
+    procedure SetCaptionVerticalAlignment(const Value: TCaptionVerticalAlignment); // New setter
+    procedure SetCaptionWordWrap(const Value: Boolean); // New setter for WordWrap
+    procedure SetCaptionOffsetX(const Value: Integer); // New setter for X Offset
+    procedure SetCaptionOffsetY(const Value: Integer); // New setter for Y Offset
+    procedure SetDisabledFontColor(const Value: TColor); // New setter for Disabled Font Color
+    procedure SetTransparentChildren(const Value: Boolean); // New setter for TransparentChildren
 
     // Internal methods
     procedure FontChanged(Sender: TObject);
@@ -72,8 +86,14 @@ type
     property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 0;
     property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctNone;
     property Caption: TCaption read FCaption write SetCaption;
-    property CaptionAlignment: System.Classes.TAlignment read FCaptionAlignment write SetCaptionAlignment default taCenter; // Added
-    property Font: TFont read FFont write SetComponentFont; // Use custom setter for Font
+    property CaptionAlignment: System.Classes.TAlignment read FCaptionAlignment write SetCaptionAlignment default taCenter;
+    property CaptionVerticalAlignment: TCaptionVerticalAlignment read FCaptionVerticalAlignment write SetCaptionVerticalAlignment default cvaCenter;
+    property CaptionWordWrap: Boolean read FCaptionWordWrap write SetCaptionWordWrap default False;
+    property CaptionOffsetX: Integer read FCaptionOffsetX write SetCaptionOffsetX default 0;
+    property CaptionOffsetY: Integer read FCaptionOffsetY write SetCaptionOffsetY default 0;
+    property DisabledFontColor: TColor read FDisabledFontColor write SetDisabledFontColor default clGrayText;
+    property Font: TFont read FFont write SetComponentFont;
+    property TransparentChildren: Boolean read FTransparentChildren write SetTransparentChildren default False; // New property
 
     property DropShadowEnabled: Boolean read FDropShadowEnabled write SetDropShadowEnabled default False;
     property DropShadowColor: TColor read FDropShadowColor write SetDropShadowColor default clBlack;
@@ -135,6 +155,12 @@ begin
   FFont.Size := 9;         // Added for consistency
   FFont.OnChange := FontChanged;
   FCaptionAlignment := taCenter; // Initialize caption alignment
+  FCaptionVerticalAlignment := cvaCenter; // Initialize vertical caption alignment
+  FCaptionWordWrap := False; // Initialize WordWrap
+  FCaptionOffsetX := 0; // Initialize X Offset
+  FCaptionOffsetY := 0; // Initialize Y Offset
+  FDisabledFontColor := clGrayText; // Initialize Disabled Font Color
+  FTransparentChildren := False; // Initialize TransparentChildren
   FDropShadowEnabled := False;
   FDropShadowColor := clBlack;
   FDropShadowOffset := Point(2, 2);
@@ -287,7 +313,7 @@ begin
     if FOpacity < 255 then
     begin
       ControlStyle := ControlStyle - [csOpaque] + [csParentBackground];
-      //if Parent <> nil then Parent.Invalidate; // Parent needs to redraw area behind - this can cause flickering or issues if not handled carefully by parent
+      if Parent <> nil then Parent.Invalidate; // Parent needs to redraw area behind
     end
     else
     begin
@@ -413,20 +439,59 @@ begin
       // Adjust text rect for padding, border. For simplicity, using ClientRect for now.
       // More precise calculation would involve FBorderThickness and potentially FCornerRadius
       // to avoid drawing text over rounded corners or too close to the border.
-      LTextRect := LClientRect;
-      // InflateRect(LTextRect, -FBorderThickness - 2, -FBorderThickness - 2); // Simple padding
+      LTextRect := Self.ClientRect;
+      if FBorderThickness > 0 then // Basic padding from border
+          InflateRect(LTextRect, -FBorderThickness -2, -FBorderThickness -2)
+      else
+          InflateRect(LTextRect, -2, -2);
+
+      // Apply custom offsets
+      OffsetRect(LTextRect, FCaptionOffsetX, FCaptionOffsetY);
 
       // Set text color with opacity. Note: VCL DrawText doesn't directly support alpha.
       // For true alpha-blended text, one would need to use GDI+ text rendering.
       // Here, we set the font color, which VCL will use.
-      Self.Canvas.Font.Color := FFont.Color; // Opacity is handled by FOpacity on the whole control for now
+      if Self.Enabled then
+      begin
+        Self.Canvas.Font.Color := FFont.Color; // Use the regular font color from FFont
+      end
+      else
+      begin
+        // If FDisabledFontColor is clNone, it implies we should use a system default for disabled text.
+        // clGrayText is a common representation of this.
+        // If FDisabledFontColor has a specific color (even if it's clGrayText set by user), use that.
+        if FDisabledFontColor = clNone then
+            Self.Canvas.Font.Color := clGrayText
+        else
+            Self.Canvas.Font.Color := FDisabledFontColor; // Use the user-defined or default FDisabledFontColor
+      end;
 
-      LDrawTextFlags := DT_VCENTER or DT_SINGLELINE or DT_NOPREFIX; // Basic flags
+      LDrawTextFlags := DT_NOPREFIX; // Base flags, DT_SINGLELINE or DT_WORDBREAK will be added later
 
+      // Horizontal Alignment
       case FCaptionAlignment of
         taLeftJustify: LDrawTextFlags := LDrawTextFlags or DT_LEFT;
         taRightJustify: LDrawTextFlags := LDrawTextFlags or DT_RIGHT;
         taCenter: LDrawTextFlags := LDrawTextFlags or DT_CENTER;
+      end;
+
+      // Vertical Alignment
+      case FCaptionVerticalAlignment of
+        cvaTop: LDrawTextFlags := LDrawTextFlags or DT_TOP;
+        cvaCenter: LDrawTextFlags := LDrawTextFlags or DT_VCENTER;
+        cvaBottom: LDrawTextFlags := LDrawTextFlags or DT_BOTTOM;
+      end;
+
+      // WordWrap and SingleLine/Ellipsis
+      if FCaptionWordWrap then
+      begin
+        LDrawTextFlags := LDrawTextFlags or DT_WORDBREAK;
+        // Consider DT_EDITCONTROL for better multiline layout if needed, but DT_WORDBREAK is primary.
+      end
+      else
+      begin
+        LDrawTextFlags := LDrawTextFlags or DT_SINGLELINE;
+        LDrawTextFlags := LDrawTextFlags or DT_END_ELLIPSIS; // Add ellipsis for single line if text overflows
       end;
 
       if Length(Trim(FCaption)) > 0 then // Check if caption is not just whitespace
@@ -462,6 +527,67 @@ begin
   begin
     FCaptionAlignment := Value;
     Invalidate; // Caption alignment change requires repaint
+  end;
+end;
+
+procedure TANDMR_CPanel.SetCaptionVerticalAlignment(const Value: TCaptionVerticalAlignment);
+begin
+  if FCaptionVerticalAlignment <> Value then
+  begin
+    FCaptionVerticalAlignment := Value;
+    Invalidate; // Caption alignment change requires repaint
+  end;
+end;
+
+procedure TANDMR_CPanel.SetCaptionWordWrap(const Value: Boolean);
+begin
+  if FCaptionWordWrap <> Value then
+  begin
+    FCaptionWordWrap := Value;
+    Invalidate; // Caption wrapping change requires repaint
+  end;
+end;
+
+procedure TANDMR_CPanel.SetCaptionOffsetX(const Value: Integer);
+begin
+  if FCaptionOffsetX <> Value then
+  begin
+    FCaptionOffsetX := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CPanel.SetCaptionOffsetY(const Value: Integer);
+begin
+  if FCaptionOffsetY <> Value then
+  begin
+    FCaptionOffsetY := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CPanel.SetDisabledFontColor(const Value: TColor);
+begin
+  if FDisabledFontColor <> Value then
+  begin
+    FDisabledFontColor := Value;
+    if not Enabled then // Only repaint if currently disabled
+      Invalidate;
+  end;
+end;
+
+procedure TANDMR_CPanel.SetTransparentChildren(const Value: Boolean);
+begin
+  if FTransparentChildren <> Value then
+  begin
+    FTransparentChildren := Value;
+    // This property is declarative in its basic form.
+    // Its visual effect relies on Opacity < 255 (which sets csParentBackground).
+    // If Opacity is already < 255, csParentBackground is active, making the panel's
+    // own background transparent and thus child controls appear over the parent's background.
+    // If Opacity is 255, this flag alone won't make children transparent over controls *behind* the panel.
+    // A more advanced implementation might iterate child controls or use other techniques.
+    Invalidate; // Repaint to reflect any conceptual change or if visual cues were added.
   end;
 end;
 

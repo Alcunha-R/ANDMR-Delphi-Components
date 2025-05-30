@@ -131,6 +131,7 @@ type
     // DrawEditBox, DrawPNGImageWithGDI, DrawNonPNGImageWithCanvas, DrawSeparatorWithCanvas are now in ANDMR_ComponentUtils
     procedure UpdateInternalMemoBounds; virtual; // New for TANDMR_CMemo
     procedure Resize; override; // New for TANDMR_CMemo
+    procedure Loaded; override; // Added for CMemo fix
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -808,7 +809,7 @@ begin
   FInternalMemo.OnKeyPress := InternalMemoKeyPress;
   FInternalMemo.OnKeyUp := InternalMemoKeyUp;
 
-  UpdateInternalMemoBounds; // Set initial bounds for FInternalMemo
+  // UpdateInternalMemoBounds; // Set initial bounds for FInternalMemo - Moved to Loaded
 end;
 
 destructor TANDMR_CMemo.Destroy;
@@ -1000,6 +1001,19 @@ begin
 
   finally
     Canvas.Unlock;
+  end;
+end;
+
+procedure TANDMR_CMemo.Loaded;
+begin
+  inherited Loaded;
+  UpdateInternalMemoBounds;
+  // Ensure the internal memo's visibility is synchronized with the component's visibility
+  // This is important because the internal memo might have been created but not shown
+  // if the component was initially not visible.
+  if Assigned(FInternalMemo) then
+  begin
+    FInternalMemo.Visible := Self.Visible;
   end;
 end;
 

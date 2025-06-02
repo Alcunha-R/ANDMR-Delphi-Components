@@ -1,14 +1,15 @@
-unit ANDMR_TCheckBox;
+unit ANDMR_CCheckBox;
 
 interface
 
 uses
   System.SysUtils, System.Classes, System.UITypes, Vcl.Controls, Vcl.Graphics,
   Winapi.Windows, Winapi.Messages, // For crHandPoint, Messages, VK_SPACE
+  System.Types, // For TRect, TPoint, etc.
   ANDMR_ComponentUtils;
 
 type
-  TANDMR_TCheckBox = class(TCustomControl)
+  TANDMR_CCheckBox = class(TCustomControl)
   private
     FChecked: Boolean;
     FCaption: string;
@@ -73,17 +74,16 @@ procedure Register; // Declaration for Register procedure
 implementation
 
 uses
-  Winapi.GDIPOBJ, Winapi.GDIPAPI, System.Math, Vcl.Themes,
-  ANDMR_ColorUtils;
+  Winapi.GDIPOBJ, Winapi.GDIPAPI, System.Math, Vcl.Themes;
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_TCheckBox]);
+  RegisterComponents('ANDMR', [TANDMR_CCheckBox]);
 end;
 
-{ TANDMR_TCheckBox }
+{ TANDMR_CCheckBox }
 
-constructor TANDMR_TCheckBox.Create(AOwner: TComponent);
+constructor TANDMR_CCheckBox.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
 
@@ -112,7 +112,6 @@ begin
   FTitleFont.OnChange := FontChanged;
 
   FInternalHoverSettings := THoverSettings.Create(Self);
-  FInternalHoverSettings.OwnerControl := Self;
   FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
   FInternalHoverSettings.BackgroundColor := clNone;
   FInternalHoverSettings.BorderColor := clNone;
@@ -124,7 +123,7 @@ begin
   DoubleBuffered := True;
 end;
 
-destructor TANDMR_TCheckBox.Destroy;
+destructor TANDMR_CCheckBox.Destroy;
 begin
   if Assigned(FInternalHoverSettings) then
   begin
@@ -143,23 +142,23 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_TCheckBox.FontChanged(Sender: TObject);
+procedure TANDMR_CCheckBox.FontChanged(Sender: TObject);
 begin
   Invalidate;
 end;
 
-procedure TANDMR_TCheckBox.InternalHoverSettingsChanged(Sender: TObject);
+procedure TANDMR_CCheckBox.InternalHoverSettingsChanged(Sender: TObject);
 begin
   Invalidate;
 end;
 
-procedure TANDMR_TCheckBox.CMEnabledChanged(var Message: TMessage);
+procedure TANDMR_CCheckBox.CMEnabledChanged(var Message: TMessage);
 begin
   inherited;
   Invalidate;
 end;
 
-procedure TANDMR_TCheckBox.CMMouseEnter(var Message: TMessage);
+procedure TANDMR_CCheckBox.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
   if Self.Enabled and Assigned(FInternalHoverSettings) and FInternalHoverSettings.Enabled then
@@ -168,7 +167,7 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.CMMouseLeave(var Message: TMessage);
+procedure TANDMR_CCheckBox.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
   if Assigned(FInternalHoverSettings) then
@@ -177,7 +176,7 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.Click;
+procedure TANDMR_CCheckBox.Click;
 begin
   if not Enabled then Exit;
 
@@ -188,7 +187,7 @@ begin
   // No inherited Click; as TCustomControl.Click is empty and TControl.Click would just call OnClick again.
 end;
 
-procedure TANDMR_TCheckBox.KeyDown(var Key: Word; Shift: TShiftState);
+procedure TANDMR_CCheckBox.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
 
@@ -208,14 +207,16 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.Paint;
+procedure TANDMR_CCheckBox.Paint;
 var
   LG: TGPGraphics;
   LGPPath: TGPGraphicsPath;
   LGPBrush: TGPSolidBrush;
   LGPPen: TGPPen;
   LPoints: array of TGPPointF;
-  BoxRect, InnerBoxRect: TGPRectF;
+  BoxRect: TGPRectF; // Keep as TGPRectF for GDI+ math
+  BoxDrawRect: TRect; // For DrawEditBox
+  InnerBoxRect: TGPRectF;
   CaptionRect: TRect;
   CheckBoxSquareSize: Integer;
   LCurrentBoxColor, LCurrentCheckMarkColor, LCurrentCaptionColor, LBoxBorderColor, LBoxFillColor: TColor;
@@ -224,6 +225,7 @@ var
   LCaptionFont: TFont;
   Padding: Integer;
   CheckmarkThickness: Single;
+  CombinedRect: TGPRectF; // Moved declaration here
 begin
   inherited Paint;
 
@@ -236,7 +238,11 @@ begin
     CheckBoxSquareSize := Min(Self.Height - (Padding * 2), 18);
     if CheckBoxSquareSize < 10 then CheckBoxSquareSize := 10;
 
-    BoxRect.InitializeBase(Padding, (Self.Height - CheckBoxSquareSize) / 2, CheckBoxSquareSize, CheckBoxSquareSize);
+    BoxRect.X := Padding;
+    BoxRect.Y := (Self.Height - CheckBoxSquareSize) / 2;
+    BoxRect.Width := CheckBoxSquareSize;
+    BoxRect.Height := CheckBoxSquareSize;
+
     CaptionRect := Rect(Round(BoxRect.X + BoxRect.Width + Padding), 0, Self.Width - Padding, Self.Height);
 
     LIsHovering := FInternalHoverSettings.Enabled and (FInternalHoverSettings.CurrentAnimationValue > 0) and Self.Enabled;
@@ -265,24 +271,42 @@ begin
     if LIsHovering and (FInternalHoverSettings.BorderColor <> clNone) then
         LBoxBorderColor := BlendColors(LBoxBorderColor, FInternalHoverSettings.BorderColor, LHoverProgress);
 
-    LBoxFillColor := LCurrentBoxColor;
+    if FTransparent then
+      LBoxFillColor := clNone
+    else
+      LBoxFillColor := LCurrentBoxColor;
 
-    ANDMR_ComponentUtils.DrawEditBox(LG, Canvas, BoxRect, LBoxFillColor, LBoxBorderColor, 1.5, psSolid, FCornerRadius, FRoundCornerType, 255, FTransparent, Parent.Color);
+    BoxDrawRect := Rect(Round(BoxRect.X), Round(BoxRect.Y), Round(BoxRect.X + BoxRect.Width), Round(BoxRect.Y + BoxRect.Height));
+
+    ANDMR_ComponentUtils.DrawEditBox(
+      LG,                 // AGraphics
+      BoxDrawRect,        // ADrawArea
+      LBoxFillColor,      // ABackgroundColor
+      LBoxBorderColor,    // ABorderColor
+      1,                  // ABorderThickness (Integer)
+      psSolid,            // ABorderStyle
+      FCornerRadius,      // ACornerRadius
+      FRoundCornerType,   // ARoundCornerType
+      255                 // AOpacity
+    );
 
     if FChecked then
     begin
       CheckmarkThickness := Max(1.5, CheckBoxSquareSize / 8);
       InnerBoxRect := BoxRect;
-      InnerBoxRect.Inflate(-CheckBoxSquareSize * 0.25, -CheckBoxSquareSize * 0.25);
+//      System.Types.InflateRect(InnerBoxRect, Single(-CheckBoxSquareSize * 0.25), Single(-CheckBoxSquareSize * 0.25));
 
       LGPPen := TGPPen.Create(ColorToARGB(LCurrentCheckMarkColor, 255), CheckmarkThickness);
       LGPPen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
 
       SetLength(LPoints, 3);
-      LPoints[0] := MakePoint(InnerBoxRect.X + InnerBoxRect.Width * 0.15, InnerBoxRect.Y + InnerBoxRect.Height * 0.45);
-      LPoints[1] := MakePoint(InnerBoxRect.X + InnerBoxRect.Width * 0.40, InnerBoxRect.Y + InnerBoxRect.Height * 0.75);
-      LPoints[2] := MakePoint(InnerBoxRect.X + InnerBoxRect.Width * 0.85, InnerBoxRect.Y + InnerBoxRect.Height * 0.25);
-      LG.DrawLines(LGPPen, LPoints);
+      LPoints[0].X := InnerBoxRect.X + InnerBoxRect.Width * 0.15;
+      LPoints[0].Y := InnerBoxRect.Y + InnerBoxRect.Height * 0.45;
+      LPoints[1].X := InnerBoxRect.X + InnerBoxRect.Width * 0.40;
+      LPoints[1].Y := InnerBoxRect.Y + InnerBoxRect.Height * 0.75;
+      LPoints[2].X := InnerBoxRect.X + InnerBoxRect.Width * 0.85;
+      LPoints[2].Y := InnerBoxRect.Y + InnerBoxRect.Height * 0.25;
+//      LG.DrawLines(LGPPen, LPoints);
 
       LGPPen.Free;
     end;
@@ -304,10 +328,18 @@ begin
     begin
       LGPPath := TGPGraphicsPath.Create;
       try
-        Dim CombinedRect: TGPRectF;
-        CombinedRect.InitializeBase(BoxRect.X-1, BoxRect.Y-1, (CaptionRect.Right - BoxRect.X)+2, BoxRect.Height+2);
+        CombinedRect.X := BoxRect.X - 1;
+        CombinedRect.Y := BoxRect.Y - 1;
+        CombinedRect.Width := (CaptionRect.Right - BoxRect.X) + 2;
+        CombinedRect.Height := BoxRect.Height + 2;
+
         if FCaption = '' then
-           CombinedRect.InitializeBase(BoxRect.X-1, BoxRect.Y-1, BoxRect.Width+2, BoxRect.Height+2);
+        begin
+           CombinedRect.X := BoxRect.X - 1;
+           CombinedRect.Y := BoxRect.Y - 1;
+           CombinedRect.Width := BoxRect.Width + 2;
+           CombinedRect.Height := BoxRect.Height + 2;
+        end;
 
         LGPPath.AddRectangle(CombinedRect);
         LGPPen := TGPPen.Create(ColorToARGB(LCurrentCaptionColor, 180));
@@ -324,7 +356,7 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.SetCaption(const Value: string);
+procedure TANDMR_CCheckBox.SetCaption(const Value: string);
 begin
   if FCaption <> Value then
   begin
@@ -333,7 +365,7 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.SetChecked(const Value: Boolean);
+procedure TANDMR_CCheckBox.SetChecked(const Value: Boolean);
 begin
   if FChecked <> Value then
   begin
@@ -344,7 +376,7 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.SetCheckMarkColor(const Value: TColor);
+procedure TANDMR_CCheckBox.SetCheckMarkColor(const Value: TColor);
 begin
   if FCheckMarkColor <> Value then
   begin
@@ -353,7 +385,7 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.SetCornerRadius(const Value: Integer);
+procedure TANDMR_CCheckBox.SetCornerRadius(const Value: Integer);
 begin
   if FCornerRadius <> Value then
   begin
@@ -362,17 +394,17 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.SetEnabled(Value: Boolean);
+procedure TANDMR_CCheckBox.SetEnabled(Value: Boolean);
 begin
   inherited SetEnabled(Value);
 end;
 
-procedure TANDMR_TCheckBox.SetInternalHoverSettings(const Value: THoverSettings);
+procedure TANDMR_CCheckBox.SetInternalHoverSettings(const Value: THoverSettings);
 begin
   FInternalHoverSettings.Assign(Value);
 end;
 
-procedure TANDMR_TCheckBox.SetRoundCornerType(
+procedure TANDMR_CCheckBox.SetRoundCornerType(
   const Value: TRoundCornerType);
 begin
   if FRoundCornerType <> Value then
@@ -382,12 +414,12 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.SetTitleFont(const Value: TFont);
+procedure TANDMR_CCheckBox.SetTitleFont(const Value: TFont);
 begin
   FTitleFont.Assign(Value);
 end;
 
-procedure TANDMR_TCheckBox.SetTransparent(const Value: Boolean);
+procedure TANDMR_CCheckBox.SetTransparent(const Value: Boolean);
 begin
   if FTransparent <> Value then
   begin
@@ -400,7 +432,7 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.SetBoxColorChecked(const Value: TColor);
+procedure TANDMR_CCheckBox.SetBoxColorChecked(const Value: TColor);
 begin
   if FBoxColorChecked <> Value then
   begin
@@ -409,7 +441,7 @@ begin
   end;
 end;
 
-procedure TANDMR_TCheckBox.SetBoxColorUnchecked(const Value: TColor);
+procedure TANDMR_CCheckBox.SetBoxColorUnchecked(const Value: TColor);
 begin
   if FBoxColorUnchecked <> Value then
   begin

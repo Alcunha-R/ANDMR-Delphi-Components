@@ -912,8 +912,8 @@ begin
     FPredefinedMask := Value;
 
     case FPredefinedMask of
-      pmtCPF:     NewMaskValue := '000\.000\.000-00';
-      pmtCNPJ:    NewMaskValue := '00\.000\.000/0000-00';
+      pmtCPF:     NewMaskValue := '000.000.000-00';
+      pmtCNPJ:    NewMaskValue := '00.000.000/0000-00';
       pmtCEP:     NewMaskValue := '00000-000';
       pmtPhoneBR: NewMaskValue := '(00) 90000-0000';
       pmtDateDMY: NewMaskValue := '00/00/0000';

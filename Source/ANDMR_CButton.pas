@@ -146,8 +146,6 @@ type
     procedure SetTagExtended(const Value: Extended);
     procedure SetPresetType(const Value: TPresetType); // MODIFIED: Color values inside will change
 
-    procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-
   protected
     procedure Paint; override;
     procedure Loaded; override;
@@ -244,22 +242,6 @@ implementation
 procedure Register;
 begin
   RegisterComponents('ANDMR', [TANDMR_CButton]);
-end;
-
-function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
-var
-  ColorRef: LongWord;
-begin
-  if AColor = clNone then
-  begin
-    Result := (Alpha shl 24);
-    Exit;
-  end;
-  ColorRef := ColorToRGB(AColor);
-  Result := (Alpha shl 24) or
-            ((ColorRef and $000000FF) shl 16) or // B
-            (ColorRef and $0000FF00) or          // G
-            ((ColorRef and $00FF0000) shr 16);   // R
 end;
 
 { TANDMR_CButton }
@@ -1023,72 +1005,6 @@ end;
 //     if FHoverEffect = heScale then Invalidate else Repaint;
 //   end;
 // end;
-
-procedure TANDMR_CButton.CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-const
-  MIN_RADIUS_FOR_PATH = 0.5;
-var
-  LRadius, LDiameter: Single;
-  RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
-begin
-  APath.Reset;
-
-  if (ARect.Width <= 0) or (ARect.Height <= 0) then
-  begin
-    Exit;
-  end;
-
-  LRadius := ARadiusValue;
-  LRadius := Min(LRadius, Min(ARect.Width / 2, ARect.Height / 2));
-  LRadius := Max(0, LRadius);
-
-  LDiameter := LRadius * 2;
-
-  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) then
-  begin
-    APath.AddRectangle(ARect);
-    Exit;
-  end;
-
-  RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
-  RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
-  RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
-  RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
-
-  APath.StartFigure;
-
-  if RoundTL then
-    APath.AddArc(ARect.X, ARect.Y, LDiameter, LDiameter, 180, 90)
-  else
-    APath.AddLine(ARect.X, ARect.Y, ARect.X, ARect.Y);
-
-  APath.AddLine(ARect.X + IfThen(RoundTL, LRadius, 0), ARect.Y,
-                ARect.X + ARect.Width - IfThen(RoundTR, LRadius, 0), ARect.Y);
-
-  if RoundTR then
-    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y, LDiameter, LDiameter, 270, 90)
-  else
-    APath.AddLine(ARect.X + ARect.Width, ARect.Y, ARect.X + ARect.Width, ARect.Y);
-
-  APath.AddLine(ARect.X + ARect.Width, ARect.Y + IfThen(RoundTR, LRadius, 0),
-                ARect.X + ARect.Width, ARect.Y + ARect.Height - IfThen(RoundBR, LRadius, 0));
-
-  if RoundBR then
-    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
-  else
-    APath.AddLine(ARect.X + ARect.Width, ARect.Y + ARect.Height, ARect.X + ARect.Width, ARect.Y + ARect.Height);
-
-  APath.AddLine(ARect.X + ARect.Width - IfThen(RoundBR, LRadius, 0), ARect.Y + ARect.Height,
-                ARect.X + IfThen(RoundBL, LRadius, 0), ARect.Y + ARect.Height);
-
-  if RoundBL then
-    APath.AddArc(ARect.X, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
-  else
-    APath.AddLine(ARect.X, ARect.Y + ARect.Height, ARect.X, ARect.Y + ARect.Height);
-
-  APath.CloseFigure;
-end;
-
 
 procedure TANDMR_CButton.Paint;
 var

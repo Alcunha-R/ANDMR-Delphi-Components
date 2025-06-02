@@ -1069,7 +1069,7 @@ var
   LClickProgress: Single;
   LShadowAlphaToUse: Byte;
   LShadowOffsetXToUse, LShadowOffsetYToUse : Single;
-  // LPathWidth, LPathHeight: Single; // Removed
+  LPathInset, LPathWidth, LPathHeight: Single; // Added back for shadow calculation
   LPresetDefaultCaption: string;
   LFinalCaptionToDraw: string;
   ButtonRectEffectiveF: TGPRectF;
@@ -1248,10 +1248,12 @@ begin
       ButtonRectEffectiveF.Width := Max(0, ButtonRectEffectiveF.Width);
       ButtonRectEffectiveF.Height := Max(0, ButtonRectEffectiveF.Height);
 
+      // Reinstated calculations for LPathInset, LPathWidth, LPathHeight for shadow
       if LActualBorderThickness > 0 then LPathInset := LActualBorderThickness / 2.0 else LPathInset := 0.0;
       LPathWidth := ButtonRectEffectiveF.Width - 2 * LPathInset;
       LPathHeight := ButtonRectEffectiveF.Height - 2 * LPathInset;
-      LPathWidth := Max(0, LPathWidth); LPathHeight := Max(0, LPathHeight);
+      LPathWidth := Max(0, LPathWidth);
+      LPathHeight := Max(0, LPathHeight);
 
       LShadowPathDrawRect := MakeRect(ButtonRectEffectiveF.X + LPathInset + LShadowOffsetXToUse,
                                       ButtonRectEffectiveF.Y + LPathInset + LShadowOffsetYToUse,

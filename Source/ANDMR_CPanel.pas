@@ -352,22 +352,14 @@ procedure TANDMR_CPanel.Paint;
 var
   LG: TGPGraphics;
   LClientRect: TRect;
-  LPathRect: TGPRectF;
-  LShadowRect: TGPRectF;
-  LShadowPath: TGPGraphicsPath;
-  LTextRect: TRect;
-  LShadowBrush: TGPSolidBrush;
-  // LPanelPath: TGPGraphicsPath; // Removed
-  // LBrush: TGPBrush; // Removed
-  // LPen: TGPPen; // Removed
-  // LPathRect: TGPRectF; // Removed, ADrawArea is TRect
-  // LBackgroundColor, LBorderColor: ARGB; // ARGB conversion is inside DrawEditBox
-  LShadowColorAlpha: ARGB;
-  CurrentColor, CurrentBorderColor, CurrentCaptionColor: TColor; // For hover/disabled states
-  // LDrawTextFlags: Cardinal; // Removed, handled by DrawComponentCaption
-  // LPathInset: Single; // Removed, handled by DrawEditBox
+  LShadowRect: TGPRectF; // For shadow calculations
+  LShadowPath: TGPGraphicsPath; // For shadow path
+  LTextRect: TRect; // For caption drawing area
+  LShadowBrush: TGPSolidBrush; // For shadow fill
+  LShadowColorAlpha: ARGB; // For shadow color with alpha
+  CurrentColor, CurrentBorderColor, CurrentCaptionColor: TColor; // Effective colors
 begin
-  inherited Paint; // Call inherited paint first
+  inherited Paint;
 
   LClientRect := Self.ClientRect;
   if (LClientRect.Width <= 0) or (LClientRect.Height <= 0) then Exit;
@@ -399,7 +391,6 @@ begin
     // --- 1. Draw Drop Shadow ---
     if FDropShadowEnabled and (FDropShadowBlurRadius > 0) then
     begin
-      // LPathInset is needed here if shadow is based on the same path as the main body was
       var ShadowPathInset: Single := FBorderThickness / 2.0;
       LShadowRect.X := LClientRect.Left + ShadowPathInset + FDropShadowOffset.X;
       LShadowRect.Y := LClientRect.Top + ShadowPathInset + FDropShadowOffset.Y;
@@ -407,7 +398,6 @@ begin
       LShadowRect.Height := LClientRect.Height - (2 * ShadowPathInset);
       if LShadowRect.Width <=0 then LShadowRect.Width := 1;
       if LShadowRect.Height <=0 then LShadowRect.Height := 1;
-
 
       LShadowPath := TGPGraphicsPath.Create;
       try
@@ -425,37 +415,25 @@ begin
     end;
 
     // --- 2. Draw Panel Body and Border using DrawEditBox ---
-    // LClientRect is passed directly as ADrawArea. DrawEditBox handles border insetting.
-    DrawEditBox(LG,
-                LClientRect,
-                CurrentColor,
-                CurrentBorderColor,
-                FBorderThickness,
-                FBorderStyle,
-                FCornerRadius,
-                FRoundCornerType,
-                FOpacity);
+    DrawEditBox(LG, LClientRect, CurrentColor, CurrentBorderColor, FBorderThickness, FBorderStyle, FCornerRadius, FRoundCornerType, FOpacity);
 
     // --- 3. Draw Caption ---
     if (FCaption <> '') and (FFont <> nil) then
     begin
-      // Adjust text rect for padding, border.
       LTextRect := Self.ClientRect;
-      if FBorderThickness > 0 then // Basic padding from border
+      if FBorderThickness > 0 then
           InflateRect(LTextRect, -FBorderThickness -2, -FBorderThickness -2)
       else
           InflateRect(LTextRect, -2, -2);
-      OffsetRect(LTextRect, FCaptionOffsetX, FCaptionOffsetY); // Apply custom offsets
+      OffsetRect(LTextRect, FCaptionOffsetX, FCaptionOffsetY);
 
-      // Determine CurrentCaptionColor using ResolveStateColor
       var BasePanelCaptionColor, HoverPanelCaptionColor, DisabledPanelCaptionColor: TColor;
-      BasePanelCaptionColor := FFont.Color; // Default from TFont
-      HoverPanelCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone); // Panel uses FontColor for caption hover
-      DisabledPanelCaptionColor := FDisabledFontColor; // Use the specific property
+      BasePanelCaptionColor := FFont.Color;
+      HoverPanelCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone);
+      DisabledPanelCaptionColor := FDisabledFontColor;
 
-      CurrentCaptionColor := ResolveStateColor(Self.Enabled, FIsHovering, False, // No distinct focus state for panel caption color
-        BasePanelCaptionColor, HoverPanelCaptionColor, clNone,
-        DisabledPanelCaptionColor,
+      CurrentCaptionColor := ResolveStateColor(Self.Enabled, FIsHovering, False,
+        BasePanelCaptionColor, HoverPanelCaptionColor, clNone, DisabledPanelCaptionColor,
         FHoverSettings.Enabled, False);
 
       if (LTextRect.Width > 0) and (LTextRect.Height > 0) and (Length(Trim(FCaption)) > 0) then
@@ -473,7 +451,6 @@ begin
         );
       end;
     end;
-
   finally
     LG.Free;
   end;

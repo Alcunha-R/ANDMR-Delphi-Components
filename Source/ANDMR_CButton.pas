@@ -30,21 +30,6 @@ type
     cptHelp        // Ajuda (Azul claro)
   );
 
-  TRoundCornerType = (
-    rctNone,                // No rounding (sharp corners)
-    rctAll,                 // All corners rounded
-    rctTopLeft,             // Only Top-Left corner rounded
-    rctTopRight,            // Only Top-Right corner rounded
-    rctBottomLeft,          // Only Bottom-Left corner rounded
-    rctBottomRight,         // Only Bottom-Right corner rounded
-    rctTop,                 // Both Top-Left and Top-Right corners rounded
-    rctBottom,              // Both Bottom-Left and Bottom-Right corners rounded
-    rctLeft,                // Both Top-Left and Bottom-Left corners rounded
-    rctRight,               // Both Top-Right and Bottom-Right corners rounded
-    rctTopLeftBottomRight,  // Diagonal: Top-Left and Bottom-Right
-    rctTopRightBottomLeft   // Diagonal: Top-Right and Bottom-Left
-  );
-
   TANDMR_CButton = class(TCustomControl)
   private
     FCaption: string;
@@ -1069,7 +1054,7 @@ var
   LClickProgress: Single;
   LShadowAlphaToUse: Byte;
   LShadowOffsetXToUse, LShadowOffsetYToUse : Single;
-  LPathInset, LPathWidth, LPathHeight: Single; // Added back for shadow calculation
+  LPathWidth, LPathHeight: Single; // Added back for shadow calculation
   LPresetDefaultCaption: string;
   LFinalCaptionToDraw: string;
   ButtonRectEffectiveF: TGPRectF;

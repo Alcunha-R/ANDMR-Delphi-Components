@@ -683,8 +683,9 @@ begin
   if not FHovered then
   begin
     FHovered := True;
-    if FHoverSettings.Enabled then Invalidate;
+    // if FHoverSettings.Enabled then Invalidate; // Old logic removed
   end;
+  FHoverSettings.StartAnimation(True);
 end;
 
 procedure TANDMR_CMemo.CMMouseLeave(var Message: TMessage);
@@ -693,8 +694,9 @@ begin
   if FHovered then
   begin
     FHovered := False;
-    if FHoverSettings.Enabled then Invalidate;
+    // if FHoverSettings.Enabled then Invalidate; // Old logic removed
   end;
+  FHoverSettings.StartAnimation(False);
 end;
 
 procedure TANDMR_CMemo.SetTabStop(Value: Boolean);
@@ -763,7 +765,7 @@ begin
   FCaptionSettings.OnChange := CaptionSettingsChanged;
   FCaptionRect := Rect(0,0,0,0);
 
-  FHoverSettings := THoverSettings.Create;
+  FHoverSettings := THoverSettings.Create(Self); // Pass Self as OwnerControl
   FHoverSettings.OnChange := HoverSettingsChanged;
   FHovered := False;
 
@@ -856,65 +858,72 @@ begin
       LG.SetSmoothingMode(SmoothingModeAntiAlias);
       LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-      // --- Determine current state colors using ResolveStateColor ---
-      var BaseFrameBG, HoverFrameBG, FocusFrameBG, DisabledFrameBG: TColor;
-      var BaseMemoBG, HoverMemoBG, FocusMemoBG, DisabledMemoBG: TColor;
-      var BaseBorderCol, HoverBorderCol, FocusBorderCol, DisabledBorderCol: TColor;
-      var BaseTextCol, HoverTextCol, FocusTextCol, DisabledTextCol: TColor;
-      var BaseCaptionCol, HoverCaptionCol, FocusCaptionCol, DisabledCaptionCol: TColor;
-      var IsComponentFocused: Boolean;
-      IsComponentFocused := Self.Focused or (Assigned(FInternalMemo) and FInternalMemo.Focused);
+      var LHoverProgress: Single := FHoverSettings.CurrentAnimationValue / 255.0;
+      var IsComponentFocused: Boolean := Self.Focused or (Assigned(FInternalMemo) and FInternalMemo.Focused);
 
-      // Define colors for BGForDrawEditBox (Frame Background)
-      BaseFrameBG := IfThen(FImagePlacement = iplInsideBounds, FInactiveColor, Self.Color);
-      HoverFrameBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
-      // Frame itself doesn't really have a separate "Focus" BG different from Hover/Base when component is focused
-      FocusFrameBG := HoverFrameBG; // If hovered, use hover, else base. ResolveStateColor handles clNone.
-      DisabledFrameBG := BaseFrameBG; // Or a dimmed version
+      // --- Define True Base Colors (Enabled, Not Focused, Not Hovered) ---
+      var TrueBaseFrameBG, TrueBaseBorderCol, TrueBaseTextCol, TrueBaseCaptionCol: TColor;
+      TrueBaseFrameBG := IfThen(FImagePlacement = iplInsideBounds, FInactiveColor, Self.Color);
+      TrueBaseBorderCol := FBorderColor;
+      TrueBaseTextCol := Self.Font.Color; // Font color for the internal memo
+      TrueBaseCaptionCol := IfThen(FCaptionSettings.Color = clDefault, Self.Font.Color, FCaptionSettings.Color);
 
-      BGForDrawEditBox := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
-        BaseFrameBG, HoverFrameBG, FocusFrameBG, DisabledFrameBG,
-        FHoverSettings.Enabled, True, True); // Hover can override focus for BG
+      // --- Define Target Hover Colors (from FHoverSettings) ---
+      var TargetHoverFrameBG, TargetHoverBorderCol, TargetHoverTextCol, TargetHoverCaptionCol: TColor;
+      TargetHoverFrameBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
+      TargetHoverBorderCol := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
+      TargetHoverTextCol := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone);
+      TargetHoverCaptionCol := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
 
-      // Define colors for ActualEditBorderColor (Frame Border)
-      BaseBorderCol := FBorderColor;
-      HoverBorderCol := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
-      FocusBorderCol := IfThen(FFocusBorderColorVisible, FFocusBorderColor, FActiveColor);
-      DisabledBorderCol := FBorderColor; // Or a specific dimmed/grayed border
+      // --- Define Focus Colors ---
+      var FocusFrameBGToUse, FocusBorderColToUse, FocusMemoBGToUse, FocusTextColToUse, FocusCaptionColToUse: TColor;
+      FocusFrameBGToUse := TargetHoverFrameBG; // Frame BG often follows hover when focused, or could be specific
+      FocusBorderColToUse := IfThen(FFocusBorderColorVisible, FFocusBorderColor, FActiveColor);
+      FocusMemoBGToUse := IfThen(FFocusBackgroundColorVisible, FFocusBackgroundColor, clNone); // Specific for memo area
+      FocusTextColToUse := TrueBaseTextCol; // No separate focus text color for memo
+      FocusCaptionColToUse := TrueBaseCaptionCol; // No separate focus caption color
 
-      ActualEditBorderColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
-        BaseBorderCol, HoverBorderCol, FocusBorderCol, DisabledBorderCol,
-        FHoverSettings.Enabled, True);
+      // --- Define Disabled Colors ---
+      var DisabledFrameBGForResolve, DisabledBorderColForResolve, DisabledMemoBGForResolve, DisabledTextColForResolve, DisabledCaptionColForResolve: TColor;
+      DisabledFrameBGForResolve := TrueBaseFrameBG;
+      DisabledBorderColForResolve := TrueBaseBorderCol;
+      DisabledMemoBGForResolve := clWindow; // Or clBtnFace
+      DisabledTextColForResolve := IfThen(TrueBaseTextCol = clWindowText, clGrayText, DarkerColor(TrueBaseTextCol, 50));
+      DisabledCaptionColForResolve := IfThen(TrueBaseCaptionCol = clWindowText, clGrayText, DarkerColor(TrueBaseCaptionCol,50));
 
-      // Define colors for ActualEditBGColor (Internal Memo Background)
-      BaseMemoBG := clWindow; // Default TMemo background
-      HoverMemoBG := clNone; // Typically no hover effect on internal memo BG itself, but could use FHoverSettings.BackgroundColor if desired
-      FocusMemoBG := IfThen(FFocusBackgroundColorVisible, FFocusBackgroundColor, clNone);
-      DisabledMemoBG := clWindow; // Or a specific disabled color like clBtnFace
+      // --- Calculate Non-Hovered State Colors (considering focus) ---
+      var NonHoveredFrameBG, NonHoveredBorderCol, NonHoveredMemoBG, NonHoveredTextCol, NonHoveredCaptionCol: TColor;
+      NonHoveredFrameBG := ResolveStateColor(Self.Enabled, FALSE, IsComponentFocused, TrueBaseFrameBG, clNone, FocusFrameBGToUse, DisabledFrameBGForResolve, FHoverSettings.Enabled, True, True);
+      NonHoveredBorderCol := ResolveStateColor(Self.Enabled, FALSE, IsComponentFocused, TrueBaseBorderCol, clNone, FocusBorderColToUse, DisabledBorderColForResolve, FHoverSettings.Enabled, True, False);
+      NonHoveredMemoBG := ResolveStateColor(Self.Enabled, FALSE, IsComponentFocused, clWindow, clNone, FocusMemoBGToUse, DisabledMemoBGForResolve, False, FFocusBackgroundColorVisible, False);
+      NonHoveredTextCol := ResolveStateColor(Self.Enabled, FALSE, IsComponentFocused, TrueBaseTextCol, clNone, FocusTextColToUse, DisabledTextColForResolve, False, False, False);
+      NonHoveredCaptionCol := ResolveStateColor(Self.Enabled, FALSE, IsComponentFocused, TrueBaseCaptionCol, clNone, FocusCaptionColToUse, DisabledCaptionColForResolve, False, False, False);
 
-      ActualEditBGColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
-        BaseMemoBG, HoverMemoBG, FocusMemoBG, DisabledMemoBG,
-        False, FFocusBackgroundColorVisible); // Hover doesn't usually change memo BG, Focus does
+      // --- Calculate Target State Colors (considering current FHovered, focus) ---
+      var TargetStateFrameBG, TargetStateBorderCol, TargetStateMemoBG, TargetStateTextCol, TargetStateCaptionCol: TColor;
+      TargetStateFrameBG := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, TrueBaseFrameBG, TargetHoverFrameBG, FocusFrameBGToUse, DisabledFrameBGForResolve, FHoverSettings.Enabled, True, True);
+      TargetStateBorderCol := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, TrueBaseBorderCol, TargetHoverBorderCol, FocusBorderColToUse, DisabledBorderColForResolve, FHoverSettings.Enabled, True, False);
+      TargetStateMemoBG := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, clWindow, TargetHoverTextCol, FocusMemoBGToUse, DisabledMemoBGForResolve, FHoverSettings.Enabled, FFocusBackgroundColorVisible, False); // Note: TargetHoverTextCol used for MemoBG hover to see if it makes sense, or should be TargetHoverFrameBG
+      TargetStateTextCol := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, TrueBaseTextCol, TargetHoverTextCol, FocusTextColToUse, DisabledTextColForResolve, FHoverSettings.Enabled, False, False);
+      TargetStateCaptionCol := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, TrueBaseCaptionCol, TargetHoverCaptionCol, FocusCaptionColToUse, DisabledCaptionColForResolve, FHoverSettings.Enabled, False, False);
 
-      // Define colors for ActualEditTextColor (Internal Memo Font Color)
-      BaseTextCol := Self.Font.Color; // From TANDMR_CMemo.Font
-      HoverTextCol := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone); // If hover should affect text
-      FocusTextCol := Self.Font.Color; // No specific focus text color, use base
-      DisabledTextCol := IfThen(BaseTextCol = clWindowText, clGrayText, DarkerColor(BaseTextCol, 50));
-
-      ActualEditTextColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
-        BaseTextCol, HoverTextCol, FocusTextCol, DisabledTextCol,
-        FHoverSettings.Enabled, False);
-
-      // Define colors for ActualCaptionTextColor
-      BaseCaptionCol := IfThen(FCaptionSettings.Color = clDefault, Self.Font.Color, FCaptionSettings.Color);
-      HoverCaptionCol := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
-      FocusCaptionCol := BaseCaptionCol; // No distinct focus caption color property
-      DisabledCaptionCol := IfThen(BaseCaptionCol = clWindowText, clGrayText, DarkerColor(BaseCaptionCol,50));
-
-      ActualCaptionTextColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
-        BaseCaptionCol, HoverCaptionCol, FocusCaptionCol, DisabledCaptionCol,
-        FHoverSettings.Enabled, False);
+      // --- Blend colors if animation is active towards a hovered state ---
+      if (LHoverProgress > 0) and FHoverSettings.Enabled and (FHoverSettings.HoverEffect <> heNone) and FHovered then
+      begin
+        BGForDrawEditBox      := BlendColors(NonHoveredFrameBG, TargetStateFrameBG, LHoverProgress);
+        ActualEditBorderColor := BlendColors(NonHoveredBorderCol, TargetStateBorderColor, LHoverProgress);
+        ActualEditBGColor     := BlendColors(NonHoveredMemoBG, TargetStateMemoBG, LHoverProgress); // For InternalMemo.Color
+        ActualEditTextColor   := BlendColors(NonHoveredTextCol, TargetStateTextCol, LHoverProgress); // For InternalMemo.Font.Color
+        ActualCaptionTextColor:= BlendColors(NonHoveredCaptionCol, TargetStateCaptionCol, LHoverProgress);
+      end
+      else // No animation towards hover (or reversing/settled)
+      begin
+        BGForDrawEditBox      := TargetStateFrameBG;
+        ActualEditBorderColor := TargetStateBorderColor;
+        ActualEditBGColor     := TargetStateMemoBG;    // For InternalMemo.Color
+        ActualEditTextColor   := TargetStateTextCol;  // For InternalMemo.Font.Color
+        ActualCaptionTextColor:= TargetStateCaptionCol;
+      end;
 
       // --- Painting Frame and Background ---
       if FOpacity = 255 then

@@ -171,7 +171,7 @@ begin
   FDisabledFontColor := clGrayText; // Initialize Disabled Font Color
   FTransparentChildren := False; // Initialize TransparentChildren
   FWindowRegion := 0; // Initialize window region handle
-  FHoverSettings := THoverSettings.Create; // Create HoverSettings instance
+  FHoverSettings := THoverSettings.Create(Self); // Create HoverSettings instance, pass Self as Owner
   FHoverSettings.OnChange := HoverSettingsChanged; // Assign OnChange event
   FIsHovering := False; // Initialize hover state
   FDropShadowEnabled := False;
@@ -369,24 +369,38 @@ begin
     LG.SetSmoothingMode(SmoothingModeAntiAlias);
     LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-    // --- Determine effective colors based on state (normal, hover, disabled) using ResolveStateColor ---
-    var BasePanelBG, HoverPanelBG, DisabledPanelBG: TColor;
-    BasePanelBG := FColor;
-    HoverPanelBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
-    DisabledPanelBG := FColor; // Or a dimmed FColor if desired for disabled state
+    var LHoverProgress: Single := FHoverSettings.CurrentAnimationValue / 255.0;
 
-    CurrentColor := ResolveStateColor(Self.Enabled, FIsHovering, False, // CPanel doesn't have a distinct 'focused' visual state for its main body
-      BasePanelBG, HoverPanelBG, clNone, DisabledPanelBG,
-      FHoverSettings.Enabled, False);
+    // --- Determine effective colors based on state (normal, hover, disabled) ---
+    var TrueBasePanelBG, TargetHoverPanelBG, DisabledPanelBG: TColor;
+    var NonHoveredPanelBG, TargetStatePanelBG: TColor;
 
-    var BasePanelBorder, HoverPanelBorder, DisabledPanelBorder: TColor;
-    BasePanelBorder := FBorderColor;
-    HoverPanelBorder := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
-    DisabledPanelBorder := FBorderColor; // Or a dimmed/grayed border for disabled
+    TrueBasePanelBG := FColor;
+    TargetHoverPanelBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
+    DisabledPanelBG := FColor; // Or a dimmed FColor
 
-    CurrentBorderColor := ResolveStateColor(Self.Enabled, FIsHovering, False,
-      BasePanelBorder, HoverPanelBorder, clNone, DisabledPanelBorder,
-      FHoverSettings.Enabled, False);
+    NonHoveredPanelBG := ResolveStateColor(Self.Enabled, False, False, TrueBasePanelBG, clNone, clNone, DisabledPanelBG, False, False);
+    TargetStatePanelBG := ResolveStateColor(Self.Enabled, FIsHovering, False, TrueBasePanelBG, TargetHoverPanelBG, clNone, DisabledPanelBG, FHoverSettings.Enabled, False);
+
+    if (LHoverProgress > 0) and FHoverSettings.Enabled and (FHoverSettings.HoverEffect <> heNone) and FIsHovering then
+      CurrentColor := BlendColors(NonHoveredPanelBG, TargetStatePanelBG, LHoverProgress)
+    else
+      CurrentColor := TargetStatePanelBG;
+
+    var TrueBasePanelBorder, TargetHoverPanelBorder, DisabledPanelBorder: TColor;
+    var NonHoveredPanelBorder, TargetStatePanelBorder: TColor;
+
+    TrueBasePanelBorder := FBorderColor;
+    TargetHoverPanelBorder := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
+    DisabledPanelBorder := FBorderColor; // Or a dimmed/grayed border
+
+    NonHoveredPanelBorder := ResolveStateColor(Self.Enabled, False, False, TrueBasePanelBorder, clNone, clNone, DisabledPanelBorder, False, False);
+    TargetStatePanelBorder := ResolveStateColor(Self.Enabled, FIsHovering, False, TrueBasePanelBorder, TargetHoverPanelBorder, clNone, DisabledPanelBorder, FHoverSettings.Enabled, False);
+
+    if (LHoverProgress > 0) and FHoverSettings.Enabled and (FHoverSettings.HoverEffect <> heNone) and FIsHovering then
+      CurrentBorderColor := BlendColors(NonHoveredPanelBorder, TargetStatePanelBorder, LHoverProgress)
+    else
+      CurrentBorderColor := TargetStatePanelBorder;
 
     // --- 1. Draw Drop Shadow ---
     if FDropShadowEnabled and (FDropShadowBlurRadius > 0) then
@@ -427,14 +441,20 @@ begin
           InflateRect(LTextRect, -2, -2);
       OffsetRect(LTextRect, FCaptionOffsetX, FCaptionOffsetY);
 
-      var BasePanelCaptionColor, HoverPanelCaptionColor, DisabledPanelCaptionColor: TColor;
-      BasePanelCaptionColor := FFont.Color;
-      HoverPanelCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone);
+      var TrueBasePanelCaptionColor, TargetHoverPanelCaptionColor, DisabledPanelCaptionColor: TColor;
+      var NonHoveredPanelCaptionColor, TargetStatePanelCaptionColor: TColor;
+
+      TrueBasePanelCaptionColor := FFont.Color;
+      TargetHoverPanelCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone); // Uses FontColor for caption hover
       DisabledPanelCaptionColor := FDisabledFontColor;
 
-      CurrentCaptionColor := ResolveStateColor(Self.Enabled, FIsHovering, False,
-        BasePanelCaptionColor, HoverPanelCaptionColor, clNone, DisabledPanelCaptionColor,
-        FHoverSettings.Enabled, False);
+      NonHoveredPanelCaptionColor := ResolveStateColor(Self.Enabled, False, False, TrueBasePanelCaptionColor, clNone, clNone, DisabledPanelCaptionColor, False, False);
+      TargetStatePanelCaptionColor := ResolveStateColor(Self.Enabled, FIsHovering, False, TrueBasePanelCaptionColor, TargetHoverPanelCaptionColor, clNone, DisabledPanelCaptionColor, FHoverSettings.Enabled, False);
+
+      if (LHoverProgress > 0) and FHoverSettings.Enabled and (FHoverSettings.HoverEffect <> heNone) and FIsHovering then
+        CurrentCaptionColor := BlendColors(NonHoveredPanelCaptionColor, TargetStatePanelCaptionColor, LHoverProgress)
+      else
+        CurrentCaptionColor := TargetStatePanelCaptionColor;
 
       if (LTextRect.Width > 0) and (LTextRect.Height > 0) and (Length(Trim(FCaption)) > 0) then
       begin
@@ -667,9 +687,9 @@ begin
   if not FIsHovering then
   begin
     FIsHovering := True;
-    if FHoverSettings.Enabled then // Only invalidate if hover effects are active
-      Invalidate;
+    // if FHoverSettings.Enabled then Invalidate; // Old logic
   end;
+  FHoverSettings.StartAnimation(True);
 end;
 
 procedure TANDMR_CPanel.CMMouseLeave(var Message: TMessage);
@@ -678,9 +698,9 @@ begin
   if FIsHovering then
   begin
     FIsHovering := False;
-    if FHoverSettings.Enabled then // Only invalidate if hover effects were active
-      Invalidate;
+    // if FHoverSettings.Enabled then Invalidate; // Old logic
   end;
+  FHoverSettings.StartAnimation(False);
 end;
 
 end.

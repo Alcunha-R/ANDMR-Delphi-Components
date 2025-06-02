@@ -35,7 +35,7 @@ type
     FCaption: string;
     FCornerRadius: Integer;
     FRoundCornerType: TRoundCornerType;
-    FActiveColor, FInactiveColor, FHoverColor: TColor;
+    FActiveColor, FInactiveColor: TColor;
     FTitleFont: TFont;
     FIsHovering: Boolean;
     FImage: TPicture;
@@ -75,10 +75,7 @@ type
     FOnClick: TNotifyEvent;
     FStyle: TButtonStyle;
     FClickColor: TColor;
-    FHoverBorderColor: TColor;
-    FEnableHoverEffect: Boolean;
     FClickBorderColor: TColor;
-    FHoverTitleColor: TColor;
     FClickTitleColor: TColor;
 
     FPresetType: TPresetType;
@@ -145,8 +142,6 @@ type
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure SetTagExtended(const Value: Extended);
     procedure SetPresetType(const Value: TPresetType); // MODIFIED: Color values inside will change
-
-    procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
 
   protected
     procedure Paint; override;
@@ -246,22 +241,6 @@ begin
   RegisterComponents('ANDMR', [TANDMR_CButton]);
 end;
 
-function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
-var
-  ColorRef: LongWord;
-begin
-  if AColor = clNone then
-  begin
-    Result := (Alpha shl 24);
-    Exit;
-  end;
-  ColorRef := ColorToRGB(AColor);
-  Result := (Alpha shl 24) or
-            ((ColorRef and $000000FF) shl 16) or // B
-            (ColorRef and $0000FF00) or          // G
-            ((ColorRef and $00FF0000) shr 16);   // R
-end;
-
 { TANDMR_CButton }
 
 constructor TANDMR_CButton.Create(AOwner: TComponent);
@@ -277,8 +256,8 @@ begin
   FRoundCornerType := rctAll;
   FActiveColor := clTeal;
   FInactiveColor := clGray;
-  FHoverColor := clSkyBlue; // This is read via GetHoverColor from THoverSettings now
-  FHoverTitleColor := clNone; // This is read via GetHoverTitleColor from THoverSettings now
+  // FHoverColor := clSkyBlue; // Field Removed - Read via GetHoverColor from THoverSettings
+  // FHoverTitleColor := clNone; // Field Removed - Read via GetHoverTitleColor from THoverSettings
   FClickTitleColor := clNone;
 
   // FHoverAnimationTimer := TTimer.Create(Self); // Removed
@@ -289,7 +268,7 @@ begin
   // FHoverAnimationValue := 0; // Removed
   // FHoverAnimationDirection := 1; // Removed
   // FHoverEffect := heFade; // Field removed, property uses FInternalHoverSettings, default set in THoverSettings
-  FEnableHoverEffect := True; // This property will now use THoverSettings
+  // FEnableHoverEffect := True; // Field Removed - Property uses THoverSettings
 
   FTitleFont := TFont.Create;
   FTitleFont.Name := 'Segoe UI';
@@ -329,7 +308,7 @@ begin
   FBorderColor := clBlack;
   FBorderThickness := 1;
   FBorderStyle := psSolid;
-  FHoverBorderColor := clNone;
+  // FHoverBorderColor := clNone; // Field Removed - Property uses THoverSettings
   FClickColor := clNone;
   FClickBorderColor := clNone;
 
@@ -1024,72 +1003,6 @@ end;
 //   end;
 // end;
 
-procedure TANDMR_CButton.CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-const
-  MIN_RADIUS_FOR_PATH = 0.5;
-var
-  LRadius, LDiameter: Single;
-  RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
-begin
-  APath.Reset;
-
-  if (ARect.Width <= 0) or (ARect.Height <= 0) then
-  begin
-    Exit;
-  end;
-
-  LRadius := ARadiusValue;
-  LRadius := Min(LRadius, Min(ARect.Width / 2, ARect.Height / 2));
-  LRadius := Max(0, LRadius);
-
-  LDiameter := LRadius * 2;
-
-  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) or (LDiameter <= 0) then
-  begin
-    APath.AddRectangle(ARect);
-    Exit;
-  end;
-
-  RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
-  RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
-  RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
-  RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
-
-  APath.StartFigure;
-
-  if RoundTL then
-    APath.AddArc(ARect.X, ARect.Y, LDiameter, LDiameter, 180, 90)
-  else
-    APath.AddLine(ARect.X, ARect.Y, ARect.X, ARect.Y);
-
-  APath.AddLine(ARect.X + IfThen(RoundTL, LRadius, 0), ARect.Y,
-                ARect.X + ARect.Width - IfThen(RoundTR, LRadius, 0), ARect.Y);
-
-  if RoundTR then
-    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y, LDiameter, LDiameter, 270, 90)
-  else
-    APath.AddLine(ARect.X + ARect.Width, ARect.Y, ARect.X + ARect.Width, ARect.Y);
-
-  APath.AddLine(ARect.X + ARect.Width, ARect.Y + IfThen(RoundTR, LRadius, 0),
-                ARect.X + ARect.Width, ARect.Y + ARect.Height - IfThen(RoundBR, LRadius, 0));
-
-  if RoundBR then
-    APath.AddArc(ARect.X + ARect.Width - LDiameter, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
-  else
-    APath.AddLine(ARect.X + ARect.Width, ARect.Y + ARect.Height, ARect.X + ARect.Width, ARect.Y + ARect.Height);
-
-  APath.AddLine(ARect.X + ARect.Width - IfThen(RoundBR, LRadius, 0), ARect.Y + ARect.Height,
-                ARect.X + IfThen(RoundBL, LRadius, 0), ARect.Y + ARect.Height);
-
-  if RoundBL then
-    APath.AddArc(ARect.X, ARect.Y + ARect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
-  else
-    APath.AddLine(ARect.X, ARect.Y + ARect.Height, ARect.X, ARect.Y + ARect.Height);
-
-  APath.CloseFigure;
-end;
-
-
 procedure TANDMR_CButton.Paint;
 var
   LPathRect, LShadowPathDrawRect: TGPRectF;
@@ -1202,7 +1115,7 @@ begin
         LCurrentGradientEnabled := False;
         LActualBorderThickness := Max(1, FBorderThickness);
         LDrawBorder := LActualBorderThickness > 0;
-        LFinalHoverColor := ColorToARGB(IfThen(FHoverColor=clNone, LInitialFillColor, FHoverColor), 70);
+        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 70); // Use Getter
       end;
       bsLight:
       begin
@@ -1228,7 +1141,7 @@ begin
         LActualBorderThickness := Max(1, FBorderThickness);
         LActualBorderColor := LInitialFillColor;
         LDrawBorder := LActualBorderThickness > 0;
-        LFinalHoverColor := ColorToARGB(IfThen(FHoverColor=clNone, LInitialFillColor, FHoverColor), 100);
+        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 100); // Use Getter
         LFinalHoverBorderColor := LInitialFillColor;
       end;
       bsShadow:

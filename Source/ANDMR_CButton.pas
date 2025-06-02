@@ -14,7 +14,6 @@ type
   TImagePosition = (ipLeft, ipRight, ipAbove, ipBelow, ipBehind);
   TGradientType = (gtLinearVertical, gtLinearHorizontal);
   TImageStretchMode = (ismProportional, ismFlat);
-  // THoverEffect = (heNone, heFade, heScale); // Moved to ANDMR_ComponentUtils.pas
   TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient);
   TPresetType = (
     cptNone,       // Sem predefinicao, usa as cores do componente
@@ -37,11 +36,9 @@ type
     FRoundCornerType: TRoundCornerType;
     FActiveColor, FInactiveColor: TColor;
     FTitleFont: TFont;
-    FIsHovering: Boolean;
+    // FIsHovering: Boolean; // Removed: Hover state managed by FInternalHoverSettings
     FImage: TPicture;
     FTextAlign: TAlignment;
-    // FHoverAnimationValue: Integer; // Removed, managed by THoverSettings
-    // FHoverAnimationTimer: TTimer; // Removed, managed by THoverSettings
     FGradientEnabled: Boolean;
     FGradientType: TGradientType;
     FGradientStartColor: TColor;
@@ -49,19 +46,12 @@ type
     FImagePosition: TImagePosition;
     FImageMargins, FTextMargins: TANDMR_Margins;
     FImageStretchMode: TImageStretchMode;
-    // FHoverAnimationStep: Integer; // Removed, managed by THoverSettings
-    // FHoverAnimationDirection: Integer; // Removed, managed by THoverSettings
     FTag: Integer;
     FTagString: string;
     FTagExtended: Extended;
     FTagObject: TObject;
-    // FHoverEffect: THoverEffect; // Removed, managed by FInternalHoverSettings
     FDisabledCursor: TCursor;
     FTransparent: Boolean;
-
-    FInternalHoverSettings: THoverSettings; // Added for new HoverSettings
-    procedure SetInternalHoverSettings(const Value: THoverSettings); // Added for new HoverSettings
-    procedure InternalHoverSettingsChanged(Sender: TObject); // Added for new HoverSettings
 
     FClickEffectTimer: TTimer;
     FClickEffectProgress: Integer;
@@ -79,6 +69,11 @@ type
     FClickTitleColor: TColor;
 
     FPresetType: TPresetType;
+
+    FInternalHoverSettings: THoverSettings;
+
+    procedure SetInternalHoverSettings(const Value: THoverSettings);
+    procedure InternalHoverSettingsChanged(Sender: TObject);
 
     procedure SetStyle(const Value: TButtonStyle);
     function GetAlign: TAlign;
@@ -126,13 +121,11 @@ type
     procedure SetClickEffectDuration(const Value: Integer);
     procedure SetTransparent(const Value: Boolean);
 
-    // procedure DoHoverAnimation(Sender: TObject); // Removed, logic now in THoverSettings
-
-    function GetEnableHoverEffect: Boolean; // Added for property redirection
-    function GetHoverColor: TColor; // Added for property redirection
-    function GetHoverBorderColor: TColor; // Added for property redirection
-    function GetHoverTitleColor: TColor; // Restoring this declaration
-    function GetHoverEffect: THoverEffect; // This was correctly added before
+    function GetEnableHoverEffect: Boolean;
+    function GetHoverColor: TColor;
+    function GetHoverBorderColor: TColor;
+    function GetHoverTitleColor: TColor;
+    function GetHoverEffect: THoverEffect;
 
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
@@ -141,7 +134,7 @@ type
     procedure MarginsChanged(Sender: TObject);
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure SetTagExtended(const Value: Extended);
-    procedure SetPresetType(const Value: TPresetType); // MODIFIED: Color values inside will change
+    procedure SetPresetType(const Value: TPresetType);
 
   protected
     procedure Paint; override;
@@ -160,8 +153,8 @@ type
     property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
     property ActiveColor: TColor read FActiveColor write SetActiveColor default clTeal;
     property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clGray;
-    property HoverColor: TColor read GetHoverColor write SetHoverColor; // default clSkyBlue; // Default managed by THoverSettings
-    property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor; // default clNone; // Default managed by THoverSettings
+    property HoverColor: TColor read GetHoverColor write SetHoverColor;
+    property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
     property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
     property TitleFont: TFont read FTitleFont write SetTitleFont;
     property Image: TPicture read FImage write SetImage;
@@ -180,13 +173,13 @@ type
     property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
     property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
-    property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor; // default clNone; // Default managed by THoverSettings
+    property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor;
     property ClickColor: TColor read FClickColor write SetClickColor default clNone;
     property ClickBorderColor: TColor read FClickBorderColor write SetClickBorderColor default clNone;
 
     property Style: TButtonStyle read FStyle write SetStyle default bsSolid;
     property EnableHoverEffect: Boolean read GetEnableHoverEffect write SetEnableHoverEffect default True;
-    property HoverEffect: THoverEffect read GetHoverEffect write SetHoverEffect default heFade; // Changed to use getter
+    property HoverEffect: THoverEffect read GetHoverEffect write SetHoverEffect default heFade;
     property ClickEffectDuration: Integer read FClickEffectDuration write SetClickEffectDuration default 200;
 
     property DisabledCursor: TCursor read FDisabledCursor write SetDisabledCursor default crNo;
@@ -256,19 +249,7 @@ begin
   FRoundCornerType := rctAll;
   FActiveColor := clTeal;
   FInactiveColor := clGray;
-  // FHoverColor := clSkyBlue; // Field Removed - Read via GetHoverColor from THoverSettings
-  // FHoverTitleColor := clNone; // Field Removed - Read via GetHoverTitleColor from THoverSettings
   FClickTitleColor := clNone;
-
-  // FHoverAnimationTimer := TTimer.Create(Self); // Removed
-  // FHoverAnimationTimer.Interval := 15; // Removed
-  // FHoverAnimationTimer.Enabled := False; // Removed
-  // FHoverAnimationTimer.OnTimer := DoHoverAnimation; // Removed
-  // FHoverAnimationStep := 20; // Removed
-  // FHoverAnimationValue := 0; // Removed
-  // FHoverAnimationDirection := 1; // Removed
-  // FHoverEffect := heFade; // Field removed, property uses FInternalHoverSettings, default set in THoverSettings
-  // FEnableHoverEffect := True; // Field Removed - Property uses THoverSettings
 
   FTitleFont := TFont.Create;
   FTitleFont.Name := 'Segoe UI';
@@ -308,7 +289,6 @@ begin
   FBorderColor := clBlack;
   FBorderThickness := 1;
   FBorderStyle := psSolid;
-  // FHoverBorderColor := clNone; // Field Removed - Property uses THoverSettings
   FClickColor := clNone;
   FClickBorderColor := clNone;
 
@@ -316,22 +296,20 @@ begin
   FPresetType := cptNone;
   FCaption := Self.Name;
 
-  // Initialize InternalHoverSettings
-  FInternalHoverSettings := THoverSettings.Create(Self); // Pass Self as OwnerControl
+  FInternalHoverSettings := THoverSettings.Create(Self);
   FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
 end;
 
 destructor TANDMR_CButton.Destroy;
 begin
-  FInternalHoverSettings.OnChange := nil; // Good practice before freeing
-  FInternalHoverSettings.Free;            // Free the new HoverSettings
+  FInternalHoverSettings.OnChange := nil;
+  FInternalHoverSettings.Free;
 
   FTitleFont.OnChange := nil;
   FTitleFont.Free;
   FImage.Free;
   FImageMargins.Free;
   FTextMargins.Free;
-  // FHoverAnimationTimer.Free; // Removed
   FClickEffectTimer.Free;
   inherited;
 end;
@@ -339,11 +317,6 @@ end;
 procedure TANDMR_CButton.SetInternalHoverSettings(const Value: THoverSettings);
 begin
   FInternalHoverSettings.Assign(Value);
-  // The OnChange is already set in the constructor,
-  // and TPersistent.Assign does not copy event handlers.
-  // If FInternalHoverSettings was freed and recreated, OnChange would need to be reassigned.
-  // However, standard property assignment shouldn't free/recreate.
-  // Call a method that implies change, like Repaint or Invalidate
   Repaint;
 end;
 
@@ -398,7 +371,6 @@ end;
 procedure TANDMR_CButton.ResizeMe;
 begin
   SetCornerRadius(FCornerRadius);
-  Repaint;
 end;
 
 procedure TANDMR_CButton.Click;
@@ -460,12 +432,11 @@ begin
     inherited Enabled := Value;
     if not Value then
     begin
-      FIsHovering := False;
-      FHoverAnimationValue := 0;
-      FHoverAnimationTimer.Enabled := False;
       FClickEffectActive := False;
       FClickEffectProgress := 0;
       FClickEffectTimer.Enabled := False;
+      if FInternalHoverSettings.Enabled then
+         FInternalHoverSettings.StartAnimation(False);
     end;
     Cursor := IfThen(Value, crHandPoint, FDisabledCursor);
     Repaint;
@@ -541,7 +512,6 @@ begin
   end;
 end;
 
-// MODIFIED: Revised preset colors
 procedure TANDMR_CButton.SetPresetType(const Value: TPresetType);
 var
   PresetCaption: string;
@@ -552,32 +522,22 @@ begin
   begin
     FPresetType := Value;
     PresetCaption := '';
-    NewTitleColor := clWhite; // Default assumption, will be overridden
+    NewTitleColor := clWhite;
 
     case FPresetType of
-      cptNone: begin BaseColor := FActiveColor; Exit; end; // Keep current colors if None
-      // Green for accept/confirm (Material Design Green 500: #4CAF50 -> BGR: $0050AF4C)
+      cptNone: begin BaseColor := FActiveColor; Exit; end;
       cptAccept:   begin BaseColor := TColor($0050AF4C); PresetCaption := 'Confirmar'; NewTitleColor := clWhite; end;
-      // Neutral Grey for decline/cancel (Material Design Grey 600: #757575 -> BGR: $00757575)
       cptDecline:  begin BaseColor := TColor($00757575); PresetCaption := 'Cancelar';  NewTitleColor := clWhite; end;
-      // Blue for save (Material Design Blue 500: #2196F3 -> BGR: $00F39621)
       cptSave:     begin BaseColor := TColor($00F39621); PresetCaption := 'Salvar';    NewTitleColor := clWhite; end;
-      // Orange for edit (Material Design Orange 500: #FF9800 -> BGR: $000098FF)
       cptEdit:     begin BaseColor := TColor($000098FF); PresetCaption := 'Editar';    NewTitleColor := clBlack; end;
-      // Red for delete (Material Design Red 500: #F44336 -> BGR: $003643F4)
       cptDelete:   begin BaseColor := TColor($003643F4); PresetCaption := 'Excluir';   NewTitleColor := clWhite; end;
-      // Light Blue for next/continue (Material Design Light Blue 500: #03A9F4 -> BGR: $00F4A903)
       cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'Avançar';   NewTitleColor := clWhite; end;
-      // Lighter Grey for previous/back (Material Design Grey 500: #9E9E9E -> BGR: $009E9E9E)
       cptPrevious: begin BaseColor := TColor($009E9E9E); PresetCaption := 'Voltar';    NewTitleColor := clBlack; end;
-      // Calm Light Blue for info (Material Design Light Blue 400: #29B6F6 -> BGR: $00F6B629, using 400 for differentiation: #4FC3F7 -> BGR: $00F7C34F)
       cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'Informação';NewTitleColor := clBlack; end;
-      // Yellow for warning (Material Design Yellow 500: #FFEB3B -> BGR: $003BEBFF)
       cptWarning:  begin BaseColor := TColor($003BEBFF); PresetCaption := 'Aviso';     NewTitleColor := clBlack; end;
-      // Distinct Blue Grey for help (Material Design Blue Grey 500: #607D8B -> BGR: $008B7D60)
       cptHelp:     begin BaseColor := TColor($008B7D60); PresetCaption := 'Ajuda';     NewTitleColor := clWhite; end;
     else
-      BaseColor := FActiveColor; // Fallback, though cptNone should handle it.
+      BaseColor := FActiveColor;
     end;
 
     Self.ActiveColor := BaseColor;
@@ -588,8 +548,6 @@ begin
     Self.ClickBorderColor := DarkerColor(BaseColor, 30);
     Self.TitleFont.Color := NewTitleColor;
 
-    // Auto-adjust hover/click title color based on background luminance
-    // This logic is kept from your original code and is generally good.
     if (GetRValue(Self.HoverColor) * 0.299 + GetGValue(Self.HoverColor) * 0.587 + GetBValue(Self.HoverColor) * 0.114) > 186 then
       Self.HoverTitleColor := clBlack
     else
@@ -602,12 +560,11 @@ begin
 
     if (Trim(Self.FCaption) = '') or (Self.FCaption <> PresetCaption) then
     begin
-      Self.FCaption := PresetCaption; // Calls SetCaption, which repaints
-      Repaint;
+      Self.FCaption := PresetCaption;
     end
     else
     begin
-      Repaint; // Colors changed, repaint even if caption wasn't set by preset
+      Repaint;
     end;
   end;
 end;
@@ -617,8 +574,6 @@ begin
   if FInternalHoverSettings.BackgroundColor <> Value then
   begin
     FInternalHoverSettings.BackgroundColor := Value;
-    // FHoverColor := Value; // Remove direct field assignment
-    // Repaint; // Handled by FInternalHoverSettings.OnChange
   end;
 end;
 
@@ -716,30 +671,13 @@ begin
   FTextMargins.Assign(Value);
 end;
 
-procedure TANDMR_CButton.SetTag(const Value: Integer);
-begin
-  FTag := Value;
-end;
-
-procedure TANDMR_CButton.SetTagString(const Value: string);
-begin
-  FTagString := Value;
-end;
-
-procedure TANDMR_CButton.SetTagExtended(const Value: Extended);
-begin
-  FTagExtended := Value;
-end;
-
-procedure TANDMR_CButton.SetTagObject(const Value: TObject);
-begin
-  FTagObject := Value;
-end;
+procedure TANDMR_CButton.SetTag(const Value: Integer); begin FTag := Value; end;
+procedure TANDMR_CButton.SetTagString(const Value: string); begin FTagString := Value; end;
+procedure TANDMR_CButton.SetTagExtended(const Value: Extended); begin FTagExtended := Value; end;
+procedure TANDMR_CButton.SetTagObject(const Value: TObject); begin FTagObject := Value; end;
 
 procedure TANDMR_CButton.SetHoverEffect(const Value: THoverEffect);
 begin
-  // Delegate to FInternalHoverSettings. THoverSettings.SetHoverEffect handles
-  // value checking, resetting animation, and calling Changed (which triggers repaint).
   FInternalHoverSettings.HoverEffect := Value;
 end;
 
@@ -799,8 +737,6 @@ begin
   if FInternalHoverSettings.BorderColor <> Value then
   begin
     FInternalHoverSettings.BorderColor := Value;
-    // FHoverBorderColor := Value; // Remove direct field assignment
-    // Repaint; // Handled by FInternalHoverSettings.OnChange
   end;
 end;
 
@@ -822,17 +758,7 @@ procedure TANDMR_CButton.SetEnableHoverEffect(const Value: Boolean);
 begin
   if FInternalHoverSettings.Enabled <> Value then
   begin
-    FInternalHoverSettings.Enabled := Value; // Redirect to new settings object
-    if not Value then
-    begin
-      FIsHovering := False;
-      // FHoverAnimationValue := 0; // Removed, THoverSettings.SetEnabled handles its internal animation value
-      // FHoverAnimationTimer.Enabled := False; // Removed, THoverSettings manages its timer
-    end;
-    // Repaint is called by THoverSettings.SetEnabled via OnChange, or explicitly if needed.
-    // Explicit Repaint here ensures CButton updates if FIsHovering state change has visual implications
-    // not covered by THoverSettings.CurrentAnimationValue being 0.
-    Repaint;
+    FInternalHoverSettings.Enabled := Value;
   end;
 end;
 
@@ -846,8 +772,6 @@ begin
   if FInternalHoverSettings.FontColor <> Value then
   begin
     FInternalHoverSettings.FontColor := Value;
-    // FHoverTitleColor := Value; // Remove direct field assignment
-    // Repaint; // Handled by FInternalHoverSettings.OnChange
   end;
 end;
 
@@ -926,12 +850,11 @@ begin
   Cursor := IfThen(Enabled, crHandPoint, FDisabledCursor);
   if not Enabled then
   begin
-      FIsHovering := False;
-      FHoverAnimationValue := 0;
-      FHoverAnimationTimer.Enabled := False;
       FClickEffectActive := False;
       FClickEffectProgress := 0;
       FClickEffectTimer.Enabled := False;
+      if FInternalHoverSettings.Enabled then
+         FInternalHoverSettings.StartAnimation(False);
   end;
   Repaint;
 end;
@@ -939,69 +862,24 @@ end;
 procedure TANDMR_CButton.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
-  if Enabled and GetEnableHoverEffect then // Use getter for FInternalHoverSettings.Enabled
+  if Enabled and GetEnableHoverEffect then
   begin
-    FIsHovering := True;
-    // FInternalHoverSettings.HoverEffect is read by its StartAnimation method.
-    // THoverSettings will also handle invalidation/repainting.
     FInternalHoverSettings.StartAnimation(True);
-    // The direct Invalidate/Repaint for heScale is removed as THoverSettings handles it.
   end;
 end;
 
 procedure TANDMR_CButton.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
-  if Enabled and GetEnableHoverEffect then // Use getter
+  if Enabled and GetEnableHoverEffect then
   begin
-    FIsHovering := False;
     FInternalHoverSettings.StartAnimation(False);
-    // The direct Invalidate/Repaint for heScale is removed as THoverSettings handles it.
   end
-  // If hover is disabled while the mouse is outside but animation was ongoing
-  else if not GetEnableHoverEffect and (FInternalHoverSettings.CurrentAnimationValue > 0) then
+  else if FInternalHoverSettings.CurrentAnimationValue > 0 then
   begin
-    FIsHovering := False; // Ensure this is set
-    FInternalHoverSettings.StartAnimation(False); // This will force animation to 0 and repaint
+    FInternalHoverSettings.StartAnimation(False);
   end;
 end;
-
-// procedure TANDMR_CButton.DoHoverAnimation(Sender: TObject); // Removed
-// var
-//   TargetValue: Integer;
-//   ValueChanged: Boolean;
-// begin
-//   ValueChanged := False;
-//   if FIsHovering then
-//     TargetValue := 255
-//   else
-//     TargetValue := 0;
-// 
-//   if FHoverAnimationValue <> TargetValue then
-//   begin
-//     if FHoverAnimationValue < TargetValue then
-//     begin
-//       Inc(FHoverAnimationValue, FHoverAnimationStep);
-//       if FHoverAnimationValue > TargetValue then FHoverAnimationValue := TargetValue;
-//     end
-//     else
-//     begin
-//       Dec(FHoverAnimationValue, FHoverAnimationStep);
-//       if FHoverAnimationValue < TargetValue then FHoverAnimationValue := TargetValue;
-//     end;
-//     ValueChanged := True;
-//   end;
-// 
-//   if ValueChanged then
-//   begin
-//     if FHoverEffect = heScale then Invalidate else Repaint;
-//   end
-//   else
-//   begin
-//     FHoverAnimationTimer.Enabled := False;
-//     if FHoverEffect = heScale then Invalidate else Repaint;
-//   end;
-// end;
 
 procedure TANDMR_CButton.Paint;
 var
@@ -1023,13 +901,11 @@ var
   LClickProgress: Single;
   LShadowAlphaToUse: Byte;
   LShadowOffsetXToUse, LShadowOffsetYToUse : Single;
-  LPathWidth, LPathHeight: Single; // Added back for shadow calculation
+  LPathWidth, LPathHeight: Single;
   LPresetDefaultCaption: string;
   LFinalCaptionToDraw: string;
   ButtonRectEffectiveF: TGPRectF;
-  // DrawFormatFlags: Cardinal; // Removed, handled by DrawComponentCaption
-  // StartColor_Fill: TColor; // Removed (gradient part)
-  // EndColor_Fill: TColor; // Removed (gradient part)
+  // CurrentDrawModeForHelper: TImageDrawMode; // Removed, will pass idmStretch directly
 
 const
   SHADOW_ALPHA = 50;
@@ -1066,7 +942,6 @@ begin
     LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
     LHoverProgress := 0;
-    // Use FInternalHoverSettings.CurrentAnimationValue and FInternalHoverSettings.HoverEffect
     if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.CurrentAnimationValue > 0) and (FInternalHoverSettings.HoverEffect <> heNone) then
       LHoverProgress := FInternalHoverSettings.CurrentAnimationValue / 255.0;
 
@@ -1076,18 +951,17 @@ begin
 
     LInitialFillColor := ResolveStateColor(Enabled, False, False, FActiveColor, clNone, clNone, FInactiveColor, False, False);
     LInitialBorderColor := ResolveStateColor(Enabled, False, False, FBorderColor, clNone, clNone, BlendColors(FBorderColor, clGray, 0.7), False, False);
-    LActualBorderThickness := FBorderThickness; // This remains as is, not dependent on ResolveStateColor for this part
+    LActualBorderThickness := FBorderThickness;
 
-    // Updated Hover Color Logic using FInternalHoverSettings
     if FInternalHoverSettings.BackgroundColor <> clNone then
       LFinalHoverColor := FInternalHoverSettings.BackgroundColor
     else
-      LFinalHoverColor := LighterColor(LInitialFillColor, 15); // Fallback
+      LFinalHoverColor := LighterColor(LInitialFillColor, 15);
 
     if FInternalHoverSettings.BorderColor <> clNone then
       LFinalHoverBorderColor := FInternalHoverSettings.BorderColor
     else
-      LFinalHoverBorderColor := LInitialBorderColor; // Fallback
+      LFinalHoverBorderColor := LInitialBorderColor;
 
     LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LInitialFillColor, 15), FClickColor);
     LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LInitialBorderColor, 15), FClickBorderColor);
@@ -1115,7 +989,7 @@ begin
         LCurrentGradientEnabled := False;
         LActualBorderThickness := Max(1, FBorderThickness);
         LDrawBorder := LActualBorderThickness > 0;
-        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 70); // Use Getter
+        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 70);
       end;
       bsLight:
       begin
@@ -1141,7 +1015,7 @@ begin
         LActualBorderThickness := Max(1, FBorderThickness);
         LActualBorderColor := LInitialFillColor;
         LDrawBorder := LActualBorderThickness > 0;
-        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 100); // Use Getter
+        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 100);
         LFinalHoverBorderColor := LInitialFillColor;
       end;
       bsShadow:
@@ -1212,7 +1086,6 @@ begin
       ButtonRectEffectiveF.Width := Max(0, ButtonRectEffectiveF.Width);
       ButtonRectEffectiveF.Height := Max(0, ButtonRectEffectiveF.Height);
 
-      // Reinstated calculations for LPathInset, LPathWidth, LPathHeight for shadow
       if LActualBorderThickness > 0 then LPathInset := LActualBorderThickness / 2.0 else LPathInset := 0.0;
       LPathWidth := ButtonRectEffectiveF.Width - 2 * LPathInset;
       LPathHeight := ButtonRectEffectiveF.Height - 2 * LPathInset;
@@ -1242,14 +1115,6 @@ begin
     end;
 
     if LDrawBorder and (LActualBorderThickness > 0) then LPathInset := LActualBorderThickness / 2.0 else LPathInset := 0.0;
-    // LPathWidth := ButtonRectEffectiveF.Width - 2 * LPathInset; // Not needed, DrawEditBox handles internal path
-    // LPathHeight := ButtonRectEffectiveF.Height - 2 * LPathInset; // Not needed
-    // LPathWidth := Max(0, LPathWidth); LPathHeight := Max(0, LPathHeight); // Not needed
-
-    // LPathRect := MakeRect(ButtonRectEffectiveF.X + LPathInset, // Not needed
-    // ButtonRectEffectiveF is already the outer rect for DrawEditBox
-    // LRadiusValue is still calculated based on FCornerRadius and the dimensions of the drawing area.
-    // The drawing area for radius calculation should be ButtonRectEffectiveF.
     LRadiusValue := Min(FCornerRadius, Min(ButtonRectEffectiveF.Width, ButtonRectEffectiveF.Height) / 2.0);
     LRadiusValue := Max(0, LRadiusValue);
 
@@ -1260,7 +1125,7 @@ begin
     var BgColorToUse: TColor;
     if LDrawFill and not FTransparent then
     begin
-      if LCurrentGradientEnabled then // DrawEditBox uses solid fill, choose one color for gradient
+      if LCurrentGradientEnabled then
         BgColorToUse := IfThen(FGradientStartColor = clNone, LActualFillColor, FGradientStartColor)
       else
         BgColorToUse := LActualFillColor;
@@ -1274,15 +1139,7 @@ begin
     else
       BorderColorToUse := clNone;
 
-    DrawEditBox(LG,
-                DrawAreaRect,
-                BgColorToUse,
-                BorderColorToUse,
-                LActualBorderThickness,
-                FBorderStyle,
-                Round(LRadiusValue),
-                FRoundCornerType,
-                255); // Opacity for CButton is handled by FTransparent/clNone
+    DrawEditBox(LG, DrawAreaRect, BgColorToUse, BorderColorToUse, LActualBorderThickness, FBorderStyle, Round(LRadiusValue), FRoundCornerType, 255);
 
     LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
                            Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
@@ -1381,7 +1238,6 @@ begin
       end;
       LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
 
-      // Use FInternalHoverSettings.HoverEffect for image scaling check
       if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
       begin
         LScaleFactor := 1 + (LHoverProgress * (1.05 - 1));
@@ -1390,21 +1246,15 @@ begin
 
       if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
       begin
-        var CurrentDrawMode: TImageDrawMode;
-        case FImageStretchMode of
-          ismProportional: CurrentDrawMode := idmProportional;
-          ismFlat: CurrentDrawMode := idmStretch; // Mapped ismFlat to idmStretch
-        else
-          CurrentDrawMode := idmProportional; // Default case
-        end;
-
+        // LDestRect is ALREADY calculated based on FImageStretchMode.
+        // The drawing helpers should stretch the source image into this pre-calculated LDestRect.
         if FImage.Graphic is TPNGImage then
         begin
-          DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, LDestRect, CurrentDrawMode);
+          DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, LDestRect, idmStretch); // Always stretch into LDestRect
         end
         else if FImage.Graphic <> nil then
         begin
-          DrawNonPNGImageWithCanvas(Self.Canvas, FImage.Graphic, LDestRect, CurrentDrawMode);
+          DrawNonPNGImageWithCanvas(Self.Canvas, FImage.Graphic, LDestRect, idmStretch); // Always stretch into LDestRect
         end;
       end;
     end
@@ -1422,7 +1272,7 @@ begin
 
     if Trim(LFinalCaptionToDraw) <> '' then
     begin
-      LCurrentTitleFont := TFont.Create; // Still need this for hover/click effects on font
+      LCurrentTitleFont := TFont.Create;
       try
         LCurrentTitleFont.Assign(FTitleFont);
 
@@ -1430,29 +1280,26 @@ begin
         begin
           if GetEnableHoverEffect and (LHoverProgress > 0) then
           begin
-            // Use FInternalHoverSettings.FontColor for hover title color
             if FInternalHoverSettings.FontColor <> clNone then
               LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, FInternalHoverSettings.FontColor, LHoverProgress)
-            // Use FInternalHoverSettings.HoverEffect for font effects
-            else if FInternalHoverSettings.HoverEffect = heFade then // Apply fade effect to font color if no specific hover title color (fallback)
+            else if FInternalHoverSettings.HoverEffect = heFade then
               LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, LighterColor(LActualFillColor, 80), LHoverProgress * 0.5);
 
-            if FInternalHoverSettings.HoverEffect = heScale then // Scale font size if scale effect is active
+            if FInternalHoverSettings.HoverEffect = heScale then
               LCurrentTitleFont.Size := Round(FTitleFont.Size * (1 + LHoverProgress * (1.05 - 1)));
           end;
 
           if FClickEffectActive and (LClickProgress > 0) and (FClickEffectDuration > 0) then
           begin
-            if FClickTitleColor <> clNone then // Apply click effect to font color
+            if FClickTitleColor <> clNone then
               LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickTitleColor, LClickProgress);
           end;
         end
-        else // Disabled state
+        else
         begin
           LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, clGray, 0.6);
         end;
 
-        // Ensure LTextArea is valid
         if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
         if LTextArea.Bottom < LTextArea.Top then LTextArea.Bottom := LTextArea.Top;
         LTextArea.Left   := Max(LImageClipRect.Left, LTextArea.Left);
@@ -1462,17 +1309,7 @@ begin
 
         if (LTextArea.Width > 0) and (LTextArea.Height > 0) then
         begin
-          DrawComponentCaption(
-            Self.Canvas,
-            LTextArea,
-            LFinalCaptionToDraw,
-            LCurrentTitleFont,
-            LCurrentTitleFont.Color, // Pass the calculated color
-            FTextAlign,
-            cvaCenter, // TANDMR_CButton typically centers text vertically
-            False,     // TANDMR_CButton caption is single line
-            255        // Opacity handled by LCurrentTitleFont.Color or component transparency
-          );
+          DrawComponentCaption( Self.Canvas, LTextArea, LFinalCaptionToDraw, LCurrentTitleFont, LCurrentTitleFont.Color, FTextAlign, cvaCenter, False, 255 );
         end;
       finally
         LCurrentTitleFont.Free;

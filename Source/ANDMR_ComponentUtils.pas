@@ -9,6 +9,8 @@ uses
 type
   // Delphi type definitions (TRoundCornerType, etc. are already here)
 
+  TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom); // Added here
+
   TImagePositionSide = (ipsLeft, ipsRight);
   TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
   TImagePlacement = (iplInsideBounds, iplOutsideBounds);
@@ -35,7 +37,7 @@ type
     pmtDateDMY
   );
 
-  TImageMarginsControl = class(TPersistent)
+  TANDMR_Margins = class(TPersistent)
   private
     FLeft, FTop, FRight, FBottom: Integer;
     FOnChange: TNotifyEvent;
@@ -121,26 +123,6 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-  TTextMargins = class(TPersistent)
-  private
-    FLeft, FTop, FRight, FBottom: Integer;
-    FOnChange: TNotifyEvent;
-    procedure SetLeft(const Value: Integer);
-    procedure SetTop(const Value: Integer);
-    procedure SetRight(const Value: Integer);
-    procedure SetBottom(const Value: Integer);
-    procedure Changed;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Left: Integer read FLeft write SetLeft default 4;
-    property Top: Integer read FTop write SetTop default 2;
-    property Right: Integer read FRight write SetRight default 4;
-    property Bottom: Integer read FBottom write SetBottom default 2;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
 // Helper function declarations
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
@@ -149,40 +131,107 @@ procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect
 procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
 
+function DarkerColor(Color: TColor; Percent: Byte = 30): TColor;
+function LighterColor(Color: TColor; Percent: Byte = 30): TColor;
+function BlendColors(Color1, Color2: TColor; Factor: Single): TColor;
+
+procedure DrawComponentCaption(
+  ACanvas: TCanvas;
+  const ARect: TRect;
+  const ACaption: string;
+  AFont: TFont;
+  AFontColor: TColor; // Effective font color (already considering hover, disabled etc.)
+  AAlignmentHorizontal: TAlignment;
+  AAlignmentVertical: TCaptionVerticalAlignment;
+  AWordWrap: Boolean;
+  AOpacity: Byte // For future GDI+ text rendering, currently affects AFontColor if blended
+);
+
+function ResolveStateColor(
+  AIsEnabled: Boolean;
+  AIsHovering: Boolean;
+  AIsFocused: Boolean;
+  ABaseColor: TColor;
+  AHoverColor: TColor;    // Specific color for hover state
+  AFocusColor: TColor;    // Specific color for focus state
+  ADisabledColor: TColor; // Specific color for disabled state
+  AAllowHoverEffect: Boolean = True;
+  AAllowFocusEffect: Boolean = True;
+  AHoverEffectOverridesFocus: Boolean = False; // New: If true, hover can override focus if both active
+  AFallbackToTransparent: Boolean = False // New: If true and no specific state color, return clNone
+): TColor;
+
 implementation
 
 uses
   System.Math,     // For Min, Max
   Winapi.ActiveX;  // For IStream, TStreamAdapter
 
-{ TImageMarginsControl }
-constructor TImageMarginsControl.Create;
+{ TANDMR_Margins }
+constructor TANDMR_Margins.Create;
 begin
   inherited Create;
-  FLeft := 2; FTop := 2; FRight := 2; FBottom := 2;
+  FLeft := 2;
+  FTop := 2;
+  FRight := 2;
+  FBottom := 2;
 end;
 
-procedure TImageMarginsControl.Assign(Source: TPersistent);
+procedure TANDMR_Margins.Assign(Source: TPersistent);
 begin
-  if Source is TImageMarginsControl then
+  if Source is TANDMR_Margins then
   begin
-    Self.FLeft := TImageMarginsControl(Source).FLeft;
-    Self.FTop := TImageMarginsControl(Source).FTop;
-    Self.FRight := TImageMarginsControl(Source).FRight;
-    Self.FBottom := TImageMarginsControl(Source).FBottom;
-    Changed; // Ensure OnChange is triggered if assigned
-  end else inherited Assign(Source);
+    FLeft := TANDMR_Margins(Source).FLeft;
+    FTop := TANDMR_Margins(Source).FTop;
+    FRight := TANDMR_Margins(Source).FRight;
+    FBottom := TANDMR_Margins(Source).FBottom;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
 end;
 
-procedure TImageMarginsControl.Changed;
+procedure TANDMR_Margins.Changed;
 begin
-  if Assigned(FOnChange) then FOnChange(Self);
+  if Assigned(FOnChange) then
+    FOnChange(Self);
 end;
 
-procedure TImageMarginsControl.SetLeft(const Value: Integer); begin if FLeft <> Value then begin FLeft := Value; Changed; end; end;
-procedure TImageMarginsControl.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
-procedure TImageMarginsControl.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
-procedure TImageMarginsControl.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
+procedure TANDMR_Margins.SetLeft(const Value: Integer);
+begin
+  if FLeft <> Value then
+  begin
+    FLeft := Value;
+    Changed;
+  end;
+end;
+
+procedure TANDMR_Margins.SetTop(const Value: Integer);
+begin
+  if FTop <> Value then
+  begin
+    FTop := Value;
+    Changed;
+  end;
+end;
+
+procedure TANDMR_Margins.SetRight(const Value: Integer);
+begin
+  if FRight <> Value then
+  begin
+    FRight := Value;
+    Changed;
+  end;
+end;
+
+procedure TANDMR_Margins.SetBottom(const Value: Integer);
+begin
+  if FBottom <> Value then
+  begin
+    FBottom := Value;
+    Changed;
+  end;
+end;
 
 { TCaptionSettings }
 constructor TCaptionSettings.Create(AOwner: TWinControl);
@@ -292,35 +341,6 @@ procedure THoverSettings.SetBorderColor(const Value: TColor); begin if FBorderCo
 procedure THoverSettings.SetCaptionFontColor(const Value: TColor); begin if FCaptionFontColor <> Value then begin FCaptionFontColor := Value; Changed; end; end;
 procedure THoverSettings.SetEnabled(const Value: Boolean); begin if FEnabled <> Value then begin FEnabled := Value; Changed; end; end;
 procedure THoverSettings.SetFontColor(const Value: TColor); begin if FFontColor <> Value then begin FFontColor := Value; Changed; end; end;
-
-{ TTextMargins }
-constructor TTextMargins.Create;
-begin
-  inherited Create;
-  FLeft := 4; FTop := 2; FRight := 4; FBottom := 2;
-end;
-
-procedure TTextMargins.Assign(Source: TPersistent);
-begin
-  if Source is TTextMargins then
-  begin
-    Self.FLeft := TTextMargins(Source).FLeft;
-    Self.FTop := TTextMargins(Source).FTop;
-    Self.FRight := TTextMargins(Source).FRight;
-    Self.FBottom := TTextMargins(Source).FBottom;
-    Changed;
-  end else inherited Assign(Source);
-end;
-
-procedure TTextMargins.Changed;
-begin
-  if Assigned(FOnChange) then FOnChange(Self);
-end;
-
-procedure TTextMargins.SetLeft(const Value: Integer); begin if FLeft <> Value then begin FLeft := Value; Changed; end; end;
-procedure TTextMargins.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
-procedure TTextMargins.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
-procedure TTextMargins.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
 
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 var
@@ -716,6 +736,178 @@ var LineX: Integer;
 begin
   if (ACanvas = nil) or (AThickness <= 0) or (ASepRect.Width <= 0) or (ASepRect.Height <= 0) then Exit;
   LineX := ASepRect.Left + ASepRect.Width div 2; ACanvas.Pen.Color := AColor; ACanvas.Pen.Width := AThickness; ACanvas.Pen.Style := psSolid; ACanvas.MoveTo(LineX, ASepRect.Top); ACanvas.LineTo(LineX, ASepRect.Bottom);
+end;
+
+function DarkerColor(Color: TColor; Percent: Byte = 30): TColor;
+var
+  R, G, B: Byte;
+begin
+  if Color = clNone then Exit(clNone);
+  Color := ColorToRGB(Color);
+  R := GetRValue(Color);
+  G := GetGValue(Color);
+  B := GetBValue(Color);
+  R := Max(0, Round(R * (100 - Percent) / 100));
+  G := Max(0, Round(G * (100 - Percent) / 100));
+  B := Max(0, Round(B * (100 - Percent) / 100));
+  Result := RGB(R, G, B);
+end;
+
+function LighterColor(Color: TColor; Percent: Byte = 30): TColor;
+var
+  R, G, B: Byte;
+begin
+  if Color = clNone then Exit(clNone);
+  Color := ColorToRGB(Color);
+  R := GetRValue(Color);
+  G := GetGValue(Color);
+  B := GetBValue(Color);
+  R := Min(255, Round(R + (255 - R) * Percent / 100));
+  G := Min(255, Round(G + (255 - G) * Percent / 100));
+  B := Min(255, Round(B + (255 - B) * Percent / 100));
+  Result := RGB(R, G, B);
+end;
+
+function BlendColors(Color1, Color2: TColor; Factor: Single): TColor;
+var
+  R1, G1, B1, R2, G2, B2, R, G, B: Byte;
+  IsTransparent1, IsTransparent2: Boolean;
+begin
+  if Factor <= 0.0 then Exit(Color1);
+  if Factor >= 1.0 then Exit(Color2);
+
+  IsTransparent1 := (Color1 = clNone) or (TAlphaColorRec(Color1).Alpha = 0);
+  IsTransparent2 := (Color2 = clNone) or (TAlphaColorRec(Color2).Alpha = 0);
+
+  if IsTransparent1 and IsTransparent2 then Exit(clNone);
+  if IsTransparent1 then Exit(Color2);
+  if IsTransparent2 then Exit(Color1);
+
+  Color1 := ColorToRGB(Color1);
+  Color2 := ColorToRGB(Color2);
+
+  R1 := GetRValue(Color1); G1 := GetGValue(Color1); B1 := GetBValue(Color1);
+  R2 := GetRValue(Color2); G2 := GetGValue(Color2); B2 := GetBValue(Color2);
+
+  R := Round(R1 + (R2 - R1) * Factor);
+  G := Round(G1 + (G2 - G1) * Factor);
+  B := Round(B1 + (B2 - B1) * Factor);
+  Result := RGB(R, G, B);
+end;
+
+procedure DrawComponentCaption(
+  ACanvas: TCanvas;
+  const ARect: TRect;
+  const ACaption: string;
+  AFont: TFont;
+  AFontColor: TColor;
+  AAlignmentHorizontal: TAlignment;
+  AAlignmentVertical: TCaptionVerticalAlignment;
+  AWordWrap: Boolean;
+  AOpacity: Byte
+);
+var
+  DrawTextFlags: Cardinal;
+  TempRect: TRect;
+begin
+  if (ACaption = '') or (ARect.Width <= 0) or (ARect.Height <= 0) then
+    Exit;
+
+  ACanvas.Font.Assign(AFont);
+  ACanvas.Font.Color := AFontColor; // AOpacity is not directly used for TCanvas text alpha blending here
+  ACanvas.Brush.Style := bsClear;
+
+  DrawTextFlags := DT_NOPREFIX;
+
+  if AWordWrap then
+    DrawTextFlags := DrawTextFlags or DT_WORDBREAK
+  else
+    DrawTextFlags := DrawTextFlags or DT_SINGLELINE or DT_END_ELLIPSIS;
+
+  case AAlignmentHorizontal of
+    taLeftJustify: DrawTextFlags := DrawTextFlags or DT_LEFT;
+    taRightJustify: DrawTextFlags := DrawTextFlags or DT_RIGHT;
+    taCenter: DrawTextFlags := DrawTextFlags or DT_CENTER;
+  end;
+
+  case AAlignmentVertical of
+    cvaTop: DrawTextFlags := DrawTextFlags or DT_TOP;
+    cvaCenter: DrawTextFlags := DrawTextFlags or DT_VCENTER;
+    cvaBottom: DrawTextFlags := DrawTextFlags or DT_BOTTOM;
+  end;
+
+  // DT_VCENTER for single line text requires DT_SINGLELINE.
+  // If DT_WORDBREAK is used, DT_VCENTER might not work as expected across multiple lines.
+  // For multi-line text, vertical centering is more complex and usually done manually or with DT_CALCRECT.
+  // The current combination should work reasonably for typical scenarios.
+  if (DrawTextFlags and DT_WORDBREAK = 0) and (DrawTextFlags and DT_VCENTER = DT_VCENTER) then
+     DrawTextFlags := DrawTextFlags or DT_SINGLELINE;
+
+
+  TempRect := ARect; // Use a temporary rect for DrawText
+  DrawText(ACanvas.Handle, PChar(ACaption), Length(ACaption), TempRect, DrawTextFlags);
+end;
+
+function ResolveStateColor(
+  AIsEnabled: Boolean;
+  AIsHovering: Boolean;
+  AIsFocused: Boolean;
+  ABaseColor: TColor;
+  AHoverColor: TColor;
+  AFocusColor: TColor;
+  ADisabledColor: TColor;
+  AAllowHoverEffect: Boolean = True;
+  AAllowFocusEffect: Boolean = True;
+  AHoverEffectOverridesFocus: Boolean = False;
+  AFallbackToTransparent: Boolean = False
+): TColor;
+var
+  LResultColor: TColor;
+begin
+  LResultColor := ABaseColor; // Start with base
+
+  if not AIsEnabled then
+  begin
+    if ADisabledColor <> clNone then Result := ADisabledColor
+    else Result := ABaseColor; // Or a dimmed base, for now, just base or specific disabled
+    Exit;
+  end;
+
+  // Focused state
+  if AIsFocused and AAllowFocusEffect and (AFocusColor <> clNone) then
+  begin
+    LResultColor := AFocusColor;
+  end;
+
+  // Hover state (can potentially override focused color if AHoverEffectOverridesFocus is true)
+  if AIsHovering and AAllowHoverEffect and (AHoverColor <> clNone) then
+  begin
+    // Override if:
+    // 1. HoverEffectOverridesFocus is true OR
+    // 2. Focus is not active/allowed OR focus color is clNone (meaning focus didn't set a color)
+    if AHoverEffectOverridesFocus or not (AIsFocused and AAllowFocusEffect and (AFocusColor <> clNone)) then
+    begin
+      LResultColor := AHoverColor;
+    end;
+  end;
+
+  // Final decision based on LResultColor and AFallbackToTransparent
+  if (LResultColor = ABaseColor) and AFallbackToTransparent and (ABaseColor = clNone) then
+  begin
+    Result := clNone; // Base was clNone, and no other state applied, and fallback is true
+  end
+  else if LResultColor <> clNone then // A specific state (Hover, Focus, or initial Base if not clNone) was chosen
+  begin
+    Result := LResultColor;
+  end
+  else if AFallbackToTransparent then // LResultColor is clNone (either from Base or a state didn't apply/had clNone)
+  begin
+    Result := clNone;
+  end
+  else // LResultColor is clNone, but not falling back to transparent, so use original ABaseColor
+  begin
+    Result := ABaseColor;
+  end;
 end;
 
 end.

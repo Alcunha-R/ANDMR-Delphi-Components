@@ -6,30 +6,11 @@ uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.ExtCtrls, Winapi.Messages, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
   System.Types, System.Math, Vcl.Imaging.jpeg, Vcl.Imaging.pngimage,
-  Vcl.GraphUtil, System.UITypes, Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL,
+  Vcl.GraphUtil, System.UITypes, ANDMR_ComponentUtils, // Added
+  Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL,
   Winapi.ActiveX; // Adicionado para TStreamAdapter
 
 type
-  TEdgeMargins = class(TPersistent)
-  private
-    FOnChange: TNotifyEvent;
-    FLeft, FTop, FRight, FBottom: Integer;
-    procedure SetLeft(const Value: Integer);
-    procedure SetTop(const Value: Integer);
-    procedure SetRight(const Value: Integer);
-    procedure SetBottom(const Value: Integer);
-    procedure DoChange;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Left: Integer read FLeft write SetLeft default 2;
-    property Top: Integer read FTop write SetTop default 2;
-    property Right: Integer read FRight write SetRight default 2;
-    property Bottom: Integer read FBottom write SetBottom default 2;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
   TImagePosition = (ipLeft, ipRight, ipAbove, ipBelow, ipBehind);
   TGradientType = (gtLinearVertical, gtLinearHorizontal);
   TImageStretchMode = (ismProportional, ismFlat);
@@ -81,7 +62,7 @@ type
     FGradientStartColor: TColor;
     FGradientEndColor: TColor;
     FImagePosition: TImagePosition;
-    FImageMargins, FTextMargins: TEdgeMargins;
+    FImageMargins, FTextMargins: TANDMR_Margins;
     FImageStretchMode: TImageStretchMode;
     FHoverAnimationStep, FHoverAnimationDirection: Integer;
     FTag: Integer;
@@ -144,8 +125,8 @@ type
     procedure SetTagObject(const Value: TObject);
     procedure SetHoverEffect(const Value: THoverEffect);
     procedure SetDisabledCursor(const Value: TCursor);
-    procedure SetImageMargins(const Value: TEdgeMargins);
-    procedure SetTextMargins(const Value: TEdgeMargins);
+    procedure SetImageMargins(const Value: TANDMR_Margins);
+    procedure SetTextMargins(const Value: TANDMR_Margins);
     procedure SetBorderColor(const Value: TColor);
     procedure SetBorderThickness(const Value: Integer);
     procedure SetBorderStyle(const Value: TPenStyle);
@@ -200,8 +181,8 @@ type
     property GradientEndColor: TColor read FGradientEndColor write SetGradientEndColor;
 
     property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
-    property ImageMargins: TEdgeMargins read FImageMargins write SetImageMargins;
-    property TextMargins: TEdgeMargins read FTextMargins write SetTextMargins;
+    property ImageMargins: TANDMR_Margins read FImageMargins write SetImageMargins;
+    property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
     property ImageStretchMode: TImageStretchMode read FImageStretchMode write SetImageStretchMode default ismProportional;
 
     property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
@@ -268,36 +249,6 @@ begin
   RegisterComponents('ANDMR', [TANDMR_CButton]);
 end;
 
-function DarkerColor(Color: TColor; Percent: Byte = 30): TColor;
-var
-  R, G, B: Byte;
-begin
-  if Color = clNone then Exit(clNone);
-  Color := ColorToRGB(Color);
-  R := GetRValue(Color);
-  G := GetGValue(Color);
-  B := GetBValue(Color);
-  R := Max(0, Round(R * (100 - Percent) / 100));
-  G := Max(0, Round(G * (100 - Percent) / 100));
-  B := Max(0, Round(B * (100 - Percent) / 100));
-  Result := RGB(R, G, B);
-end;
-
-function LighterColor(Color: TColor; Percent: Byte = 30): TColor;
-var
-  R, G, B: Byte;
-begin
-  if Color = clNone then Exit(clNone);
-  Color := ColorToRGB(Color);
-  R := GetRValue(Color);
-  G := GetGValue(Color);
-  B := GetBValue(Color);
-  R := Min(255, Round(R + (255 - R) * Percent / 100));
-  G := Min(255, Round(G + (255 - G) * Percent / 100));
-  B := Min(255, Round(B + (255 - B) * Percent / 100));
-  Result := RGB(R, G, B);
-end;
-
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 var
   ColorRef: LongWord;
@@ -312,100 +263,6 @@ begin
             ((ColorRef and $000000FF) shl 16) or // B
             (ColorRef and $0000FF00) or          // G
             ((ColorRef and $00FF0000) shr 16);   // R
-end;
-
-function BlendColors(Color1, Color2: TColor; Factor: Single): TColor;
-var
-  R1, G1, B1, R2, G2, B2, R, G, B: Byte;
-  IsTransparent1, IsTransparent2: Boolean;
-begin
-  if Factor <= 0.0 then Exit(Color1);
-  if Factor >= 1.0 then Exit(Color2);
-
-  IsTransparent1 := (Color1 = clNone) or (TAlphaColorRec(Color1).Alpha = 0);
-  IsTransparent2 := (Color2 = clNone) or (TAlphaColorRec(Color2).Alpha = 0);
-
-  if IsTransparent1 and IsTransparent2 then Exit(clNone);
-  if IsTransparent1 then Exit(Color2);
-  if IsTransparent2 then Exit(Color1);
-
-  Color1 := ColorToRGB(Color1);
-  Color2 := ColorToRGB(Color2);
-
-  R1 := GetRValue(Color1); G1 := GetGValue(Color1); B1 := GetBValue(Color1);
-  R2 := GetRValue(Color2); G2 := GetGValue(Color2); B2 := GetBValue(Color2);
-
-  R := Round(R1 + (R2 - R1) * Factor);
-  G := Round(G1 + (G2 - G1) * Factor);
-  B := Round(B1 + (B2 - B1) * Factor);
-  Result := RGB(R, G, B);
-end;
-
-{ TEdgeMargins }
-
-constructor TEdgeMargins.Create;
-begin
-  inherited Create;
-  FLeft := 2;
-  FTop := 2;
-  FRight := 2;
-  FBottom := 2;
-end;
-
-procedure TEdgeMargins.Assign(Source: TPersistent);
-begin
-  if Source is TEdgeMargins then
-  begin
-    FLeft := TEdgeMargins(Source).FLeft;
-    FTop := TEdgeMargins(Source).FTop;
-    FRight := TEdgeMargins(Source).FRight;
-    FBottom := TEdgeMargins(Source).FBottom;
-    DoChange;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure TEdgeMargins.DoChange;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-end;
-
-procedure TEdgeMargins.SetLeft(const Value: Integer);
-begin
-  if FLeft <> Value then
-  begin
-    FLeft := Value;
-    DoChange;
-  end;
-end;
-
-procedure TEdgeMargins.SetTop(const Value: Integer);
-begin
-  if FTop <> Value then
-  begin
-    FTop := Value;
-    DoChange;
-  end;
-end;
-
-procedure TEdgeMargins.SetRight(const Value: Integer);
-begin
-  if FRight <> Value then
-  begin
-    FRight := Value;
-    DoChange;
-  end;
-end;
-
-procedure TEdgeMargins.SetBottom(const Value: Integer);
-begin
-  if FBottom <> Value then
-  begin
-    FBottom := Value;
-    DoChange;
-  end;
 end;
 
 { TANDMR_CButton }
@@ -444,13 +301,13 @@ begin
   FTitleFont.Color := clWindowText;
   FTitleFont.OnChange := FontChanged;
 
-  FTextMargins := TEdgeMargins.Create;
+  FTextMargins := TANDMR_Margins.Create;
   FTextMargins.OnChange := MarginsChanged;
   FTextAlign := taCenter;
 
   FImage := TPicture.Create;
   FImagePosition := ipLeft;
-  FImageMargins := TEdgeMargins.Create;
+  FImageMargins := TANDMR_Margins.Create;
   FImageMargins.OnChange := MarginsChanged;
   FImageStretchMode := ismProportional;
 
@@ -844,12 +701,12 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetImageMargins(const Value: TEdgeMargins);
+procedure TANDMR_CButton.SetImageMargins(const Value: TANDMR_Margins);
 begin
   FImageMargins.Assign(Value);
 end;
 
-procedure TANDMR_CButton.SetTextMargins(const Value: TEdgeMargins);
+procedure TANDMR_CButton.SetTextMargins(const Value: TANDMR_Margins);
 begin
   FTextMargins.Assign(Value);
 end;
@@ -1212,14 +1069,13 @@ var
   LClickProgress: Single;
   LShadowAlphaToUse: Byte;
   LShadowOffsetXToUse, LShadowOffsetYToUse : Single;
-  LPathWidth, LPathHeight: Single;
+  LPathInset, LPathWidth, LPathHeight: Single; // Added back for shadow calculation
   LPresetDefaultCaption: string;
   LFinalCaptionToDraw: string;
   ButtonRectEffectiveF: TGPRectF;
-  Adapter: IStream;
-  DrawFormatFlags: Cardinal;
-  StartColor_Fill: TColor;
-  EndColor_Fill: TColor;
+  // DrawFormatFlags: Cardinal; // Removed, handled by DrawComponentCaption
+  // StartColor_Fill: TColor; // Removed (gradient part)
+  // EndColor_Fill: TColor; // Removed (gradient part)
 
 const
   SHADOW_ALPHA = 50;
@@ -1263,18 +1119,9 @@ begin
     if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and (FClickEffectDuration > 0) then
       LClickProgress := (255 - FClickEffectProgress) / 255.0;
 
-    if not Enabled then
-    begin
-      LInitialFillColor := FInactiveColor;
-      LInitialBorderColor := BlendColors(FBorderColor, clGray, 0.7);
-      LActualBorderThickness := FBorderThickness;
-    end
-    else
-    begin
-      LInitialFillColor := FActiveColor;
-      LInitialBorderColor := FBorderColor;
-      LActualBorderThickness := FBorderThickness;
-    end;
+    LInitialFillColor := ResolveStateColor(Enabled, False, False, FActiveColor, clNone, clNone, FInactiveColor, False, False);
+    LInitialBorderColor := ResolveStateColor(Enabled, False, False, FBorderColor, clNone, clNone, BlendColors(FBorderColor, clGray, 0.7), False, False);
+    LActualBorderThickness := FBorderThickness; // This remains as is, not dependent on ResolveStateColor for this part
 
     LFinalHoverColor := IfThen(FHoverColor = clNone, LighterColor(LInitialFillColor, 15), FHoverColor);
     LFinalHoverBorderColor := IfThen(FHoverBorderColor = clNone, LInitialBorderColor, FHoverBorderColor);
@@ -1401,10 +1248,12 @@ begin
       ButtonRectEffectiveF.Width := Max(0, ButtonRectEffectiveF.Width);
       ButtonRectEffectiveF.Height := Max(0, ButtonRectEffectiveF.Height);
 
+      // Reinstated calculations for LPathInset, LPathWidth, LPathHeight for shadow
       if LActualBorderThickness > 0 then LPathInset := LActualBorderThickness / 2.0 else LPathInset := 0.0;
       LPathWidth := ButtonRectEffectiveF.Width - 2 * LPathInset;
       LPathHeight := ButtonRectEffectiveF.Height - 2 * LPathInset;
-      LPathWidth := Max(0, LPathWidth); LPathHeight := Max(0, LPathHeight);
+      LPathWidth := Max(0, LPathWidth);
+      LPathHeight := Max(0, LPathHeight);
 
       LShadowPathDrawRect := MakeRect(ButtonRectEffectiveF.X + LPathInset + LShadowOffsetXToUse,
                                       ButtonRectEffectiveF.Y + LPathInset + LShadowOffsetYToUse,
@@ -1429,67 +1278,47 @@ begin
     end;
 
     if LDrawBorder and (LActualBorderThickness > 0) then LPathInset := LActualBorderThickness / 2.0 else LPathInset := 0.0;
-    LPathWidth := ButtonRectEffectiveF.Width - 2 * LPathInset;
-    LPathHeight := ButtonRectEffectiveF.Height - 2 * LPathInset;
-    LPathWidth := Max(0, LPathWidth); LPathHeight := Max(0, LPathHeight);
+    // LPathWidth := ButtonRectEffectiveF.Width - 2 * LPathInset; // Not needed, DrawEditBox handles internal path
+    // LPathHeight := ButtonRectEffectiveF.Height - 2 * LPathInset; // Not needed
+    // LPathWidth := Max(0, LPathWidth); LPathHeight := Max(0, LPathHeight); // Not needed
 
-    LPathRect := MakeRect(ButtonRectEffectiveF.X + LPathInset,
-                          ButtonRectEffectiveF.Y + LPathInset,
-                          LPathWidth, LPathHeight);
-    LRadiusValue := Min(FCornerRadius, Min(LPathRect.Width, LPathRect.Height) / 2.0);
+    // LPathRect := MakeRect(ButtonRectEffectiveF.X + LPathInset, // Not needed
+    // ButtonRectEffectiveF is already the outer rect for DrawEditBox
+    // LRadiusValue is still calculated based on FCornerRadius and the dimensions of the drawing area.
+    // The drawing area for radius calculation should be ButtonRectEffectiveF.
+    LRadiusValue := Min(FCornerRadius, Min(ButtonRectEffectiveF.Width, ButtonRectEffectiveF.Height) / 2.0);
     LRadiusValue := Max(0, LRadiusValue);
 
-    LGPPath := TGPGraphicsPath.Create;
-    try
-      CreateGPRoundedPath(LGPPath, LPathRect, LRadiusValue, FRoundCornerType);
+    var DrawAreaRect: TRect;
+    DrawAreaRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
+                         Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width), Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
 
-      if LGPPath.GetPointCount > 0 then
-      begin
-        if LDrawFill then
-        begin
-          LGPBrush := nil;
-          if LCurrentGradientEnabled and (LActualFillColor <> clNone) and (FGradientStartColor <> clNone) and (FGradientEndColor <> clNone) then
-          begin
-            StartColor_Fill := IfThen(FGradientStartColor = clNone, LActualFillColor, FGradientStartColor);
-            EndColor_Fill   := IfThen(FGradientEndColor = clNone, DarkerColor(LActualFillColor, GRADIENT_DARK_FACTOR), FGradientEndColor);
+    var BgColorToUse: TColor;
+    if LDrawFill and not FTransparent then
+    begin
+      if LCurrentGradientEnabled then // DrawEditBox uses solid fill, choose one color for gradient
+        BgColorToUse := IfThen(FGradientStartColor = clNone, LActualFillColor, FGradientStartColor)
+      else
+        BgColorToUse := LActualFillColor;
+    end
+    else
+      BgColorToUse := clNone;
 
-            if (StartColor_Fill <> clNone) and (EndColor_Fill <> clNone) then
-            begin
-              LGPBrush := TGPLinearGradientBrush.Create(
-                MakePoint(LPathRect.X, LPathRect.Y),
-                MakePoint(LPathRect.X + IfThen(FGradientType = gtLinearHorizontal, LPathRect.Width, 0.0),
-                          LPathRect.Y + IfThen(FGradientType = gtLinearVertical, LPathRect.Height, 0.0)),
-                ColorToARGB(StartColor_Fill),
-                ColorToARGB(EndColor_Fill)
-              );
-            end;
-          end;
+    var BorderColorToUse: TColor;
+    if LDrawBorder then
+      BorderColorToUse := LActualBorderColor
+    else
+      BorderColorToUse := clNone;
 
-          if (LGPBrush = nil) and (LActualFillColor <> clNone) then
-            LGPBrush := TGPSolidBrush.Create(ColorToARGB(LActualFillColor));
-
-          if LGPBrush <> nil then try LG.FillPath(LGPBrush, LGPPath); finally LGPBrush.Free; LGPBrush := nil; end;
-        end;
-
-        if LDrawBorder and (LActualBorderThickness > 0) and (LActualBorderColor <> clNone) then
-        begin
-          LGPPen := TGPPen.Create(ColorToARGB(LActualBorderColor), LActualBorderThickness);
-          try
-            case FBorderStyle of
-              psSolid: LGPPen.SetDashStyle(DashStyleSolid);
-              psDash: LGPPen.SetDashStyle(DashStyleDash);
-              psDot: LGPPen.SetDashStyle(DashStyleDot);
-              psDashDot: LGPPen.SetDashStyle(DashStyleDashDot);
-              psDashDotDot: LGPPen.SetDashStyle(DashStyleDashDotDot);
-            else LGPPen.SetDashStyle(DashStyleSolid);
-            end;
-            LG.DrawPath(LGPPen, LGPPath);
-          finally
-            LGPPen.Free;
-          end;
-        end;
-      end;
-    finally LGPPath.Free; end;
+    DrawEditBox(LG,
+                DrawAreaRect,
+                BgColorToUse,
+                BorderColorToUse,
+                LActualBorderThickness,
+                FBorderStyle,
+                Round(LRadiusValue),
+                FRoundCornerType,
+                255); // Opacity for CButton is handled by FTransparent/clNone
 
     LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
                            Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
@@ -1596,34 +1425,21 @@ begin
 
       if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
       begin
+        var CurrentDrawMode: TImageDrawMode;
+        case FImageStretchMode of
+          ismProportional: CurrentDrawMode := idmProportional;
+          ismFlat: CurrentDrawMode := idmStretch; // Mapped ismFlat to idmStretch
+        else
+          CurrentDrawMode := idmProportional; // Default case
+        end;
+
         if FImage.Graphic is TPNGImage then
         begin
-          var PngImage: TPNGImage;
-          var PngStream: TMemoryStream;
-          var GpSourceBitmap: TGPBitmap;
-          PngImage := FImage.Graphic as TPNGImage;
-          PngStream := TMemoryStream.Create;
-          try
-            PngImage.SaveToStream(PngStream);
-            PngStream.Position := 0;
-            Adapter := TStreamAdapter.Create(PngStream, soReference);
-            GpSourceBitmap := TGPBitmap.Create(Adapter);
-            try
-              if (LDestRect.Width <> GpSourceBitmap.GetWidth()) or (LDestRect.Height <> GpSourceBitmap.GetHeight()) then
-                 LG.SetInterpolationMode(InterpolationModeHighQualityBicubic)
-              else
-                 LG.SetInterpolationMode(InterpolationModeDefault);
-              LG.DrawImage(GpSourceBitmap, LDestRect.Left, LDestRect.Top, LDestRect.Width, LDestRect.Height);
-            finally
-              GpSourceBitmap.Free;
-            end;
-          finally
-            PngStream.Free;
-          end;
+          DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, LDestRect, CurrentDrawMode);
         end
         else if FImage.Graphic <> nil then
         begin
-          Canvas.StretchDraw(LDestRect, FImage.Graphic);
+          DrawNonPNGImageWithCanvas(Self.Canvas, FImage.Graphic, LDestRect, CurrentDrawMode);
         end;
       end;
     end
@@ -1641,8 +1457,7 @@ begin
 
     if Trim(LFinalCaptionToDraw) <> '' then
     begin
-      Canvas.Brush.Style := bsClear;
-      LCurrentTitleFont := TFont.Create;
+      LCurrentTitleFont := TFont.Create; // Still need this for hover/click effects on font
       try
         LCurrentTitleFont.Assign(FTitleFont);
 
@@ -1652,43 +1467,45 @@ begin
           begin
             if FHoverTitleColor <> clNone then
               LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, FHoverTitleColor, LHoverProgress)
-            else if FHoverEffect = heFade then
+            else if FHoverEffect = heFade then // Apply fade effect to font color if no specific hover title color
               LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, LighterColor(LActualFillColor, 80), LHoverProgress * 0.5);
 
-            if FHoverEffect = heScale then
+            if FHoverEffect = heScale then // Scale font size if scale effect is active
               LCurrentTitleFont.Size := Round(FTitleFont.Size * (1 + LHoverProgress * (1.05 - 1)));
           end;
 
           if FClickEffectActive and (LClickProgress > 0) and (FClickEffectDuration > 0) then
           begin
-            if FClickTitleColor <> clNone then
+            if FClickTitleColor <> clNone then // Apply click effect to font color
               LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickTitleColor, LClickProgress);
           end;
         end
-        else
+        else // Disabled state
         begin
           LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, clGray, 0.6);
         end;
 
-        Canvas.Font.Assign(LCurrentTitleFont);
-
+        // Ensure LTextArea is valid
         if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
         if LTextArea.Bottom < LTextArea.Top then LTextArea.Bottom := LTextArea.Top;
-
         LTextArea.Left   := Max(LImageClipRect.Left, LTextArea.Left);
         LTextArea.Top    := Max(LImageClipRect.Top, LTextArea.Top);
         LTextArea.Right  := Min(LImageClipRect.Right, LTextArea.Right);
         LTextArea.Bottom := Min(LImageClipRect.Bottom, LTextArea.Bottom);
 
-        if (LTextArea.Right > LTextArea.Left) and (LTextArea.Bottom > LTextArea.Top) then
+        if (LTextArea.Width > 0) and (LTextArea.Height > 0) then
         begin
-          DrawFormatFlags := DT_VCENTER or DT_SINGLELINE or DT_NOPREFIX;
-          case FTextAlign of
-            taLeftJustify: DrawFormatFlags := DrawFormatFlags or DT_LEFT;
-            taRightJustify: DrawFormatFlags := DrawFormatFlags or DT_RIGHT;
-          else DrawFormatFlags := DrawFormatFlags or DT_CENTER;
-          end;
-          DrawText(Canvas.Handle, PChar(LFinalCaptionToDraw), Length(LFinalCaptionToDraw), LTextArea, DrawFormatFlags);
+          DrawComponentCaption(
+            Self.Canvas,
+            LTextArea,
+            LFinalCaptionToDraw,
+            LCurrentTitleFont,
+            LCurrentTitleFont.Color, // Pass the calculated color
+            FTextAlign,
+            cvaCenter, // TANDMR_CButton typically centers text vertically
+            False,     // TANDMR_CButton caption is single line
+            255        // Opacity handled by LCurrentTitleFont.Color or component transparency
+          );
         end;
       finally
         LCurrentTitleFont.Free;

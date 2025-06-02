@@ -24,7 +24,7 @@ type
     FImageVisible: Boolean;
     FImagePosition: TImagePositionSide;
     FImageAlignment: TImageAlignmentVertical;
-    FImageMargins: TImageMarginsControl;
+    FImageMargins: TANDMR_Margins;
     FImagePlacement: TImagePlacement;
     FImageDrawMode: TImageDrawMode;
     FSeparatorVisible: Boolean;
@@ -35,7 +35,7 @@ type
     FSeparatorCustomHeight: Integer;
     FCaptionSettings: TCaptionSettings;
     FHoverSettings: THoverSettings;
-    FTextMargins: TTextMargins;
+    FTextMargins: TANDMR_Margins;
     FFocusBorderColor: TColor;
     FFocusBorderColorVisible: Boolean;
     FFocusBackgroundColor: TColor;
@@ -80,7 +80,7 @@ type
     procedure SetImageVisible(const Value: Boolean);
     procedure SetImagePosition(const Value: TImagePositionSide);
     procedure SetImageAlignment(const Value: TImageAlignmentVertical);
-    procedure SetImageMargins(const Value: TImageMarginsControl);
+    procedure SetImageMargins(const Value: TANDMR_Margins);
     procedure SetImagePlacement(const Value: TImagePlacement);
     procedure SetImageDrawMode(const Value: TImageDrawMode);
     procedure SetSeparatorVisible(const Value: Boolean);
@@ -91,7 +91,7 @@ type
     procedure SetSeparatorCustomHeight(const Value: Integer);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure SetHoverSettings(const Value: THoverSettings);
-    procedure SetTextMargins(const Value: TTextMargins);
+    procedure SetTextMargins(const Value: TANDMR_Margins);
     procedure SetFocusBorderColor(const Value: TColor);
     procedure SetFocusBorderColorVisible(const Value: Boolean);
     procedure SetFocusBackgroundColor(const Value: TColor);
@@ -159,7 +159,7 @@ type
     property ImageVisible: Boolean read FImageVisible write SetImageVisible default True;
     property ImagePosition: TImagePositionSide read FImagePosition write SetImagePosition default ipsLeft;
     property ImageAlignment: TImageAlignmentVertical read FImageAlignment write SetImageAlignment default iavCenter;
-    property ImageMargins: TImageMarginsControl read FImageMargins write SetImageMargins;
+    property ImageMargins: TANDMR_Margins read FImageMargins write SetImageMargins;
     property ImagePlacement: TImagePlacement read FImagePlacement write SetImagePlacement default iplInsideBounds;
     property ImageDrawMode: TImageDrawMode read FImageDrawMode write SetImageDrawMode default idmProportional;
 
@@ -172,7 +172,7 @@ type
 
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
-    property TextMargins: TTextMargins read FTextMargins write SetTextMargins;
+    property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
 
     property FocusBorderColor: TColor read FFocusBorderColor write SetFocusBorderColor;
     property FocusBorderColorVisible: Boolean read FFocusBorderColorVisible write SetFocusBorderColorVisible;
@@ -280,7 +280,7 @@ procedure TANDMR_CMemo.SetImage(const Value: TPicture); begin FImage.Assign(Valu
 procedure TANDMR_CMemo.SetImageVisible(const Value: Boolean); begin if FImageVisible <> Value then begin FImageVisible := Value; UpdateInternalMemoBounds; Invalidate; end; end;
 procedure TANDMR_CMemo.SetImagePosition(const Value: TImagePositionSide); begin if FImagePosition <> Value then begin FImagePosition := Value; UpdateInternalMemoBounds; Invalidate; end; end;
 procedure TANDMR_CMemo.SetImageAlignment(const Value: TImageAlignmentVertical); begin if FImageAlignment <> Value then begin FImageAlignment := Value; UpdateInternalMemoBounds; Invalidate; end; end; // Alignment might affect overall layout if image size is dynamic or clips
-procedure TANDMR_CMemo.SetImageMargins(const Value: TImageMarginsControl); begin FImageMargins.Assign(Value); ImageMarginsChanged(Self); end; // ImageMarginsChanged now calls UpdateInternalMemoBounds
+procedure TANDMR_CMemo.SetImageMargins(const Value: TANDMR_Margins); begin FImageMargins.Assign(Value); ImageMarginsChanged(Self); end; // ImageMarginsChanged now calls UpdateInternalMemoBounds
 procedure TANDMR_CMemo.SetImagePlacement(const Value: TImagePlacement); begin if FImagePlacement <> Value then begin FImagePlacement := Value; UpdateInternalMemoBounds; Invalidate; end; end;
 procedure TANDMR_CMemo.SetImageDrawMode(const Value: TImageDrawMode); begin if FImageDrawMode <> Value then begin FImageDrawMode := Value; Invalidate; end; end; // Draw mode unlikely to change bounds
 
@@ -293,7 +293,7 @@ procedure TANDMR_CMemo.SetSeparatorCustomHeight(const Value: Integer); var Valid
 
 procedure TANDMR_CMemo.SetCaptionSettings(const Value: TCaptionSettings); begin FCaptionSettings.Assign(Value); CaptionSettingsChanged(Self); end;
 procedure TANDMR_CMemo.SetHoverSettings(const Value: THoverSettings); begin FHoverSettings.Assign(Value); HoverSettingsChanged(Self); end;
-procedure TANDMR_CMemo.SetTextMargins(const Value: TTextMargins); begin FTextMargins.Assign(Value); TextMarginsChanged(Self); end;
+procedure TANDMR_CMemo.SetTextMargins(const Value: TANDMR_Margins); begin FTextMargins.Assign(Value); TextMarginsChanged(Self); end;
 
 procedure TANDMR_CMemo.SetFocusBorderColor(const Value: TColor);
 begin
@@ -744,7 +744,7 @@ begin
 
   FImage := TPicture.Create;
   FImage.OnChange := ImageChanged;
-  FImageMargins := TImageMarginsControl.Create;
+  FImageMargins := TANDMR_Margins.Create;
   FImageMargins.OnChange := ImageMarginsChanged;
   FImageVisible := True; // Default to true, can be changed by user
   FImagePosition := ipsLeft;
@@ -767,7 +767,7 @@ begin
   FHoverSettings.OnChange := HoverSettingsChanged;
   FHovered := False;
 
-  FTextMargins := TTextMargins.Create;
+  FTextMargins := TANDMR_Margins.Create;
   FTextMargins.OnChange := TextMarginsChanged;
 
   // Initialize Focus Properties
@@ -856,52 +856,65 @@ begin
       LG.SetSmoothingMode(SmoothingModeAntiAlias);
       LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-      // --- Determine current state colors (similar to TANDMR_CEdit) ---
-      ActualEditBorderColor := FBorderColor;
-      ActualEditTextColor := Self.Font.Color; // Base from component's font
+      // --- Determine current state colors using ResolveStateColor ---
+      var BaseFrameBG, HoverFrameBG, FocusFrameBG, DisabledFrameBG: TColor;
+      var BaseMemoBG, HoverMemoBG, FocusMemoBG, DisabledMemoBG: TColor;
+      var BaseBorderCol, HoverBorderCol, FocusBorderCol, DisabledBorderCol: TColor;
+      var BaseTextCol, HoverTextCol, FocusTextCol, DisabledTextCol: TColor;
+      var BaseCaptionCol, HoverCaptionCol, FocusCaptionCol, DisabledCaptionCol: TColor;
+      bool // Helper for focused state determination
+        IsComponentFocused: Boolean = Self.Focused or (Assigned(FInternalMemo) and FInternalMemo.Focused);
 
-      if FCaptionSettings.Color = clDefault then
-        ActualCaptionTextColor := Self.Font.Color
-      else
-        ActualCaptionTextColor := FCaptionSettings.Color;
+      // Define colors for BGForDrawEditBox (Frame Background)
+      BaseFrameBG := IfThen(FImagePlacement = iplInsideBounds, FInactiveColor, Self.Color);
+      HoverFrameBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
+      // Frame itself doesn't really have a separate "Focus" BG different from Hover/Base when component is focused
+      FocusFrameBG := HoverFrameBG; // If hovered, use hover, else base. ResolveStateColor handles clNone.
+      DisabledFrameBG := BaseFrameBG; // Or a dimmed version
 
-      // For TANDMR_CMemo, the BGForDrawEditBox will be the frame's background.
-      // FInternalMemo will have its own background color set.
-      if FImagePlacement = iplInsideBounds then
-        BGForDrawEditBox := FInactiveColor // Frame background when image is inside
-      else
-        BGForDrawEditBox := Self.Color; // Frame background when image is outside (less common for memo)
+      BGForDrawEditBox := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
+        BaseFrameBG, HoverFrameBG, FocusFrameBG, DisabledFrameBG,
+        FHoverSettings.Enabled, True, True); // Hover can override focus for BG
 
-      ActualEditBGColor := clWindow; // Default for FInternalMemo background, can be themed by focus.
+      // Define colors for ActualEditBorderColor (Frame Border)
+      BaseBorderCol := FBorderColor;
+      HoverBorderCol := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
+      FocusBorderCol := IfThen(FFocusBorderColorVisible, FFocusBorderColor, FActiveColor);
+      DisabledBorderCol := FBorderColor; // Or a specific dimmed/grayed border
 
-      if FHovered and FHoverSettings.Enabled then
-      begin
-        if FHoverSettings.BackgroundColor <> clNone then BGForDrawEditBox := FHoverSettings.BackgroundColor; // Hover affects frame
-        if FHoverSettings.BorderColor <> clNone then ActualEditBorderColor := FHoverSettings.BorderColor;
-        // Hover FontColor could apply to FInternalMemo.Font.Color if desired, or caption
-        if FHoverSettings.FontColor <> clNone then ActualEditTextColor := FHoverSettings.FontColor;
-        if FHoverSettings.CaptionFontColor <> clNone then ActualCaptionTextColor := FHoverSettings.CaptionFontColor;
-      end;
+      ActualEditBorderColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
+        BaseBorderCol, HoverBorderCol, FocusBorderCol, DisabledBorderCol,
+        FHoverSettings.Enabled, True);
 
-      if Self.Focused or (Assigned(FInternalMemo) and FInternalMemo.Focused) then // Consider focused if internal memo is focused
-      begin
-        if FFocusBorderColorVisible and (FFocusBorderColor <> clNone) then
-          ActualEditBorderColor := FFocusBorderColor
-        else
-          ActualEditBorderColor := FActiveColor;
+      // Define colors for ActualEditBGColor (Internal Memo Background)
+      BaseMemoBG := clWindow; // Default TMemo background
+      HoverMemoBG := clNone; // Typically no hover effect on internal memo BG itself, but could use FHoverSettings.BackgroundColor if desired
+      FocusMemoBG := IfThen(FFocusBackgroundColorVisible, FFocusBackgroundColor, clNone);
+      DisabledMemoBG := clWindow; // Or a specific disabled color like clBtnFace
 
-        if FFocusBackgroundColorVisible and (FFocusBackgroundColor <> clNone) then
-          ActualEditBGColor := FFocusBackgroundColor // This will be for FInternalMemo
-        else
-          ActualEditBGColor := clWindow; // Default focus BG for memo area
+      ActualEditBGColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
+        BaseMemoBG, HoverMemoBG, FocusMemoBG, DisabledMemoBG,
+        False, FFocusBackgroundColorVisible); // Hover doesn't usually change memo BG, Focus does
 
-        // Potentially update ActualEditTextColor if focus dictates a different text color
-      end
-      else // Not focused
-      begin
-         ActualEditBGColor := clWindow; // Default non-focused BG for FInternalMemo
-         // BGForDrawEditBox remains FInactiveColor or Self.Color based on ImagePlacement
-      end;
+      // Define colors for ActualEditTextColor (Internal Memo Font Color)
+      BaseTextCol := Self.Font.Color; // From TANDMR_CMemo.Font
+      HoverTextCol := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone); // If hover should affect text
+      FocusTextCol := Self.Font.Color; // No specific focus text color, use base
+      DisabledTextCol := IfThen(BaseTextCol = clWindowText, clGrayText, DarkerColor(BaseTextCol, 50));
+
+      ActualEditTextColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
+        BaseTextCol, HoverTextCol, FocusTextCol, DisabledTextCol,
+        FHoverSettings.Enabled, False);
+
+      // Define colors for ActualCaptionTextColor
+      BaseCaptionCol := IfThen(FCaptionSettings.Color = clDefault, Self.Font.Color, FCaptionSettings.Color);
+      HoverCaptionCol := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
+      FocusCaptionCol := BaseCaptionCol; // No distinct focus caption color property
+      DisabledCaptionCol := IfThen(BaseCaptionCol = clWindowText, clGrayText, DarkerColor(BaseCaptionCol,50));
+
+      ActualCaptionTextColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused,
+        BaseCaptionCol, HoverCaptionCol, FocusCaptionCol, DisabledCaptionCol,
+        FHoverSettings.Enabled, False);
 
       // --- Painting Frame and Background ---
       if FOpacity = 255 then
@@ -988,15 +1001,23 @@ begin
     // --- Draw Caption --- (Drawn on top of everything else by this component)
     if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') and (FCaptionRect.Width > 0) and (FCaptionRect.Height > 0) then
     begin
-      Canvas.Font.Assign(FCaptionSettings.Font);
-      Canvas.Font.Color := ActualCaptionTextColor;
-      Canvas.Brush.Style := bsClear;
-      var CaptionDrawFlags: Cardinal := DT_NOPREFIX;
-      if FCaptionSettings.WordWrap then CaptionDrawFlags := CaptionDrawFlags or DT_WORDBREAK else CaptionDrawFlags := CaptionDrawFlags or DT_SINGLELINE;
-      case FCaptionSettings.Alignment of taLeftJustify: CaptionDrawFlags := CaptionDrawFlags or DT_LEFT; taCenter: CaptionDrawFlags := CaptionDrawFlags or DT_CENTER; taRightJustify: CaptionDrawFlags := CaptionDrawFlags or DT_RIGHT; end;
-      if FCaptionSettings.Position in [cpLeft, cpRight] then CaptionDrawFlags := CaptionDrawFlags or DT_VCENTER else CaptionDrawFlags := CaptionDrawFlags or DT_TOP;
-      var TempCaptionDrawRect := FCaptionRect;
-      DrawText(Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempCaptionDrawRect, CaptionDrawFlags);
+      var VAlign: TCaptionVerticalAlignment;
+      if FCaptionSettings.Position in [cpLeft, cpRight] then
+        VAlign := cvaCenter
+      else // cpAbove, cpBelow
+        VAlign := cvaTop;
+
+      DrawComponentCaption(
+        Self.Canvas,
+        FCaptionRect,
+        FCaptionSettings.Text,
+        FCaptionSettings.Font,
+        ActualCaptionTextColor,
+        FCaptionSettings.Alignment,
+        VAlign,
+        FCaptionSettings.WordWrap,
+        FOpacity
+      );
     end;
 
   finally

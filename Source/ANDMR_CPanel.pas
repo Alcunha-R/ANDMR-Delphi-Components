@@ -16,8 +16,6 @@ uses
   ANDMR_ComponentUtils;
 
 type
-  TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom); // New enum for vertical alignment
-
   TANDMR_CPanel = class(TCustomControl)
   private
     // Private fields for properties
@@ -356,17 +354,18 @@ var
   LClientRect: TRect;
   LPathRect: TGPRectF;
   LShadowRect: TGPRectF;
-  LPanelPath: TGPGraphicsPath;
   LShadowPath: TGPGraphicsPath;
-  LBrush: TGPBrush;
-  LPen: TGPPen;
   LTextRect: TRect;
   LShadowBrush: TGPSolidBrush;
-  LBackgroundColor, LBorderColor: ARGB;
+  // LPanelPath: TGPGraphicsPath; // Removed
+  // LBrush: TGPBrush; // Removed
+  // LPen: TGPPen; // Removed
+  // LPathRect: TGPRectF; // Removed, ADrawArea is TRect
+  // LBackgroundColor, LBorderColor: ARGB; // ARGB conversion is inside DrawEditBox
   LShadowColorAlpha: ARGB;
   CurrentColor, CurrentBorderColor, CurrentCaptionColor: TColor; // For hover/disabled states
-  LDrawTextFlags: Cardinal;
-  LPathInset: Single; // For border adjustment
+  // LDrawTextFlags: Cardinal; // Removed, handled by DrawComponentCaption
+  // LPathInset: Single; // Removed, handled by DrawEditBox
 begin
   inherited Paint; // Call inherited paint first
 
@@ -378,32 +377,42 @@ begin
     LG.SetSmoothingMode(SmoothingModeAntiAlias);
     LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-    // Prepare path rectangle, adjusted for border thickness
-    LPathInset := FBorderThickness / 2.0;
-    LPathRect.X := LClientRect.Left + LPathInset;
-    LPathRect.Y := LClientRect.Top + LPathInset;
-    LPathRect.Width := LClientRect.Width - (2 * LPathInset); // or LClientRect.Width - FBorderThickness
-    LPathRect.Height := LClientRect.Height - (2 * LPathInset); // or LClientRect.Height - FBorderThickness
+    // --- Determine effective colors based on state (normal, hover, disabled) using ResolveStateColor ---
+    var BasePanelBG, HoverPanelBG, DisabledPanelBG: TColor;
+    BasePanelBG := FColor;
+    HoverPanelBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
+    DisabledPanelBG := FColor; // Or a dimmed FColor if desired for disabled state
 
-    if LPathRect.Width <= 0 then LPathRect.Width := 1; // Ensure positive width
-    if LPathRect.Height <= 0 then LPathRect.Height := 1; // Ensure positive height
+    CurrentColor := ResolveStateColor(Self.Enabled, FIsHovering, False, // CPanel doesn't have a distinct 'focused' visual state for its main body
+      BasePanelBG, HoverPanelBG, clNone, DisabledPanelBG,
+      FHoverSettings.Enabled, False);
 
+    var BasePanelBorder, HoverPanelBorder, DisabledPanelBorder: TColor;
+    BasePanelBorder := FBorderColor;
+    HoverPanelBorder := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
+    DisabledPanelBorder := FBorderColor; // Or a dimmed/grayed border for disabled
+
+    CurrentBorderColor := ResolveStateColor(Self.Enabled, FIsHovering, False,
+      BasePanelBorder, HoverPanelBorder, clNone, DisabledPanelBorder,
+      FHoverSettings.Enabled, False);
 
     // --- 1. Draw Drop Shadow ---
-    if FDropShadowEnabled and (FDropShadowBlurRadius > 0) then // Also check blur radius
+    if FDropShadowEnabled and (FDropShadowBlurRadius > 0) then
     begin
-      LShadowRect := LPathRect;
-      // LShadowRect.Offset(FDropShadowOffset.X, FDropShadowOffset.Y); // Replaced with manual adjustment
-      LShadowRect.X := LShadowRect.X + FDropShadowOffset.X;
-      LShadowRect.Y := LShadowRect.Y + FDropShadowOffset.Y;
+      // LPathInset is needed here if shadow is based on the same path as the main body was
+      var ShadowPathInset: Single := FBorderThickness / 2.0;
+      LShadowRect.X := LClientRect.Left + ShadowPathInset + FDropShadowOffset.X;
+      LShadowRect.Y := LClientRect.Top + ShadowPathInset + FDropShadowOffset.Y;
+      LShadowRect.Width := LClientRect.Width - (2 * ShadowPathInset);
+      LShadowRect.Height := LClientRect.Height - (2 * ShadowPathInset);
+      if LShadowRect.Width <=0 then LShadowRect.Width := 1;
+      if LShadowRect.Height <=0 then LShadowRect.Height := 1;
 
-      LShadowPath := TGPGraphicsPath.Create; // Initialize the path object
-      CreateGPRoundedPath(LShadowPath, LShadowRect, Single(FCornerRadius), FRoundCornerType); // Call as a procedure
-      // if LShadowPath <> nil then // Assuming the procedure populates it, or raises an error. Path object itself existing is the check.
+
+      LShadowPath := TGPGraphicsPath.Create;
       try
-        // For a simple shadow, use a semi-transparent color.
-        // A more advanced blur would involve multiple layers or a bitmap effect.
-        LShadowColorAlpha := ColorToARGB(FDropShadowColor, Max(0, Min(255, FOpacity div 3))); // Example: 1/3 of main opacity for shadow
+        CreateGPRoundedPath(LShadowPath, LShadowRect, Single(FCornerRadius), FRoundCornerType);
+        LShadowColorAlpha := ColorToARGB(FDropShadowColor, Max(0, Min(255, FOpacity div 3)));
         LShadowBrush := TGPSolidBrush.Create(LShadowColorAlpha);
         try
           LG.FillPath(LShadowBrush, LShadowPath);
@@ -415,133 +424,54 @@ begin
       end;
     end;
 
-    // --- 2. Draw Panel Body and Border ---
-    LPanelPath := TGPGraphicsPath.Create; // Initialize the path object
-    CreateGPRoundedPath(LPanelPath, LPathRect, Single(FCornerRadius), FRoundCornerType); // Call as a procedure
-    // if LPanelPath = nil then Exit; // Path object itself existing is the check. If it's empty, drawing ops might be no-ops or error.
-    try
-      // Determine effective colors based on state (normal, hover, disabled)
-      // 1. Background Color
-      CurrentColor := FColor;
-      if FIsHovering and FHoverSettings.Enabled and (FHoverSettings.BackgroundColor <> clNone) then
-      begin
-        CurrentColor := FHoverSettings.BackgroundColor;
-      end;
-
-      // 2. Border Color
-      CurrentBorderColor := FBorderColor;
-      if FIsHovering and FHoverSettings.Enabled and (FHoverSettings.BorderColor <> clNone) then
-      begin
-        CurrentBorderColor := FHoverSettings.BorderColor;
-      end;
-
-      // Fill the background
-      if (CurrentColor <> clNone) and (FOpacity > 0) then
-      begin
-        LBackgroundColor := ColorToARGB(CurrentColor, FOpacity);
-        LBrush := TGPSolidBrush.Create(LBackgroundColor);
-        try
-          LG.FillPath(LBrush, LPanelPath);
-        finally
-          LBrush.Free;
-        end;
-      end;
-
-      // Draw the border
-      if (FBorderThickness > 0) and (FBorderStyle <> psClear) and (CurrentBorderColor <> clNone) and (FOpacity > 0) then
-      begin
-        LBorderColor := ColorToARGB(CurrentBorderColor, FOpacity);
-        LPen := TGPPen.Create(LBorderColor, FBorderThickness);
-        try
-          case FBorderStyle of
-            psSolid: LPen.SetDashStyle(DashStyleSolid);
-            psDash: LPen.SetDashStyle(DashStyleDash);
-            psDot: LPen.SetDashStyle(DashStyleDot);
-            psDashDot: LPen.SetDashStyle(DashStyleDashDot);
-            psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot);
-            // psClear is handled by the condition "FBorderStyle <> psClear" before this block
-          else
-            LPen.SetDashStyle(DashStyleSolid);
-          end;
-          LG.DrawPath(LPen, LPanelPath);
-        finally
-          LPen.Free;
-        end;
-      end;
-    finally
-      LPanelPath.Free;
-    end;
+    // --- 2. Draw Panel Body and Border using DrawEditBox ---
+    // LClientRect is passed directly as ADrawArea. DrawEditBox handles border insetting.
+    DrawEditBox(LG,
+                LClientRect,
+                CurrentColor,
+                CurrentBorderColor,
+                FBorderThickness,
+                FBorderStyle,
+                FCornerRadius,
+                FRoundCornerType,
+                FOpacity);
 
     // --- 3. Draw Caption ---
-    if (FCaption <> '') and (FFont <> nil) and (FOpacity > 0) then
+    if (FCaption <> '') and (FFont <> nil) then
     begin
-      Self.Canvas.Font.Assign(FFont);
-      Self.Canvas.Brush.Style := bsClear; // Transparent background for text
-
-      // Adjust text rect for padding, border. For simplicity, using ClientRect for now.
-      // More precise calculation would involve FBorderThickness and potentially FCornerRadius
-      // to avoid drawing text over rounded corners or too close to the border.
+      // Adjust text rect for padding, border.
       LTextRect := Self.ClientRect;
       if FBorderThickness > 0 then // Basic padding from border
           InflateRect(LTextRect, -FBorderThickness -2, -FBorderThickness -2)
       else
           InflateRect(LTextRect, -2, -2);
+      OffsetRect(LTextRect, FCaptionOffsetX, FCaptionOffsetY); // Apply custom offsets
 
-      // Apply custom offsets
-      OffsetRect(LTextRect, FCaptionOffsetX, FCaptionOffsetY);
+      // Determine CurrentCaptionColor using ResolveStateColor
+      var BasePanelCaptionColor, HoverPanelCaptionColor, DisabledPanelCaptionColor: TColor;
+      BasePanelCaptionColor := FFont.Color; // Default from TFont
+      HoverPanelCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone); // Panel uses FontColor for caption hover
+      DisabledPanelCaptionColor := FDisabledFontColor; // Use the specific property
 
-      // Set text color with opacity. Note: VCL DrawText doesn't directly support alpha.
-      // For true alpha-blended text, one would need to use GDI+ text rendering.
-      // Here, we set the font color, which VCL will use.
-      // 3. Caption Font Color
-      if Self.Enabled then
+      CurrentCaptionColor := ResolveStateColor(Self.Enabled, FIsHovering, False, // No distinct focus state for panel caption color
+        BasePanelCaptionColor, HoverPanelCaptionColor, clNone,
+        DisabledPanelCaptionColor,
+        FHoverSettings.Enabled, False);
+
+      if (LTextRect.Width > 0) and (LTextRect.Height > 0) and (Length(Trim(FCaption)) > 0) then
       begin
-        CurrentCaptionColor := FFont.Color; // Default from TFont
-        if FIsHovering and FHoverSettings.Enabled and (FHoverSettings.FontColor <> clNone) then
-        begin
-          CurrentCaptionColor := FHoverSettings.FontColor;
-        end;
-      end
-      else // Disabled
-      begin
-        if FDisabledFontColor = clNone then
-          CurrentCaptionColor := clGrayText
-        else
-          CurrentCaptionColor := FDisabledFontColor;
-        // Note: Hover effect on caption color is not applied if panel is disabled.
+        DrawComponentCaption(
+          Self.Canvas,
+          LTextRect,
+          FCaption,
+          FFont,
+          CurrentCaptionColor,
+          FCaptionAlignment,
+          FCaptionVerticalAlignment,
+          FCaptionWordWrap,
+          FOpacity
+        );
       end;
-      Self.Canvas.Font.Color := CurrentCaptionColor;
-
-      LDrawTextFlags := DT_NOPREFIX; // Base flags, DT_SINGLELINE or DT_WORDBREAK will be added later
-
-      // Horizontal Alignment
-      case FCaptionAlignment of
-        taLeftJustify: LDrawTextFlags := LDrawTextFlags or DT_LEFT;
-        taRightJustify: LDrawTextFlags := LDrawTextFlags or DT_RIGHT;
-        taCenter: LDrawTextFlags := LDrawTextFlags or DT_CENTER;
-      end;
-
-      // Vertical Alignment
-      case FCaptionVerticalAlignment of
-        cvaTop: LDrawTextFlags := LDrawTextFlags or DT_TOP;
-        cvaCenter: LDrawTextFlags := LDrawTextFlags or DT_VCENTER;
-        cvaBottom: LDrawTextFlags := LDrawTextFlags or DT_BOTTOM;
-      end;
-
-      // WordWrap and SingleLine/Ellipsis
-      if FCaptionWordWrap then
-      begin
-        LDrawTextFlags := LDrawTextFlags or DT_WORDBREAK;
-        // Consider DT_EDITCONTROL for better multiline layout if needed, but DT_WORDBREAK is primary.
-      end
-      else
-      begin
-        LDrawTextFlags := LDrawTextFlags or DT_SINGLELINE;
-        LDrawTextFlags := LDrawTextFlags or DT_END_ELLIPSIS; // Add ellipsis for single line if text overflows
-      end;
-
-      if Length(Trim(FCaption)) > 0 then // Check if caption is not just whitespace
-         DrawText(Self.Canvas.Handle, PChar(FCaption), Length(FCaption), LTextRect, LDrawTextFlags);
     end;
 
   finally

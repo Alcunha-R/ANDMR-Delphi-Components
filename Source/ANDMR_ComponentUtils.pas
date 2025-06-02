@@ -5,10 +5,12 @@ interface
 uses
   System.SysUtils, System.Classes, Vcl.Graphics, Vcl.Themes, Vcl.Controls, Vcl.StdCtrls, Winapi.Windows,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Vcl.Imaging.pngimage,
-  System.UITypes; // Ensure GDIP units are here
+  System.UITypes, Vcl.ExtCtrls; // Ensure GDIP units are here, Added Vcl.ExtCtrls for TTimer
 
 type
   // Delphi type definitions (TRoundCornerType, etc. are already here)
+
+  THoverEffect = (heNone, heFade, heScale); // Moved from ANDMR_CButton.pas
 
   TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom); // Added here
 
@@ -105,23 +107,51 @@ type
     FCaptionFontColor: TColor;
     FEnabled: Boolean;
     FOnChange: TNotifyEvent;
+
+    // New fields for animation
+    FHoverEffect: THoverEffect;
+    FAnimationTimerInterval: Integer;
+    FAnimationStep: Integer;
+    FAnimationTimer: TTimer;
+    FCurrentAnimationValue: Integer;
+    FAnimationDirection: Integer; // 1 for entering, -1 for leaving
+    FOwnerControl: TWinControl;
+    FOnAnimationProgress: TNotifyEvent; // Event to notify owner to repaint
+
     procedure SetBackgroundColor(const Value: TColor);
     procedure SetBorderColor(const Value: TColor);
     procedure SetFontColor(const Value: TColor);
     procedure SetCaptionFontColor(const Value: TColor);
     procedure SetEnabled(const Value: Boolean);
+
+    // New setters for animation properties
+    procedure SetHoverEffect(const Value: THoverEffect);
+    procedure SetAnimationTimerInterval(const Value: Integer);
+    procedure SetAnimationStep(const Value: Integer);
+
+    // Animation methods
+    procedure DoAnimate(Sender: TObject);
   protected
     procedure Changed; virtual;
   public
-    constructor Create;
+    constructor Create(AOwnerControl: TWinControl); // Modified constructor
+    destructor Destroy; override; // Added destructor
     procedure Assign(Source: TPersistent); override;
+    procedure StartAnimation(IsHovering: Boolean); // New method to start animation
   published
-    property Enabled: Boolean read FEnabled write SetEnabled default False;
-    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clInfoBk;
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clHighlight;
-    property FontColor: TColor read FFontColor write SetFontColor default clInfoText;
-    property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clInfoText;
+    property Enabled: Boolean read FEnabled write SetEnabled default True; // Default changed in previous task
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clSkyBlue; // Default changed
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clSystemHighlight; // Default changed
+    property FontColor: TColor read FFontColor write SetFontColor default clBlack; // Default changed
+    property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clBlack; // Default changed
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
+
+    // New published properties for animation
+    property HoverEffect: THoverEffect read FHoverEffect write SetHoverEffect default heFade;
+    property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 15;
+    property AnimationStep: Integer read FAnimationStep write SetAnimationStep default 20;
+    property CurrentAnimationValue: Integer read FCurrentAnimationValue; // Read-only for external access
+    property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
   end;
 
 // Helper function declarations
@@ -306,14 +336,35 @@ procedure TCaptionSettings.SetVisible(const Value: Boolean); begin if FVisible <
 procedure TCaptionSettings.SetWordWrap(const Value: Boolean); begin if FWordWrap <> Value then begin FWordWrap := Value; Changed; end; end;
 
 { THoverSettings }
-constructor THoverSettings.Create;
+constructor THoverSettings.Create(AOwnerControl: TWinControl);
 begin
   inherited Create;
-  FEnabled := False;
-  FBackgroundColor := clInfoBk;
-  FBorderColor := clHighlight;
-  FFontColor := clInfoText;
-  FCaptionFontColor := clInfoText;
+  FOwnerControl := AOwnerControl;
+
+  // Initialize existing properties (defaults from previous task)
+  FEnabled := True;
+  FBackgroundColor := clSkyBlue;
+  FBorderColor := clSystemHighlight;
+  FFontColor := clBlack;
+  FCaptionFontColor := clBlack;
+
+  // Initialize new animation fields
+  FHoverEffect := heFade;
+  FAnimationTimerInterval := 15;
+  FAnimationStep := 20;
+  FCurrentAnimationValue := 0;
+  FAnimationDirection := 0;
+
+  FAnimationTimer := TTimer.Create(nil); // Owner is nil, THoverSettings manages its lifetime
+  FAnimationTimer.Interval := FAnimationTimerInterval;
+  FAnimationTimer.OnTimer := DoAnimate;
+  FAnimationTimer.Enabled := False;
+end;
+
+destructor THoverSettings.Destroy;
+begin
+  FAnimationTimer.Free;
+  inherited Destroy;
 end;
 
 procedure THoverSettings.Assign(Source: TPersistent);
@@ -325,6 +376,17 @@ begin
     FBorderColor := THoverSettings(Source).FBorderColor;
     FFontColor := THoverSettings(Source).FFontColor;
     FCaptionFontColor := THoverSettings(Source).FCaptionFontColor;
+
+    // Assign new animation fields
+    FHoverEffect := THoverSettings(Source).FHoverEffect;
+    FAnimationTimerInterval := THoverSettings(Source).FAnimationTimerInterval;
+    FAnimationTimer.Interval := FAnimationTimerInterval; // Update timer's interval too
+    FAnimationStep := THoverSettings(Source).FAnimationStep;
+    FCurrentAnimationValue := THoverSettings(Source).FCurrentAnimationValue;
+    // FAnimationDirection is runtime state, not typically assigned
+    // FOwnerControl is set at creation, not assigned
+    // FOnAnimationProgress event is not typically assigned this way, let user re-assign if needed
+
     Changed;
   end
   else
@@ -340,8 +402,117 @@ end;
 procedure THoverSettings.SetBackgroundColor(const Value: TColor); begin if FBackgroundColor <> Value then begin FBackgroundColor := Value; Changed; end; end;
 procedure THoverSettings.SetBorderColor(const Value: TColor); begin if FBorderColor <> Value then begin FBorderColor := Value; Changed; end; end;
 procedure THoverSettings.SetCaptionFontColor(const Value: TColor); begin if FCaptionFontColor <> Value then begin FCaptionFontColor := Value; Changed; end; end;
-procedure THoverSettings.SetEnabled(const Value: Boolean); begin if FEnabled <> Value then begin FEnabled := Value; Changed; end; end;
+procedure THoverSettings.SetEnabled(const Value: Boolean); begin if FEnabled <> Value then begin FEnabled := Value; Changed; FCurrentAnimationValue := IfThen(Value, FCurrentAnimationValue, 0); end; end; // Reset animation if disabled
 procedure THoverSettings.SetFontColor(const Value: TColor); begin if FFontColor <> Value then begin FFontColor := Value; Changed; end; end;
+
+procedure THoverSettings.SetHoverEffect(const Value: THoverEffect);
+begin
+  if FHoverEffect <> Value then
+  begin
+    FHoverEffect := Value;
+    FCurrentAnimationValue := 0; // Reset animation progress when effect changes
+    FAnimationTimer.Enabled := False;
+    Changed; // Notify owner of change
+  end;
+end;
+
+procedure THoverSettings.SetAnimationTimerInterval(const Value: Integer);
+begin
+  if FAnimationTimerInterval <> Value then
+  begin
+    FAnimationTimerInterval := Max(1, Value); // Ensure interval is at least 1
+    FAnimationTimer.Interval := FAnimationTimerInterval;
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.SetAnimationStep(const Value: Integer);
+begin
+  if FAnimationStep <> Value then
+  begin
+    FAnimationStep := Max(1, Value); // Ensure step is at least 1
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.DoAnimate(Sender: TObject);
+var
+  TargetValue: Integer;
+begin
+  if FAnimationDirection = 1 then // Hovering
+    TargetValue := 255
+  else if FAnimationDirection = -1 then // Leaving
+    TargetValue := 0
+  else // No direction
+  begin
+    FAnimationTimer.Enabled := False;
+    Exit;
+  end;
+
+  if FAnimationDirection = 1 then
+  begin
+    Inc(FCurrentAnimationValue, FAnimationStep);
+    if FCurrentAnimationValue >= TargetValue then
+    begin
+      FCurrentAnimationValue := TargetValue;
+      FAnimationTimer.Enabled := False;
+      FAnimationDirection := 0; // Stop direction
+    end;
+  end
+  else if FAnimationDirection = -1 then
+  begin
+    Dec(FCurrentAnimationValue, FAnimationStep);
+    if FCurrentAnimationValue <= TargetValue then
+    begin
+      FCurrentAnimationValue := TargetValue;
+      FAnimationTimer.Enabled := False;
+      FAnimationDirection := 0; // Stop direction
+    end;
+  end;
+
+  if Assigned(FOnAnimationProgress) then
+    FOnAnimationProgress(Self);
+
+  // Request repaint from owner control
+  if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then
+    FOwnerControl.Invalidate; // Or Repaint, Invalidate is often preferred for components
+end;
+
+procedure THoverSettings.StartAnimation(IsHovering: Boolean);
+begin
+  if (FHoverEffect = heNone) or not Self.Enabled then
+  begin
+    if IsHovering and Self.Enabled then // Only set to full if enabled
+      FCurrentAnimationValue := 255
+    else
+      FCurrentAnimationValue := 0;
+
+    if Assigned(FOnAnimationProgress) then
+      FOnAnimationProgress(Self);
+
+    if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then
+      FOwnerControl.Invalidate;
+
+    FAnimationTimer.Enabled := False;
+    FAnimationDirection := 0;
+    Exit;
+  end;
+
+  FAnimationTimer.Interval := FAnimationTimerInterval; // Ensure interval is current
+
+  if IsHovering then
+  begin
+    FAnimationDirection := 1;
+    if FCurrentAnimationValue < 255 then
+      FAnimationTimer.Enabled := True;
+  end
+  else // Not Hovering
+  begin
+    FAnimationDirection := -1;
+    if FCurrentAnimationValue > 0 then
+      FAnimationTimer.Enabled := True;
+  end;
+end;
 
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 var

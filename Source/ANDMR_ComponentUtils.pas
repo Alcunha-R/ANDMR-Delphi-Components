@@ -141,7 +141,7 @@ type
   published
     property Enabled: Boolean read FEnabled write SetEnabled default True; // Default changed in previous task
     property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clSkyBlue; // Default changed
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clSystemHighlight; // Default changed
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clSkyBlue; // Default changed
     property FontColor: TColor read FFontColor write SetFontColor default clBlack; // Default changed
     property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clBlack; // Default changed
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
@@ -152,6 +152,37 @@ type
     property AnimationStep: Integer read FAnimationStep write SetAnimationStep default 20;
     property CurrentAnimationValue: Integer read FCurrentAnimationValue; // Read-only for external access
     property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
+  end;
+
+  TImageSettings = class(TPersistent)
+  private
+    FPicture: TPicture;
+    FVisible: Boolean;
+    FDrawMode: TImageDrawMode; // Como o conteúdo da imagem deve ser dimensionado/ajustado
+    FMargins: TANDMR_Margins;  // Margens ao redor do conteúdo da imagem
+
+    FOnChange: TNotifyEvent;
+    FOwnerControl: TWinControl; // Componente proprietário para invalidação, etc.
+
+    procedure SetPicture(const Value: TPicture);
+    procedure SetVisible(const Value: Boolean);
+    procedure SetDrawMode(const Value: TImageDrawMode);
+    procedure SetMargins(const Value: TANDMR_Margins);
+
+    procedure InternalPictureChanged(Sender: TObject);
+    procedure InternalMarginsChanged(Sender: TObject);
+  protected
+    procedure DoChange; virtual; // Renomeado de Changed para evitar conflito com TControl.Changed
+  public
+    constructor Create(AOwnerControl: TWinControl);
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Picture: TPicture read FPicture write SetPicture;
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property DrawMode: TImageDrawMode read FDrawMode write SetDrawMode default idmProportional;
+    property Margins: TANDMR_Margins read FMargins write SetMargins;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
 // Helper function declarations
@@ -344,7 +375,7 @@ begin
   // Initialize existing properties (defaults from previous task)
   FEnabled := True;
   FBackgroundColor := clSkyBlue;
-  FBorderColor := clSystemHighlight;
+  FBorderColor := clHighlight; // Changed from clSystemHighlight
   FFontColor := clBlack;
   FCaptionFontColor := clBlack;
 
@@ -511,6 +542,103 @@ begin
     FAnimationDirection := -1;
     if FCurrentAnimationValue > 0 then
       FAnimationTimer.Enabled := True;
+  end;
+end;
+
+{ TImageSettings }
+
+constructor TImageSettings.Create(AOwnerControl: TWinControl);
+begin
+  inherited Create;
+  FOwnerControl := AOwnerControl;
+
+  FPicture := TPicture.Create;
+  FPicture.OnChange := InternalPictureChanged;
+
+  FMargins := TANDMR_Margins.Create;
+  FMargins.OnChange := InternalMarginsChanged;
+  // Defina os padrões para as margens aqui, se diferente do construtor de TANDMR_Margins
+  // FMargins.Left := 0; FMargins.Top := 0; FMargins.Right := 0; FMargins.Bottom := 0;
+
+
+  FVisible := True;
+  FDrawMode := idmProportional;
+end;
+
+destructor TImageSettings.Destroy;
+begin
+  if Assigned(FPicture) then
+  begin
+    FPicture.OnChange := nil;
+    FPicture.Free;
+  end;
+  if Assigned(FMargins) then
+  begin
+    FMargins.OnChange := nil;
+    FMargins.Free;
+  end;
+  inherited Destroy;
+end;
+
+procedure TImageSettings.Assign(Source: TPersistent);
+begin
+  if Source is TImageSettings then
+  begin
+    Visible := TImageSettings(Source).Visible;
+    DrawMode := TImageSettings(Source).DrawMode;
+    Picture.Assign(TImageSettings(Source).Picture); // Atribui o conteúdo da imagem
+    Margins.Assign(TImageSettings(Source).Margins); // Atribui as margens
+    // O OnChange não é copiado por Assign de TPersistent
+    DoChange; // Notifica após a atribuição em massa
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TImageSettings.DoChange;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+  // Opcionalmente, invalidar o FOwnerControl se ele estiver atribuído e precisar ser redesenhado
+  // if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then
+  //   FOwnerControl.Invalidate;
+end;
+
+procedure TImageSettings.InternalMarginsChanged(Sender: TObject);
+begin
+  DoChange;
+end;
+
+procedure TImageSettings.InternalPictureChanged(Sender: TObject);
+begin
+  DoChange;
+end;
+
+procedure TImageSettings.SetDrawMode(const Value: TImageDrawMode);
+begin
+  if FDrawMode <> Value then
+  begin
+    FDrawMode := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetMargins(const Value: TANDMR_Margins);
+begin
+  FMargins.Assign(Value); // Isso chamará FMargins.OnChange se houver mudança, que chama DoChange
+end;
+
+procedure TImageSettings.SetPicture(const Value: TPicture);
+begin
+  FPicture.Assign(Value); // Isso chamará FPicture.OnChange se houver mudança, que chama DoChange
+end;
+
+procedure TImageSettings.SetVisible(const Value: Boolean);
+begin
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
+    DoChange;
   end;
 end;
 

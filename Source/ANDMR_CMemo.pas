@@ -862,8 +862,8 @@ begin
       var BaseBorderCol, HoverBorderCol, FocusBorderCol, DisabledBorderCol: TColor;
       var BaseTextCol, HoverTextCol, FocusTextCol, DisabledTextCol: TColor;
       var BaseCaptionCol, HoverCaptionCol, FocusCaptionCol, DisabledCaptionCol: TColor;
-      bool // Helper for focused state determination
-        IsComponentFocused: Boolean = Self.Focused or (Assigned(FInternalMemo) and FInternalMemo.Focused);
+      var IsComponentFocused: Boolean;
+      IsComponentFocused := Self.Focused or (Assigned(FInternalMemo) and FInternalMemo.Focused);
 
       // Define colors for BGForDrawEditBox (Frame Background)
       BaseFrameBG := IfThen(FImagePlacement = iplInsideBounds, FInactiveColor, Self.Color);

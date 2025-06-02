@@ -911,7 +911,7 @@ begin
       if (LHoverProgress > 0) and FHoverSettings.Enabled and (FHoverSettings.HoverEffect <> heNone) and FHovered then
       begin
         BGForDrawEditBox      := BlendColors(NonHoveredFrameBG, TargetStateFrameBG, LHoverProgress);
-        ActualEditBorderColor := BlendColors(NonHoveredBorderCol, TargetStateBorderColor, LHoverProgress);
+        ActualEditBorderColor := BlendColors(NonHoveredBorderCol, TargetStateBorderCol, LHoverProgress);
         ActualEditBGColor     := BlendColors(NonHoveredMemoBG, TargetStateMemoBG, LHoverProgress); // For InternalMemo.Color
         ActualEditTextColor   := BlendColors(NonHoveredTextCol, TargetStateTextCol, LHoverProgress); // For InternalMemo.Font.Color
         ActualCaptionTextColor:= BlendColors(NonHoveredCaptionCol, TargetStateCaptionCol, LHoverProgress);
@@ -919,7 +919,7 @@ begin
       else // No animation towards hover (or reversing/settled)
       begin
         BGForDrawEditBox      := TargetStateFrameBG;
-        ActualEditBorderColor := TargetStateBorderColor;
+        ActualEditBorderColor := TargetStateBorderCol;
         ActualEditBGColor     := TargetStateMemoBG;    // For InternalMemo.Color
         ActualEditTextColor   := TargetStateTextCol;  // For InternalMemo.Font.Color
         ActualCaptionTextColor:= TargetStateCaptionCol;

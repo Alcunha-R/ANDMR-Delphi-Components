@@ -35,7 +35,7 @@ type
     FCaption: string;
     FCornerRadius: Integer;
     FRoundCornerType: TRoundCornerType;
-    FActiveColor, FInactiveColor, FHoverColor: TColor;
+    FActiveColor, FInactiveColor: TColor;
     FTitleFont: TFont;
     FIsHovering: Boolean;
     FImage: TPicture;
@@ -75,10 +75,7 @@ type
     FOnClick: TNotifyEvent;
     FStyle: TButtonStyle;
     FClickColor: TColor;
-    FHoverBorderColor: TColor;
-    FEnableHoverEffect: Boolean;
     FClickBorderColor: TColor;
-    FHoverTitleColor: TColor;
     FClickTitleColor: TColor;
 
     FPresetType: TPresetType;
@@ -259,8 +256,8 @@ begin
   FRoundCornerType := rctAll;
   FActiveColor := clTeal;
   FInactiveColor := clGray;
-  FHoverColor := clSkyBlue; // This is read via GetHoverColor from THoverSettings now
-  FHoverTitleColor := clNone; // This is read via GetHoverTitleColor from THoverSettings now
+  // FHoverColor := clSkyBlue; // Field Removed - Read via GetHoverColor from THoverSettings
+  // FHoverTitleColor := clNone; // Field Removed - Read via GetHoverTitleColor from THoverSettings
   FClickTitleColor := clNone;
 
   // FHoverAnimationTimer := TTimer.Create(Self); // Removed
@@ -271,7 +268,7 @@ begin
   // FHoverAnimationValue := 0; // Removed
   // FHoverAnimationDirection := 1; // Removed
   // FHoverEffect := heFade; // Field removed, property uses FInternalHoverSettings, default set in THoverSettings
-  FEnableHoverEffect := True; // This property will now use THoverSettings
+  // FEnableHoverEffect := True; // Field Removed - Property uses THoverSettings
 
   FTitleFont := TFont.Create;
   FTitleFont.Name := 'Segoe UI';
@@ -311,7 +308,7 @@ begin
   FBorderColor := clBlack;
   FBorderThickness := 1;
   FBorderStyle := psSolid;
-  FHoverBorderColor := clNone;
+  // FHoverBorderColor := clNone; // Field Removed - Property uses THoverSettings
   FClickColor := clNone;
   FClickBorderColor := clNone;
 
@@ -1118,7 +1115,7 @@ begin
         LCurrentGradientEnabled := False;
         LActualBorderThickness := Max(1, FBorderThickness);
         LDrawBorder := LActualBorderThickness > 0;
-        LFinalHoverColor := ColorToARGB(IfThen(FHoverColor=clNone, LInitialFillColor, FHoverColor), 70);
+        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 70); // Use Getter
       end;
       bsLight:
       begin
@@ -1144,7 +1141,7 @@ begin
         LActualBorderThickness := Max(1, FBorderThickness);
         LActualBorderColor := LInitialFillColor;
         LDrawBorder := LActualBorderThickness > 0;
-        LFinalHoverColor := ColorToARGB(IfThen(FHoverColor=clNone, LInitialFillColor, FHoverColor), 100);
+        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 100); // Use Getter
         LFinalHoverBorderColor := LInitialFillColor;
       end;
       bsShadow:

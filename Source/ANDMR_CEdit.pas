@@ -22,7 +22,6 @@ type
     FMaxLength: Integer;
     FPasswordChar: Char;
     FReadOnly: Boolean;
-    // FActiveColor: TColor; // Removed
     FCaretVisible: Boolean;
     FCaretPosition: Integer;
     FCaretTimer: TTimer;
@@ -51,7 +50,6 @@ type
     procedure SetCornerRadius(const Value: Integer);
     function GetRoundCornerType: TRoundCornerType;
     procedure SetRoundCornerType(const Value: TRoundCornerType);
-    // procedure SetActiveColor(const Value: TColor); // Removed
     function GetInactiveColor: TColor;
     procedure SetInactiveColor(const Value: TColor);
     function GetBorderColor: TColor;
@@ -146,7 +144,6 @@ type
     property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
     property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 8;
     property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    // property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight; // Removed
     property InactiveColor: TColor read GetInactiveColor write SetInactiveColor default clBtnFace; // Delegates to FBorderSettings.BackgroundColor
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
@@ -236,7 +233,6 @@ begin
   FMaxLength := 0;
   FPasswordChar := #0;
   FReadOnly := False;
-  // FActiveColor := clHighlight; // Removed
   Font.Name := 'Segoe UI';
   Font.Size := 9;
   Font.Color := clWindowText;
@@ -458,7 +454,6 @@ function TANDMR_CEdit.GetCornerRadius: Integer; begin Result := FBorderSettings.
 procedure TANDMR_CEdit.SetCornerRadius(const Value: Integer); begin FBorderSettings.CornerRadius := Value; end;
 function TANDMR_CEdit.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
 procedure TANDMR_CEdit.SetRoundCornerType(const Value: TRoundCornerType); begin FBorderSettings.RoundCornerType := Value; end;
-// procedure TANDMR_CEdit.SetActiveColor(const Value: TColor); // Removed
 function TANDMR_CEdit.GetInactiveColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
 procedure TANDMR_CEdit.SetInactiveColor(const Value: TColor); begin FBorderSettings.BackgroundColor := Value; end;
 function TANDMR_CEdit.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;

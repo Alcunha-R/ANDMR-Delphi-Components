@@ -16,13 +16,9 @@ type
     FBorderSettings: TBorderSettings; // Added
     FCaptionSettings: TCaptionSettings; // Added
     FState: TCheckBoxState;
-    // FCaption: string; // Removed
-    // FCornerRadius: Integer; // Moved to FBorderSettings
-    // FRoundCornerType: TRoundCornerType; // Moved to FBorderSettings
     FBoxColorUnchecked: TColor;
     FBoxColorChecked: TColor;
     FCheckMarkColor: TColor;
-    // FTitleFont: TFont; // Removed
     FTransparent: Boolean;
     FOnClick: TNotifyEvent;
     FOnCheckChanged: TNotifyEvent;
@@ -46,7 +42,6 @@ type
     procedure SetInternalHoverSettings(const Value: THoverSettings);
     procedure SetEnabled(Value: Boolean);
 
-    // procedure FontChanged(Sender: TObject); // Removed
     procedure InternalHoverSettingsChanged(Sender: TObject);
     procedure SettingsChanged(Sender: TObject); // Added
 
@@ -130,7 +125,6 @@ begin
   // FTitleFont.Name := 'Segoe UI'; // Removed
   // FTitleFont.Size := 9; // Removed
   // FTitleFont.Color := clWindowText; // Removed
-  // FTitleFont.OnChange := FontChanged; // Removed
 
   FInternalHoverSettings := THoverSettings.Create(Self);
   FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
@@ -152,7 +146,6 @@ begin
     FCaptionSettings.OnChange := SettingsChanged; // Use existing SettingsChanged
     FCaptionSettings.Text := Name; // Set default caption to component Name
     FCaptionSettings.Font.Assign(TempTitleFont); // Transfer initial font settings
-    // FCaptionSettings.Font.OnChange := FontChanged; // Removed assignment
   finally
     TempTitleFont.Free;
   end;
@@ -201,11 +194,6 @@ procedure TANDMR_CCheckBox.SettingsChanged(Sender: TObject);
 begin
   Invalidate;
 end;
-
-// procedure TANDMR_CCheckBox.FontChanged(Sender: TObject); // Removed
-// begin // Removed
-// Invalidate; // Removed
-// end; // Removed
 
 procedure TANDMR_CCheckBox.InternalHoverSettingsChanged(Sender: TObject);
 begin

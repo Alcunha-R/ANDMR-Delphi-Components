@@ -35,17 +35,12 @@ type
     FCaption: string;
     FCaptionSettings: TCaptionSettings; // Added
     FImageSettings: TImageSettings;   // Added
-    // FTitleFont: TFont; // Removed
-    // FImage: TPicture; // Removed
-    // FTextAlign: TAlignment; // Removed
     FGradientEnabled: Boolean;
     FGradientType: TGradientType;
     FGradientStartColor: TColor;
     FGradientEndColor: TColor;
     FImagePosition: TImagePosition;
-    // FImageMargins, Removed, FTextMargins: TANDMR_Margins;
     FTextMargins: TANDMR_Margins; // FImageMargins removed
-    // FImageStretchMode: TImageStretchMode; // Removed
     FTag: Integer;
     FTagString: string;
     FTagExtended: Extended;
@@ -261,13 +256,8 @@ begin
 
   FTextMargins := TANDMR_Margins.Create;
   FTextMargins.OnChange := MarginsChanged;
-  // FTextAlign := taCenter; // Removed
 
-  // FImage := TPicture.Create; // Removed
   FImagePosition := ipLeft;
-  // FImageMargins := TANDMR_Margins.Create; // Removed
-  // FImageMargins.OnChange := MarginsChanged; // Removed
-  // FImageStretchMode := ismProportional; // Removed
 
   FGradientEnabled := False;
   FGradientType := gtLinearVertical;

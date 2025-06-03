@@ -237,6 +237,8 @@ type
     FPosition: TImagePositionSide;
     FAlignmentVertical: TImageAlignmentVertical;
     FPlacement: TImagePlacement;
+    FTargetWidth: Integer;      // Added
+    FTargetHeight: Integer;     // Added
 
     procedure SetPicture(const Value: TPicture);
     procedure SetVisible(const Value: Boolean);
@@ -245,6 +247,8 @@ type
     procedure SetPosition(const Value: TImagePositionSide);
     procedure SetAlignmentVertical(const Value: TImageAlignmentVertical);
     procedure SetPlacement(const Value: TImagePlacement);
+    procedure SetTargetWidth(const Value: Integer);    // Added
+    procedure SetTargetHeight(const Value: Integer);   // Added
     procedure InternalPictureChanged(Sender: TObject);
     procedure InternalMarginsChanged(Sender: TObject);
   protected
@@ -261,6 +265,8 @@ type
     property Position: TImagePositionSide read FPosition write SetPosition default ipsLeft;
     property AlignmentVertical: TImageAlignmentVertical read FAlignmentVertical write SetAlignmentVertical default iavCenter;
     property Placement: TImagePlacement read FPlacement write SetPlacement default iplInsideBounds;
+    property TargetWidth: Integer read FTargetWidth write SetTargetWidth default 0; // Added
+    property TargetHeight: Integer read FTargetHeight write SetTargetHeight default 0; // Added
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
@@ -270,9 +276,13 @@ type
     FColor: TColor;
     FThickness: Integer;
     FStyle: TPenStyle;
+    FColor: TColor;
+    FThickness: Integer;
+    FStyle: TPenStyle;
     FCornerRadius: Integer;
     FRoundCornerType: TRoundCornerType;
     FBackgroundColor: TColor;
+    FVisible: Boolean; // Added
     FOnChange: TNotifyEvent;
     procedure SetColor(const Value: TColor);
     procedure SetThickness(const Value: Integer);
@@ -280,12 +290,14 @@ type
     procedure SetCornerRadius(const Value: Integer);
     procedure SetRoundCornerType(const Value: TRoundCornerType);
     procedure SetBackgroundColor(const Value: TColor);
+    procedure SetVisible(const Value: Boolean); // Added
   protected
     procedure Changed; virtual;
   public
     constructor Create;
     procedure Assign(Source: TPersistent); override;
   published
+    property Visible: Boolean read FVisible write SetVisible default True; // Added
     property Color: TColor read FColor write SetColor default clBlack;
     property Thickness: Integer read FThickness write SetThickness default 1;
     property Style: TPenStyle read FStyle write SetStyle default psSolid;
@@ -467,6 +479,7 @@ begin
   FCornerRadius := 0;
   FRoundCornerType := rctNone;
   FBackgroundColor := clNone;
+  FVisible := True; // Added initialization
 end;
 
 procedure TBorderSettings.Assign(Source: TPersistent);
@@ -482,6 +495,7 @@ begin
     FCornerRadius := LSource.FCornerRadius;
     FRoundCornerType := LSource.FRoundCornerType;
     FBackgroundColor := LSource.FBackgroundColor;
+    FVisible := LSource.FVisible; // Added assignment
     Changed; // Call changed once after all assignments specific to this class
   end
   else
@@ -544,6 +558,15 @@ begin
   if FBackgroundColor <> Value then
   begin
     FBackgroundColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetVisible(const Value: Boolean);
+begin
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
     Changed;
   end;
 end;
@@ -1375,6 +1398,8 @@ begin
   FPosition := ipsLeft;
   FAlignmentVertical := iavCenter;
   FPlacement := iplInsideBounds;
+  FTargetWidth := 0;  // Added initialization
+  FTargetHeight := 0; // Added initialization
 end;
 
 destructor TImageSettings.Destroy;
@@ -1409,6 +1434,8 @@ begin
     SetPosition(LSource.Position);
     SetAlignmentVertical(LSource.AlignmentVertical);
     SetPlacement(LSource.Placement);
+    SetTargetWidth(LSource.TargetWidth);     // Added assignment
+    SetTargetHeight(LSource.TargetHeight);   // Added assignment
     // DoChange is called by setters.
   end
   else
@@ -1430,6 +1457,24 @@ procedure TImageSettings.SetVisible(const Value: Boolean); begin if FVisible <> 
 procedure TImageSettings.SetPosition(const Value: TImagePositionSide); begin if FPosition <> Value then begin FPosition := Value; DoChange; end; end;
 procedure TImageSettings.SetAlignmentVertical(const Value: TImageAlignmentVertical); begin if FAlignmentVertical <> Value then begin FAlignmentVertical := Value; DoChange; end; end;
 procedure TImageSettings.SetPlacement(const Value: TImagePlacement); begin if FPlacement <> Value then begin FPlacement := Value; DoChange; end; end;
+
+procedure TImageSettings.SetTargetWidth(const Value: Integer);
+begin
+  if FTargetWidth <> Value then
+  begin
+    FTargetWidth := Max(0, Value); // Ensure non-negative
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetTargetHeight(const Value: Integer);
+begin
+  if FTargetHeight <> Value then
+  begin
+    FTargetHeight := Max(0, Value); // Ensure non-negative
+    DoChange;
+  end;
+end;
 
 { ColorToARGB }
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;

@@ -710,38 +710,136 @@ begin
   var ImageDrawRect: TRect;
   if FImageSettings.Visible and Assigned(FImageSettings.Picture) and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
   begin
-    // ActualImageWidth and ActualImageHeight are already determined during estimation phase.
-    // If they were 0 (e.g. image loaded but has 0x0 dimensions and no TargetSize), they'd be 20 for estimation,
-    // but for drawing, we should use the actual 0 or values from TargetWidth/Height.
-    // Re-evaluate here for drawing, respecting TargetWidth/Height primarily.
-    var DrawWidth, DrawHeight: Integer;
-    DrawWidth := IfThen(FImageSettings.TargetWidth > 0, FImageSettings.TargetWidth, FImageSettings.Picture.Graphic.Width);
-    DrawHeight := IfThen(FImageSettings.TargetHeight > 0, FImageSettings.TargetHeight, FImageSettings.Picture.Graphic.Height);
+    var LImgW, LImgH, DrawWidth, DrawHeight: Integer;
+    var AvailableImageWidth, AvailableImageHeight: Integer;
+    var LScaleFactor: Single;
 
-    // If DrawMode is not idmNormal, and one of TargetWidth/Height was set, calculate the other proportionally for drawing.
-    // This logic is complex and usually handled by the DrawXXX routines if they get the original graphic and a target rect.
-    // For now, we use DrawWidth/DrawHeight as the size of the image rect.
-    // The DrawPNGImageWithGDI/DrawNonPNGImageWithCanvas will handle scaling based on DrawMode.
+    LImgW := FImageSettings.Picture.Graphic.Width;
+    LImgH := FImageSettings.Picture.Graphic.Height;
 
-    var ImgAnchorX, ImgAnchorY: Integer;
+    var ImgAnchorX: Integer;
+    // Determine initial anchor point for image (typically right of checkbox or caption)
     if FCaptionSettings.Visible and (Trim(FCaptionSettings.Text) <> '') and (FCaptionSettings.Position = cpRight) then
       ImgAnchorX := ActualCaptionRect.Right + FImageSettings.Margins.Left
     else
       ImgAnchorX := Round(CheckBoxRectF.X + CheckBoxRectF.Width + FImageSettings.Margins.Left);
 
+    AvailableImageWidth := Max(0, DrawableRect.Right - ImgAnchorX - FImageSettings.Margins.Right);
+    AvailableImageHeight := Max(0, DrawableRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+
+    if FImageSettings.AutoSize then
+    begin
+      case FImageSettings.DrawMode of
+        idmStretch:
+        begin
+          DrawWidth := AvailableImageWidth;
+          DrawHeight := AvailableImageHeight;
+        end;
+        idmProportional:
+        begin
+          if (LImgW = 0) or (LImgH = 0) then
+          begin DrawWidth := 0; DrawHeight := 0; end
+          else
+          begin
+            LScaleFactor := Min(AvailableImageWidth / LImgW, AvailableImageHeight / LImgH);
+            DrawWidth := Round(LImgW * LScaleFactor);
+            DrawHeight := Round(LImgH * LScaleFactor);
+          end;
+        end;
+        idmNormal:
+        begin
+          DrawWidth := LImgW;
+          DrawHeight := LImgH;
+          // Clamp to available space if normal size exceeds it
+          if DrawWidth > AvailableImageWidth then DrawWidth := AvailableImageWidth;
+          if DrawHeight > AvailableImageHeight then DrawHeight := AvailableImageHeight;
+        end;
+      else // Default to proportional
+        if (LImgW = 0) or (LImgH = 0) then
+        begin DrawWidth := 0; DrawHeight := 0; end
+        else
+        begin
+          LScaleFactor := Min(AvailableImageWidth / LImgW, AvailableImageHeight / LImgH);
+          DrawWidth := Round(LImgW * LScaleFactor);
+          DrawHeight := Round(LImgH * LScaleFactor);
+        end;
+      end;
+    end
+    else // AutoSize = False
+    begin
+      DrawWidth := FImageSettings.TargetWidth;
+      DrawHeight := FImageSettings.TargetHeight;
+
+      if (DrawWidth = 0) and (DrawHeight = 0) then
+      begin
+        if FImageSettings.DrawMode = idmStretch then
+        begin
+          DrawWidth := AvailableImageWidth;
+          DrawHeight := AvailableImageHeight;
+        end
+        else // idmProportional or idmNormal
+        begin
+          DrawWidth := LImgW;
+          DrawHeight := LImgH;
+        end;
+      end
+      else if (DrawWidth = 0) and (DrawHeight > 0) then // Width is 0, Height is specified
+      begin
+        if LImgH > 0 then DrawWidth := Round(LImgW / LImgH * DrawHeight)
+        else DrawWidth := LImgW; // Fallback
+      end
+      else if (DrawWidth > 0) and (DrawHeight = 0) then // Height is 0, Width is specified
+      begin
+        if LImgW > 0 then DrawHeight := Round(LImgH / LImgW * DrawWidth)
+        else DrawHeight := LImgH; // Fallback
+      end;
+
+      // For AutoSize = False, DrawMode idmProportional means fitting within TargetWidth/Height
+      if FImageSettings.DrawMode = idmProportional then
+      begin
+        if (DrawWidth > 0) and (DrawHeight > 0) and (LImgW > 0) and (LImgH > 0) then
+        begin
+            LScaleFactor := Min(DrawWidth / LImgW, DrawHeight / LImgH);
+            DrawWidth := Round(LImgW * LScaleFactor);
+            DrawHeight := Round(LImgH * LScaleFactor);
+        end;
+      end;
+      // idmNormal with TargetSize means image is drawn at TargetSize (or original if TargetSize is 0,0)
+      // idmStretch with TargetSize means image is stretched to TargetSize
+
+      // Clamping to available space for AutoSize = False
+      if (DrawWidth > AvailableImageWidth) or (DrawHeight > AvailableImageHeight) then
+      begin
+        if (DrawWidth > 0) and (DrawHeight > 0) then
+        begin
+          LScaleFactor := Min(AvailableImageWidth / DrawWidth, AvailableImageHeight / DrawHeight);
+          DrawWidth := Round(DrawWidth * LScaleFactor);
+          DrawHeight := Round(DrawHeight * LScaleFactor);
+        end
+        else // If one dimension is zero or negative, just hard clamp
+        begin
+           DrawWidth := Min(DrawWidth, AvailableImageWidth);
+           DrawHeight := Min(DrawHeight, AvailableImageHeight);
+        end;
+      end;
+    end;
+
+    DrawWidth := Max(0, DrawWidth);
+    DrawHeight := Max(0, DrawHeight);
+
     ImageDrawRect.Left := ImgAnchorX;
     case FImageSettings.AlignmentVertical of
       iavTop: ImageDrawRect.Top := DrawableRect.Top + FImageSettings.Margins.Top;
-      iavCenter: ImageDrawRect.Top := DrawableRect.Top + (DrawableRect.Height - DrawHeight) div 2;
-      iavBottom: ImageDrawRect.Top := DrawableRect.Bottom - DrawHeight - FImageSettings.Margins.Bottom;
+      iavCenter: ImageDrawRect.Top := DrawableRect.Top + FImageSettings.Margins.Top + (AvailableImageHeight - DrawHeight) div 2; // Use AvailableImageHeight for centering
+      iavBottom: ImageDrawRect.Top := DrawableRect.Bottom - FImageSettings.Margins.Bottom - DrawHeight;
     else // Default to Center
-      ImageDrawRect.Top := DrawableRect.Top + (DrawableRect.Height - DrawHeight) div 2;
+      ImageDrawRect.Top := DrawableRect.Top + FImageSettings.Margins.Top + (AvailableImageHeight - DrawHeight) div 2; // Use AvailableImageHeight
     end;
     ImageDrawRect.Right := ImageDrawRect.Left + DrawWidth;
     ImageDrawRect.Bottom := ImageDrawRect.Top + DrawHeight;
 
     // If image is now to the right, it might reduce space for a cpRight caption
-    if FCaptionSettings.Visible and (FCaptionSettings.Position = cpRight) and (ImageDrawRect.Left < ActualCaptionRect.Right) then
+    if FCaptionSettings.Visible and (FCaptionSettings.Position = cpRight) and (Trim(FCaptionSettings.Text) <> '') and (ImageDrawRect.Left < ActualCaptionRect.Right) then
     begin
        ActualCaptionRect.Right := Max(ActualCaptionRect.Left, ImageDrawRect.Left - FCaptionSettings.Offset.X);
     end;

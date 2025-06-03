@@ -1790,46 +1790,144 @@ begin
       if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then // Use FImageSettings.Picture
       begin
         LImgW := FImageSettings.Picture.Width; LImgH := FImageSettings.Picture.Height; // Use FImageSettings.Picture
-        case FImageSettings.DrawMode of // Use FImageSettings.DrawMode
-        idmProportional: // Changed from ismProportional
+
+        // Calculate AvailableImageWidth and AvailableImageHeight
+        AvailableWidth := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
+        AvailableHeight := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+
+        if FImageSettings.AutoSize then
         begin
-          if (LImgW = 0) or (LImgH = 0) then begin LDrawW := 0; LDrawH := 0; end
-          else
-          begin
-            AvailableWidth  := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right); // Use FImageSettings.Margins
-            AvailableHeight := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom); // Use FImageSettings.Margins
-            if FImagePosition in [ipLeft, ipRight] then
+          case FImageSettings.DrawMode of
+            idmStretch:
             begin
+              LDrawW := AvailableWidth;
               LDrawH := AvailableHeight;
-              if LImgH <> 0 then LDrawW := Round(LImgW / LImgH * LDrawH) else LDrawW := 0;
+            end;
+            idmProportional:
+            begin
+              if (LImgW = 0) or (LImgH = 0) then
+              begin
+                LDrawW := 0; LDrawH := 0;
+              end
+              else
+              begin
+                LScaleFactor := Min(AvailableWidth / LImgW, AvailableHeight / LImgH);
+                LDrawW := Round(LImgW * LScaleFactor);
+                LDrawH := Round(LImgH * LScaleFactor);
+              end;
+            end;
+            idmNormal:
+            begin
+              LDrawW := LImgW;
+              LDrawH := LImgH;
+              // Clamp to available space if normal size exceeds it
               if LDrawW > AvailableWidth then
               begin
                 LDrawW := AvailableWidth;
-                if LImgW <> 0 then LDrawH := Round(LImgH / LImgW * LDrawW) else LDrawH := 0;
+                // Optionally, scale LDrawH proportionally, or just clamp it too
+                if LImgW > 0 then LDrawH := Round(LImgH * (AvailableWidth / LImgW));
               end;
-            end
-            else
-            begin
-              LDrawW := AvailableWidth;
-              if LImgW <> 0 then LDrawH := Round(LImgH / LImgW * LDrawW) else LDrawH := 0;
               if LDrawH > AvailableHeight then
               begin
                 LDrawH := AvailableHeight;
-                if LImgH <> 0 then LDrawW := Round(LImgW / LImgH * LDrawH) else LDrawW := 0;
+                // Optionally, scale LDrawW proportionally if LDrawH was clamped
+                if LImgH > 0 then LDrawW := Round(LImgW * (AvailableHeight / LImgH));
+                 // Re-clamp LDrawW if it now exceeds AvailableWidth due to LDrawH scaling
+                if LDrawW > AvailableWidth then LDrawW := AvailableWidth;
+              end;
+            end;
+          else // Default to proportional if DrawMode is somehow not one of the above
+            begin
+              if (LImgW = 0) or (LImgH = 0) then
+              begin LDrawW := 0; LDrawH := 0; end
+              else
+              begin
+                LScaleFactor := Min(AvailableWidth / LImgW, AvailableHeight / LImgH);
+                LDrawW := Round(LImgW * LScaleFactor);
+                LDrawH := Round(LImgH * LScaleFactor);
               end;
             end;
           end;
-        end;
-        idmStretch: // Changed from ismFlat
+        end
+        else // AutoSize is False, use TargetWidth/TargetHeight
         begin
-          LDrawW := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right); // Use FImageSettings.Margins
-          LDrawH := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom); // Use FImageSettings.Margins
+          LDrawW := FImageSettings.TargetWidth;
+          LDrawH := FImageSettings.TargetHeight;
+
+          if (LDrawW = 0) and (LDrawH = 0) then
+          begin
+            if FImageSettings.DrawMode = idmStretch then
+            begin
+              LDrawW := AvailableWidth;
+              LDrawH := AvailableHeight;
+            end
+            else // idmProportional or idmNormal
+            begin
+              LDrawW := LImgW;
+              LDrawH := LImgH;
+            end;
+          end
+          else if (LDrawW = 0) and (LDrawH > 0) then // Width is 0, Height is specified
+          begin
+            if LImgH > 0 then LDrawW := Round(LImgW / LImgH * LDrawH)
+            else LDrawW := LImgW; // Fallback if original height is 0
+          end
+          else if (LDrawW > 0) and (LDrawH = 0) then // Height is 0, Width is specified
+          begin
+            if LImgW > 0 then LDrawH := Round(LImgH / LImgW * LDrawW)
+            else LDrawH := LImgH; // Fallback if original width is 0
+          end;
+
+          // Apply DrawMode to user-defined size (LDrawW, LDrawH from TargetWidth/Height)
+          if FImageSettings.DrawMode = idmProportional then
+          begin
+            if (LDrawW > 0) and (LDrawH > 0) and (LImgW > 0) and (LImgH > 0) then
+            begin
+              LScaleFactor := Min(LDrawW / LImgW, LDrawH / LImgH);
+              LDrawW := Round(LImgW * LScaleFactor);
+              LDrawH := Round(LImgH * LScaleFactor);
+            end;
+            // If LImgW or LImgH is 0, or LDrawW/LDrawH are 0, proportional scaling isn't well-defined.
+            // The previous steps for handling 0 target dimensions should cover this.
+          end
+          else if FImageSettings.DrawMode = idmNormal then
+          begin
+            // For idmNormal with specific TargetWidth/Height, it's a bit ambiguous.
+            // Option 1: Use TargetWidth/Height as absolute, ignoring original image size (current LDrawW/LDrawH).
+            // Option 2: Use original image size (LImgW, LImgH) and ignore TargetWidth/Height if DrawMode is Normal.
+            // The current logic sets LDrawW/LDrawH from TargetWidth/Height, so we'll assume Option 1.
+            // No change needed here for idmNormal, LDrawW/LDrawH are already set.
+          end;
+          // For idmStretch, LDrawW and LDrawH are already set from TargetWidth/Height (or derived if one was 0).
+          // The image will be stretched to these dimensions.
+
+          // Clamping to available space for AutoSize = False
+          if (LDrawW > AvailableWidth) or (LDrawH > AvailableHeight) then
+          begin
+            if (LDrawW > 0) and (LDrawH > 0) then // Only scale if both are positive
+            begin
+              LScaleFactor := Min(AvailableWidth / LDrawW, AvailableHeight / LDrawH);
+              LDrawW := Round(LDrawW * LScaleFactor);
+              LDrawH := Round(LDrawH * LScaleFactor);
+            end
+            else // If one dimension is zero or negative, just hard clamp
+            begin
+               LDrawW := Min(LDrawW, AvailableWidth);
+               LDrawH := Min(LDrawH, AvailableHeight);
+            end;
+          end;
         end;
-      else LDrawW := LImgW; LDrawH := LImgH; // Default case if FImageSettings.DrawMode is neither
+
+        // Ensure LDrawW and LDrawH are not negative
+        LDrawW := Max(0, LDrawW);
+        LDrawH := Max(0, LDrawH);
       end;
 
+      // Fallback if image dimensions are still zero after calculations (e.g. empty image, zero available space)
+      // This was the original fallback, ensure it's still relevant
       if (LImgW > 0) and (LDrawW <=0) then LDrawW := Min(LImgW, Max(0, LImageClipRect.Width div 3));
       if (LImgH > 0) and (LDrawH <=0) then LDrawH := Min(LImgH, Max(0, LImageClipRect.Height div 3));
+
 
       case FImagePosition of
         ipLeft:

@@ -241,7 +241,10 @@ type
     FPlacement: TImagePlacement;
     FTargetWidth: Integer;      // Added
     FTargetHeight: Integer;     // Added
+    FAutoSize: Boolean;
 
+    function GetAutoSize: Boolean;
+    procedure SetAutoSize(const Value: Boolean);
     procedure SetPicture(const Value: TPicture);
     procedure SetVisible(const Value: Boolean);
     procedure SetDrawMode(const Value: TImageDrawMode);
@@ -269,6 +272,7 @@ type
     property Placement: TImagePlacement read FPlacement write SetPlacement default iplInsideBounds;
     property TargetWidth: Integer read FTargetWidth write SetTargetWidth default 0; // Added
     property TargetHeight: Integer read FTargetHeight write SetTargetHeight default 0; // Added
+    property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
@@ -1550,6 +1554,7 @@ begin
   FPlacement := iplInsideBounds;
   FTargetWidth := 0;  // Added initialization
   FTargetHeight := 0; // Added initialization
+  FAutoSize := True;
 end;
 
 destructor TImageSettings.Destroy;
@@ -1586,6 +1591,7 @@ begin
     SetPlacement(LSource.Placement);
     SetTargetWidth(LSource.TargetWidth);     // Added assignment
     SetTargetHeight(LSource.TargetHeight);   // Added assignment
+    SetAutoSize(LSource.AutoSize); // Added assignment
     // DoChange is called by setters.
   end
   else
@@ -1622,6 +1628,20 @@ begin
   if FTargetHeight <> Value then
   begin
     FTargetHeight := Max(0, Value); // Ensure non-negative
+    DoChange;
+  end;
+end;
+
+function TImageSettings.GetAutoSize: Boolean;
+begin
+  Result := FAutoSize;
+end;
+
+procedure TImageSettings.SetAutoSize(const Value: Boolean);
+begin
+  if FAutoSize <> Value then
+  begin
+    FAutoSize := Value;
     DoChange;
   end;
 end;

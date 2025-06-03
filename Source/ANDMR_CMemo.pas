@@ -676,6 +676,35 @@ begin
   MemoRect.Right  := LTxtRect.Right - FTextMargins.Right;
   MemoRect.Bottom := LTxtRect.Bottom - FTextMargins.Bottom;
 
+  if (Self.FBorderSettings.CornerRadius > 0) and (Self.FBorderSettings.RoundCornerType <> TRoundCornerType.rctNone) then
+  begin
+    var CornerPadding: Integer;
+    CornerPadding := Round(Self.FBorderSettings.CornerRadius * 0.5);
+
+    var IsTopLeftRounded, IsTopRightRounded, IsBottomLeftRounded, IsBottomRightRounded: Boolean;
+
+    IsTopLeftRounded := Self.FBorderSettings.RoundCornerType in
+      [TRoundCornerType.rctAll, TRoundCornerType.rctTopLeft, TRoundCornerType.rctTop, TRoundCornerType.rctLeft, TRoundCornerType.rctTopLeftBottomRight];
+    IsTopRightRounded := Self.FBorderSettings.RoundCornerType in
+      [TRoundCornerType.rctAll, TRoundCornerType.rctTopRight, TRoundCornerType.rctTop, TRoundCornerType.rctRight, TRoundCornerType.rctTopRightBottomLeft];
+    IsBottomLeftRounded := Self.FBorderSettings.RoundCornerType in
+      [TRoundCornerType.rctAll, TRoundCornerType.rctBottomLeft, TRoundCornerType.rctBottom, TRoundCornerType.rctLeft, TRoundCornerType.rctTopRightBottomLeft];
+    IsBottomRightRounded := Self.FBorderSettings.RoundCornerType in
+      [TRoundCornerType.rctAll, TRoundCornerType.rctBottomRight, TRoundCornerType.rctBottom, TRoundCornerType.rctRight, TRoundCornerType.rctTopLeftBottomRight];
+
+    if IsTopLeftRounded or IsBottomLeftRounded then
+      MemoRect.Left := MemoRect.Left + CornerPadding;
+
+    if IsTopRightRounded or IsBottomRightRounded then
+      MemoRect.Right := MemoRect.Right - CornerPadding;
+
+    if IsTopLeftRounded or IsTopRightRounded then
+      MemoRect.Top := MemoRect.Top + CornerPadding;
+
+    if IsBottomLeftRounded or IsBottomRightRounded then
+      MemoRect.Bottom := MemoRect.Bottom - CornerPadding;
+  end;
+
   if MemoRect.Right < MemoRect.Left then MemoRect.Right := MemoRect.Left;
   if MemoRect.Bottom < MemoRect.Top then MemoRect.Bottom := MemoRect.Top;
 

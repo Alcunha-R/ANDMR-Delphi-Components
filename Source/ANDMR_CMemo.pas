@@ -799,7 +799,7 @@ begin
       HoverCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
 
       var FocusFrameBG, FocusBorderColor, FocusMemoBG, FocusMemoFontColor, FocusCaptionColor: TColor;
-      FocusFrameBG := clNone;
+      FocusFrameBG := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone);
       FocusBorderColor := FFocusSettings.BorderColor;
       FocusMemoBG := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone);
       FocusMemoFontColor := BaseMemoFontColor;
@@ -813,18 +813,54 @@ begin
       DisabledCaptionColor := clGrayText;
 
       var NonHoveredFrameBG, NonHoveredBorderColor, NonHoveredMemoBG, NonHoveredMemoFontColor, NonHoveredCaptionColor: TColor;
-      NonHoveredFrameBG     := ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseFrameBG,         clNone,            FocusFrameBG,      DisabledFrameBG,      FHoverSettings.Enabled, True, True);
+      NonHoveredFrameBG     := ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseFrameBG,         clNone,            FocusFrameBG,      DisabledFrameBG,      FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
       NonHoveredBorderColor := ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseBorderColor,     clNone,            FocusBorderColor,  DisabledBorderColor,  FHoverSettings.Enabled, FFocusSettings.BorderColorVisible);
-      NonHoveredMemoBG      := ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseMemoBG,          clNone,            FocusMemoBG,       DisabledMemoBG,       False,                  FFocusSettings.BackgroundColorVisible);
       NonHoveredMemoFontColor:= ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseMemoFontColor,   clNone,            FocusMemoFontColor,DisabledMemoFontColor,False,                  False);
       NonHoveredCaptionColor:= ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseCaptionColor,    clNone,            FocusCaptionColor, DisabledCaptionColor, False,                  False);
 
       var TargetStateFrameBG, TargetStateBorderColor, TargetStateMemoBG, TargetStateMemoFontColor, TargetStateCaptionColor: TColor;
-      TargetStateFrameBG      := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseFrameBG,         HoverFrameBG,      FocusFrameBG,      DisabledFrameBG,      FHoverSettings.Enabled, True, True);
+      TargetStateFrameBG      := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseFrameBG,         HoverFrameBG,      FocusFrameBG,      DisabledFrameBG,      FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
       TargetStateBorderColor  := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseBorderColor,     HoverBorderColor,  FocusBorderColor,  DisabledBorderColor,  FHoverSettings.Enabled, FFocusSettings.BorderColorVisible);
-      TargetStateMemoBG       := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseMemoBG,          HoverMemoBG,       FocusMemoBG,       DisabledMemoBG,       FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible);
       TargetStateMemoFontColor:= ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseMemoFontColor,   HoverMemoFontColor,FocusMemoFontColor,DisabledMemoFontColor,FHoverSettings.Enabled, False);
       TargetStateCaptionColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseCaptionColor,    HoverCaptionColor, FocusCaptionColor, DisabledCaptionColor, FHoverSettings.Enabled, False);
+
+// New calculation for TargetStateMemoBG:
+if Self.Enabled then
+begin
+  if FHovered and FHoverSettings.Enabled and (FHoverSettings.BackgroundColor <> clNone) then
+  begin
+    TargetStateMemoBG := FHoverSettings.BackgroundColor;
+  end
+  else if IsComponentFocused and FFocusSettings.BackgroundColorVisible and (FFocusSettings.BackgroundColor <> clNone) then
+  begin
+    TargetStateMemoBG := FFocusSettings.BackgroundColor;
+  end
+  else
+  begin
+    TargetStateMemoBG := BaseMemoBG;
+  end;
+end
+else
+begin
+  TargetStateMemoBG := DisabledMemoBG;
+end;
+
+// New calculation for NonHoveredMemoBG:
+if Self.Enabled then
+begin
+  if IsComponentFocused and FFocusSettings.BackgroundColorVisible and (FFocusSettings.BackgroundColor <> clNone) then
+  begin
+    NonHoveredMemoBG := FFocusSettings.BackgroundColor;
+  end
+  else
+  begin
+    NonHoveredMemoBG := BaseMemoBG;
+  end;
+end
+else
+begin
+  NonHoveredMemoBG := DisabledMemoBG;
+end;
 
       if (LHoverProgress > 0) and FHoverSettings.Enabled and (FHoverSettings.HoverEffect <> heNone) and FHovered then
       begin

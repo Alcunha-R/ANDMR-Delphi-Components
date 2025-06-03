@@ -22,7 +22,7 @@ type
     FMaxLength: Integer;
     FPasswordChar: Char;
     FReadOnly: Boolean;
-    FActiveColor: TColor; // Retained for now for Paint logic
+    // FActiveColor: TColor; // Removed
     FCaretVisible: Boolean;
     FCaretPosition: Integer;
     FCaretTimer: TTimer;
@@ -51,7 +51,7 @@ type
     procedure SetCornerRadius(const Value: Integer);
     function GetRoundCornerType: TRoundCornerType;
     procedure SetRoundCornerType(const Value: TRoundCornerType);
-    procedure SetActiveColor(const Value: TColor); // Direct field write for now
+    // procedure SetActiveColor(const Value: TColor); // Removed
     function GetInactiveColor: TColor;
     procedure SetInactiveColor(const Value: TColor);
     function GetBorderColor: TColor;
@@ -146,7 +146,7 @@ type
     property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
     property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 8;
     property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight; // Stays direct for now
+    // property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight; // Removed
     property InactiveColor: TColor read GetInactiveColor write SetInactiveColor default clBtnFace; // Delegates to FBorderSettings.BackgroundColor
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
@@ -236,7 +236,7 @@ begin
   FMaxLength := 0;
   FPasswordChar := #0;
   FReadOnly := False;
-  FActiveColor := clHighlight; // Default for FActiveColor (still direct)
+  // FActiveColor := clHighlight; // Removed
   Font.Name := 'Segoe UI';
   Font.Size := 9;
   Font.Color := clWindowText;
@@ -253,8 +253,8 @@ begin
 
   FFocusSettings := TFocusSettings.Create;
   FFocusSettings.OnChange := SettingsChanged;
-  FFocusSettings.BorderColorVisible := False;
-  FFocusSettings.BorderColor := clBlack; // Default focus border color, FActiveColor also plays a role
+  FFocusSettings.BorderColorVisible := True; // Changed
+  FFocusSettings.BorderColor := clHighlight; // Changed
   FFocusSettings.BackgroundColorVisible := False;
   FFocusSettings.BackgroundColor := clWindow;
   FFocusSettings.UnderlineVisible := False;
@@ -458,7 +458,7 @@ function TANDMR_CEdit.GetCornerRadius: Integer; begin Result := FBorderSettings.
 procedure TANDMR_CEdit.SetCornerRadius(const Value: Integer); begin FBorderSettings.CornerRadius := Value; end;
 function TANDMR_CEdit.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
 procedure TANDMR_CEdit.SetRoundCornerType(const Value: TRoundCornerType); begin FBorderSettings.RoundCornerType := Value; end;
-procedure TANDMR_CEdit.SetActiveColor(const Value: TColor); begin if FActiveColor <> Value then begin FActiveColor := Value; Invalidate; end; end; // Stays direct for now
+// procedure TANDMR_CEdit.SetActiveColor(const Value: TColor); // Removed
 function TANDMR_CEdit.GetInactiveColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
 procedure TANDMR_CEdit.SetInactiveColor(const Value: TColor); begin FBorderSettings.BackgroundColor := Value; end;
 function TANDMR_CEdit.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
@@ -836,7 +836,7 @@ begin
       HoverCaptionColFromSettings := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
 
       FocusEditBGFromSettings := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone);
-      FocusBorderColFromSettings := IfThen(FFocusSettings.BorderColorVisible, FFocusSettings.BorderColor, FActiveColor); // FActiveColor is direct
+      FocusBorderColFromSettings := FFocusSettings.BorderColor; // Changed: FActiveColor removed, ResolveStateColor handles visibility
       FocusTextColFromSettings := TrueBaseTextCol;
       FocusCaptionColFromSettings := TrueBaseCaptionCol;
 

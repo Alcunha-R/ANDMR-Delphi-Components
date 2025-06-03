@@ -265,20 +265,19 @@ begin
   Result := FCaptionSettings.Font;
 end;
 
-procedure TANDMR_CPanel.SetFont(Value: TFont); // Removed 'override'
+procedure TANDMR_CPanel.SetFont(Value: TFont);
 begin
-  // Directly assign to the component's Font property.
-  // This will use the VCL's property setter for TCustomControl.Font.
-  Self.Font.Assign(Value); // This calls the inherited property setter
-
-  // FCaptionSettings.Font.OnChange will trigger FCaptionSettings.Changed,
-  // which in turn calls Self.SettingsChanged, leading to Invalidate.
-  // So, an explicit Invalidate here might be redundant if FCaptionSettings.Font.Assign
-  // correctly triggers its OnChange. However, to be safe and ensure propagation:
-  if Assigned(FCaptionSettings) and Assigned(FCaptionSettings.Font) then
-     FCaptionSettings.Font.Assign(Self.Font); // Ensure caption font is also updated
-
-  Invalidate; // Ensure repaint after font change
+  // The published Font property should directly control the caption's font.
+  // FCaptionSettings.Font.Assign will trigger FCaptionSettings.Font.OnChange,
+  // which in turn calls FCaptionSettings.Changed, which calls Self.SettingsChanged.
+  FCaptionSettings.Font.Assign(Value);
+  // The Invalidate call here is therefore redundant if FCaptionSettings.OnChange works.
+  // However, keeping it for safety or if direct sub-property changes of Font
+  // (e.g., Font.Name := 'Arial') are made elsewhere and don't trigger through Assign.
+  // For now, let's assume FCaptionSettings.OnChange is sufficient.
+  // If Self.Invalidate is still needed, it can be added back, but
+  // TCaptionSettings.FontChanged calls Changed, which calls FOnChange, which is Self.SettingsChanged.
+  // Self.SettingsChanged calls Invalidate. So it should be fine.
 end;
 
 function TANDMR_CPanel.GetDropShadowEnabled: Boolean; begin Result := FDropShadowSettings.Enabled; end;

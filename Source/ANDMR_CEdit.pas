@@ -546,31 +546,36 @@ begin
     OriginalImgW := FImageSettings.Picture.Graphic.Width;
     OriginalImgH := FImageSettings.Picture.Graphic.Height;
 
-    availWForImg := Max(0, WorkArea.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
-    availHForImg := Max(0, WorkArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
-
-    if FImageSettings.AutoSize then
+    if (OriginalImgW > 0) and (OriginalImgH > 0) then
     begin
-      // AutoSize True: Size image based on available space and DrawMode
-      if (OriginalImgW > 0) and (OriginalImgH > 0) and (availWForImg > 0) and (availHForImg > 0) then
+      availWForImg := WorkArea.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right;
+      availHForImg := WorkArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
+      availWForImg := Max(0, availWForImg);
+      availHForImg := Max(0, availHForImg);
+
+      if (availWForImg > 0) and (availHForImg > 0) then
       begin
         case FImageSettings.DrawMode of
           idmProportional:
           begin
             rImageRatio := OriginalImgW / OriginalImgH;
             rAvailBoxRatio := availWForImg / availHForImg;
-            if rAvailBoxRatio > rImageRatio then // Fit to height
+            if rAvailBoxRatio > rImageRatio then
             begin
               ImgH := availHForImg;
               tempW := availHForImg * rImageRatio;
               ImgW := Round(tempW);
               if (ImgW = 0) and (tempW > 0) then ImgW := 1;
             end
-            else // Fit to width
+            else
             begin
               ImgW := availWForImg;
-              if rImageRatio > 0 then begin tempH := availWForImg / rImageRatio; ImgH := Round(tempH); if (ImgH = 0) and (tempH > 0) then ImgH := 1; end
-              else ImgH := 0;
+              if rImageRatio > 0 then
+              begin
+                tempH := availWForImg / rImageRatio;
+                ImgH := Round(tempH);
+                if (ImgH = 0) and (tempH > 0) then ImgH := 1;
+              end else ImgH := 0;
             end;
           end;
           idmStretch:
@@ -582,89 +587,16 @@ begin
           begin
             ImgW := OriginalImgW;
             ImgH := OriginalImgH;
-            // Clamp to available space if normal size exceeds it
-            if ImgW > availWForImg then ImgW := availWForImg;
-            if ImgH > availHForImg then ImgH := availHForImg;
           end;
-        else // Default to proportional
-          rImageRatio := OriginalImgW / OriginalImgH;
-          rAvailBoxRatio := availWForImg / availHForImg;
-          if rAvailBoxRatio > rImageRatio then begin ImgH := availHForImg; tempW := availHForImg * rImageRatio; ImgW := Round(tempW); if (ImgW = 0) and (tempW > 0) then ImgW := 1; end
-          else begin ImgW := availWForImg; if rImageRatio > 0 then begin tempH := availWForImg / rImageRatio; ImgH := Round(tempH); if (ImgH = 0) and (tempH > 0) then ImgH := 1; end else ImgH := 0; end;
-        end;
-      end
-      else // Original image has no size or no available space
-      begin
-        ImgW := 0; ImgH := 0;
-      end;
-    end
-    else // AutoSize = False: Use TargetWidth/TargetHeight
-    begin
-      ImgW := FImageSettings.TargetWidth;
-      ImgH := FImageSettings.TargetHeight;
-
-      if (ImgW = 0) and (ImgH = 0) then
-      begin
-        if FImageSettings.DrawMode = idmStretch then
-        begin
-          ImgW := availWForImg;
-          ImgH := availHForImg;
-        end
-        else // idmProportional or idmNormal for 0,0 Target uses original image size
-        begin
-          ImgW := OriginalImgW;
-          ImgH := OriginalImgH;
-        end;
-      end
-      else if (ImgW = 0) and (ImgH > 0) then // Width is 0, Height is specified
-      begin
-        if OriginalImgH > 0 then ImgW := Round(OriginalImgW / OriginalImgH * ImgH)
-        else ImgW := OriginalImgW; // Fallback
-      end
-      else if (ImgW > 0) and (ImgH = 0) then // Height is 0, Width is specified
-      begin
-        if OriginalImgW > 0 then ImgH := Round(OriginalImgH / OriginalImgW * ImgW)
-        else ImgH := OriginalImgH; // Fallback
-      end;
-
-      // Apply DrawMode idmProportional to the TargetWidth/Height derived ImgW/ImgH
-      if FImageSettings.DrawMode = idmProportional then
-      begin
-        if (ImgW > 0) and (ImgH > 0) and (OriginalImgW > 0) and (OriginalImgH > 0) then
-        begin
-            var TargetRatio: Double := ImgW / ImgH;
+        else // Default to proportional if unknown
             rImageRatio := OriginalImgW / OriginalImgH;
-            if TargetRatio > rImageRatio then // Target rect is wider than image ratio, fit to height
-            begin
-                ImgW := Round(ImgH * rImageRatio);
-            end
-            else // Target rect is taller or same ratio, fit to width
-            begin
-                ImgH := Round(ImgW / rImageRatio);
-            end;
-        end;
-      end;
-      // For idmStretch or idmNormal, ImgW/ImgH are already set from TargetWidth/Height.
-
-      // Clamping to available space for AutoSize = False
-      if (ImgW > availWForImg) or (ImgH > availHForImg) then
-      begin
-        if (ImgW > 0) and (ImgH > 0) then // Only scale if both are positive
-        begin
-          var ScaleFactorW: Double; if ImgW > 0 then ScaleFactorW := availWForImg / ImgW else ScaleFactorW := 1.0;
-          var ScaleFactorH: Double; if ImgH > 0 then ScaleFactorH := availHForImg / ImgH else ScaleFactorH := 1.0;
-          var LScaleFactor := Min(ScaleFactorW, ScaleFactorH);
-          ImgW := Round(ImgW * LScaleFactor);
-          ImgH := Round(ImgH * LScaleFactor);
-        end
-        else // If one dimension is zero or negative, just hard clamp
-        begin
-           ImgW := Min(ImgW, availWForImg);
-           ImgH := Min(ImgH, availHForImg);
+            rAvailBoxRatio := availWForImg / availHForImg;
+            if rAvailBoxRatio > rImageRatio then begin ImgH := availHForImg; tempW := availHForImg * rImageRatio; ImgW := Round(tempW); if (ImgW = 0) and (tempW > 0) then ImgW := 1; end
+            else begin ImgW := availWForImg; if rImageRatio > 0 then begin tempH := availWForImg / rImageRatio; ImgH := Round(tempH); if (ImgH = 0) and (tempH > 0) then ImgH := 1; end else ImgH := 0; end;
         end;
       end;
     end;
-  end; // End of: if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
+  end;
 
   ImgW := Max(0, ImgW);
   ImgH := Max(0, ImgH);

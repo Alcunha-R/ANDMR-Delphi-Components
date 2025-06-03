@@ -14,7 +14,7 @@ type
   TImagePosition = (ipLeft, ipRight, ipAbove, ipBelow, ipBehind);
   TGradientType = (gtLinearVertical, gtLinearHorizontal);
   TImageStretchMode = (ismProportional, ismFlat);
-  TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient);
+  TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient, bsDark, bsMaterial, bsModern, bsWindows, bsMacOS);
   TPresetType = (
     cptNone,      // Sem predefinicao, usa as cores do componente
     cptAccept,    // Aceitar, Confirmar (Verde)
@@ -1019,7 +1019,15 @@ begin
     LDrawBorder := LActualBorderThickness > 0;
 
     case FStyle of
-      bsSolid: begin end;
+      bsSolid:
+      begin
+        // Ensure bsSolid is truly solid, ignoring FGradientEnabled.
+        LCurrentGradientEnabled := False;
+        // LActualFillColor is LInitialFillColor (from FBorderSettings.BackgroundColor)
+        // LActualBorderColor is LInitialBorderColor (from FBorderSettings.Color)
+        // LActualBorderThickness is FBorderSettings.Thickness (inherited)
+        // LDrawFill is True, LDrawBorder is True (if thickness > 0) (inherited)
+      end;
       bsFaded:
       begin
         LBaseStyleColor := BlendColors(LInitialFillColor, clWhite, 0.8);
@@ -1033,50 +1041,200 @@ begin
       begin
         LDrawFill := False;
         LCurrentGradientEnabled := False;
-      LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Use FBorderSettings.Thickness
-        LDrawBorder := LActualBorderThickness > 0;
-        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 70);
+        // Ensure border thickness respects FBorderSettings.Thickness but is at least 1 for this style.
+        LActualBorderThickness := Max(1, FBorderSettings.Thickness);
+        LDrawBorder := LActualBorderThickness > 0; // Should be true if thickness > 0
+        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 70); // Fill on hover
+        // LActualBorderColor remains LInitialBorderColor
       end;
       bsLight:
       begin
         LBaseStyleColor := BlendColors(LInitialFillColor, clWhite, 0.6);
         LActualFillColor := LBaseStyleColor;
-      LActualBorderColor := LInitialBorderColor; // This is FBorderSettings.Color
+        // LActualBorderColor remains LInitialBorderColor (FBorderSettings.Color)
         LFinalHoverColor := BlendColors(LBaseStyleColor, LighterColor(LInitialFillColor, 20), 0.7);
         LCurrentGradientEnabled := False;
-      LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Use FBorderSettings.Thickness
-        LDrawBorder := LActualBorderThickness > 0;
+        // Ensure border thickness respects FBorderSettings.Thickness but is at least 1 for this style.
+        LActualBorderThickness := Max(1, FBorderSettings.Thickness);
+        LDrawBorder := LActualBorderThickness > 0; // Should be true if thickness > 0
       end;
       bsFlat:
       begin
         LCurrentGradientEnabled := False;
         LActualBorderThickness := 0;
         LDrawBorder := False;
-        LFinalHoverBorderColor := LInitialFillColor;
+        // LActualFillColor is LInitialFillColor
+        LFinalHoverBorderColor := LInitialFillColor; // On hover, a border appears using the fill color
+        // Click colors will use standard logic based on LActualFillColor
       end;
       bsGhost:
       begin
         LDrawFill := False;
         LCurrentGradientEnabled := False;
-        LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Corrected from FBorderThickness
-        LActualBorderColor := LInitialFillColor;
-        LDrawBorder := LActualBorderThickness > 0;
-        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 100);
-        LFinalHoverBorderColor := LInitialFillColor;
+        // Border should use FBorderSettings.Thickness but be at least 1. Its color is LInitialFillColor.
+        LActualBorderThickness := Max(1, FBorderSettings.Thickness);
+        LActualBorderColor := LInitialFillColor; // Border takes the base fill color
+        LDrawBorder := LActualBorderThickness > 0; // Should be true if thickness > 0
+        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 100); // Fill on hover
+        LFinalHoverBorderColor := LInitialFillColor; // Border color on hover remains the same
       end;
       bsShadow:
       begin
+        // This style primarily enables shadow rendering via the common shadow logic.
+        // If transparent, the fill is disabled to make it a pure shadow effect.
         if FTransparent then
         begin
           LDrawFill := False;
-          LCurrentGradientEnabled := False;
+          LCurrentGradientEnabled := False; // No fill means no gradient on fill
         end;
+        // LActualFillColor is LInitialFillColor (relevant if not transparent)
+        // LActualBorderColor is LInitialBorderColor (relevant for path shape for shadow)
+        // LActualBorderThickness is FBorderSettings.Thickness (relevant for path shape for shadow)
       end;
       bsGradient:
       begin
-        LCurrentGradientEnabled := True;
+        LCurrentGradientEnabled := True; // Force gradient
         LDrawFill := True;
-        LDrawBorder := LActualBorderThickness > 0;
+        // LActualFillColor is LInitialFillColor (used as gradient start if FGradientStartColor is clNone)
+        // LActualBorderColor is LInitialBorderColor
+        // LActualBorderThickness is FBorderSettings.Thickness
+        LDrawBorder := LActualBorderThickness > 0; // Draw border if thickness > 0
+      end;
+      bsDark:
+      begin
+        // Base Colors for Dark Style
+        LBaseStyleColor := DarkerColor(FBorderSettings.BackgroundColor, 60); // Significantly darken the base active color
+        // For now, using a fixed dark color as a fallback if the base color isn't suitable, as per instructions.
+        // A more sophisticated IsColorVeryDark check could be added later if needed.
+        if (GetRValue(LBaseStyleColor) < 30) and (GetGValue(LBaseStyleColor) < 30) and (GetBValue(LBaseStyleColor) < 30) then
+            LBaseStyleColor := TColor($FF383838); // A specific dark gray
+
+        LActualFillColor := LBaseStyleColor;
+        LActualBorderColor := LighterColor(LBaseStyleColor, 20); // Border slightly lighter than fill
+        LCurrentGradientEnabled := False;
+        LDrawFill := True;
+        LDrawBorder := True; // Assuming a subtle border for dark style
+        LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Ensure border is at least 1px for bsDark
+
+        // Hover Colors for Dark Style
+        if FInternalHoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := FInternalHoverSettings.BackgroundColor // Allow user override
+        else
+          LFinalHoverColor := LighterColor(LBaseStyleColor, 15);
+
+        if FInternalHoverSettings.BorderColor <> clNone then
+          LFinalHoverBorderColor := FInternalHoverSettings.BorderColor // Allow user override
+        else
+          LFinalHoverBorderColor := LighterColor(LActualBorderColor, 15);
+
+        // Click Colors for Dark Style (subtly different from base dark)
+        LFinalClickColor := IfThen(FClickColor = clNone, LighterColor(LBaseStyleColor, 10), FClickColor);
+        LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, LighterColor(LActualBorderColor, 10), FClickBorderColor);
+      end;
+      bsMaterial:
+      begin
+        // Material Design uses the primary color, often from presets.
+        LActualFillColor := FBorderSettings.BackgroundColor; // Base color from ActiveColor
+        LActualBorderColor := clNone; // Material buttons often have no border or a very subtle one
+        LActualBorderThickness := 0; // No border or minimal
+        LDrawBorder := False;
+        LCurrentGradientEnabled := False;
+        LDrawFill := True;
+
+        // Hover: Slightly lighter version of the fill color or a standard overlay
+        if FInternalHoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+        else
+          LFinalHoverColor := LighterColor(LActualFillColor, 10); // Subtle lighten
+
+        // Click: Material has a ripple; for now, use color feedback.
+        // A darker shade or a standard overlay.
+        LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 10), FClickColor);
+
+        // Shadow properties for Material look (will be used by the common shadow drawing logic)
+        // Note: LShadowOffsetXToUse, LShadowOffsetYToUse, LShadowAlphaToUse are declared outside this case block.
+        // Their values will be set here and used by the shadow drawing logic later in the Paint method.
+        // This section is for setting parameters; the actual shadow drawing condition modification is separate.
+      end;
+      bsModern:
+      begin
+        // Modern style: Clean, often flat with emphasis on typography and subtle interactions.
+        LActualFillColor := FBorderSettings.BackgroundColor;
+        // Border can be a slightly darker version of the fill or a neutral tone.
+        LActualBorderColor := DarkerColor(LActualFillColor, 15);
+        LActualBorderThickness := 1; // Clean 1px border
+        LDrawBorder := True;
+        LCurrentGradientEnabled := False;
+        LDrawFill := True;
+
+        // Hover: Subtle changes. Fill might lighten, border might change color or intensity.
+        if FInternalHoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+        else
+          LFinalHoverColor := LighterColor(LActualFillColor, 8); // Very subtle lighten
+
+        if FInternalHoverSettings.BorderColor <> clNone then
+          LFinalHoverBorderColor := FInternalHoverSettings.BorderColor
+        else
+          LFinalHoverBorderColor := LActualFillColor; // Border matches fill on hover for a softer look, or could be a highlight color
+
+        // Click: Subtle darkening or clear feedback.
+        LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 8), FClickColor);
+        LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualFillColor, 20), FClickBorderColor);
+
+        // No shadow for this style. The existing shadow logic is conditioned for bsShadow or bsMaterial.
+      end;
+      bsWindows:
+      begin
+        // Windows (Fluent-inspired): Light base, subtle border.
+        LActualFillColor := TColor($FFEFEFEF); // Light gray
+        LActualBorderColor := TColor($FFDCDCDC); // Slightly darker gray for border
+        LActualBorderThickness := 1;
+        LDrawBorder := True;
+        LCurrentGradientEnabled := False;
+        LDrawFill := True;
+
+        // Hover: Lighten fill slightly, border might use ActiveColor or similar highlight
+        if FInternalHoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+        else
+          LFinalHoverColor := TColor($FFF5F5F5); // Even lighter gray
+
+        if FInternalHoverSettings.BorderColor <> clNone then
+          LFinalHoverBorderColor := FInternalHoverSettings.BorderColor
+        else
+          LFinalHoverBorderColor := FBorderSettings.BackgroundColor; // Accent color for border on hover
+
+        // Click: Darken fill
+        LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 10), FClickColor);
+        LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualBorderColor, 10), FClickBorderColor);
+        // No shadow for this style in this iteration.
+      end;
+      bsMacOS:
+      begin
+        // macOS-inspired: Often light gray or themed, subtle changes on interaction.
+        LActualFillColor := TColor($FFF2F2F7); // Common macOS light/medium gray
+        LActualBorderColor := TColor($FFD1D1D6); // Subtle border, slightly darker than fill
+        LActualBorderThickness := 1;
+        LDrawBorder := True;
+        LCurrentGradientEnabled := False;
+        LDrawFill := True;
+
+        // Hover: Fill slightly darkens
+        if FInternalHoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+        else
+          LFinalHoverColor := DarkerColor(LActualFillColor, 5); // Subtle darken
+
+        if FInternalHoverSettings.BorderColor <> clNone then
+          LFinalHoverBorderColor := FInternalHoverSettings.BorderColor
+        else
+          LFinalHoverBorderColor := DarkerColor(LActualBorderColor, 5);
+
+        // Click: Fill darkens more noticeably
+        LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 12), FClickColor);
+        LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualBorderColor, 12), FClickBorderColor);
+        // No shadow for this style in this iteration.
       end;
     end;
 
@@ -1112,18 +1270,51 @@ begin
 
     ButtonRectEffectiveF := MakeRect(0.0, 0.0, Self.Width, Self.Height);
 
-    if (FStyle = bsShadow) and (not FTransparent) then
+    // Shadow configuration for bsMaterial - needs to be done before the main shadow block
+    if (FStyle = bsMaterial) and (not FTransparent) then
     begin
-      LShadowOffsetXToUse := SHADOW_OFFSET_X_CONST;
-      LShadowOffsetYToUse := SHADOW_OFFSET_Y_CONST;
-      LShadowAlphaToUse := SHADOW_ALPHA;
+      // Default shadow properties for Material style
+      LShadowOffsetXToUse := 1;
+      LShadowOffsetYToUse := 2;
+      LShadowAlphaToUse := 60;
+
+      const
+        MATERIAL_SHADOW_OFFSET_X_HOVER_FACTOR = 1.8;
+        MATERIAL_SHADOW_OFFSET_Y_HOVER_FACTOR = 1.8;
+        MATERIAL_SHADOW_ALPHA_HOVER = 90;
 
       if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
       begin
-        LShadowOffsetXToUse := SHADOW_OFFSET_X_CONST + ((SHADOW_OFFSET_X_CONST * SHADOW_OFFSET_X_HOVER_FACTOR) - SHADOW_OFFSET_X_CONST) * LHoverProgress;
-        LShadowOffsetYToUse := SHADOW_OFFSET_Y_CONST + ((SHADOW_OFFSET_Y_CONST * SHADOW_OFFSET_Y_HOVER_FACTOR) - SHADOW_OFFSET_Y_CONST) * LHoverProgress;
-        LShadowAlphaToUse := Round(SHADOW_ALPHA + (SHADOW_ALPHA_HOVER - SHADOW_ALPHA) * LHoverProgress);
+        // Calculate hover shadow properties for Material style
+        var TempShadowOffsetXConst_Material: Single; // Renamed to avoid conflict
+        var TempShadowOffsetYConst_Material: Single; // Renamed to avoid conflict
+        TempShadowOffsetXConst_Material := 1; // Base X for Material
+        TempShadowOffsetYConst_Material := 2; // Base Y for Material
+
+        LShadowOffsetXToUse := TempShadowOffsetXConst_Material + ((TempShadowOffsetXConst_Material * MATERIAL_SHADOW_OFFSET_X_HOVER_FACTOR) - TempShadowOffsetXConst_Material) * LHoverProgress;
+        LShadowOffsetYToUse := TempShadowOffsetYConst_Material + ((TempShadowOffsetYConst_Material * MATERIAL_SHADOW_OFFSET_Y_HOVER_FACTOR) - TempShadowOffsetYConst_Material) * LHoverProgress;
+        LShadowAlphaToUse := Round(LShadowAlphaToUse + (MATERIAL_SHADOW_ALPHA_HOVER - LShadowAlphaToUse) * LHoverProgress);
       end;
+    end;
+
+    if ((FStyle = bsShadow) or (FStyle = bsMaterial)) and (not FTransparent) then
+    begin
+      // If bsShadow, set its specific shadow parameters
+      if FStyle = bsShadow then
+      begin
+        LShadowOffsetXToUse := SHADOW_OFFSET_X_CONST;
+        LShadowOffsetYToUse := SHADOW_OFFSET_Y_CONST;
+        LShadowAlphaToUse := SHADOW_ALPHA;
+
+        // Hover adjustments specifically for bsShadow
+        if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
+        begin
+          LShadowOffsetXToUse := SHADOW_OFFSET_X_CONST + ((SHADOW_OFFSET_X_CONST * SHADOW_OFFSET_X_HOVER_FACTOR) - SHADOW_OFFSET_X_CONST) * LHoverProgress;
+          LShadowOffsetYToUse := SHADOW_OFFSET_Y_CONST + ((SHADOW_OFFSET_Y_CONST * SHADOW_OFFSET_Y_HOVER_FACTOR) - SHADOW_OFFSET_Y_CONST) * LHoverProgress;
+          LShadowAlphaToUse := Round(SHADOW_ALPHA + (SHADOW_ALPHA_HOVER - SHADOW_ALPHA) * LHoverProgress);
+        end;
+      end;
+      // For bsMaterial, LShadowOffsetXToUse, LShadowOffsetYToUse, LShadowAlphaToUse are already set by the dedicated block above, including its hover effect.
 
       ButtonRectEffectiveF.X := IfThen(LShadowOffsetXToUse < 0, Abs(LShadowOffsetXToUse), 0.0);
       ButtonRectEffectiveF.Y := IfThen(LShadowOffsetYToUse < 0, Abs(LShadowOffsetYToUse), 0.0);

@@ -63,16 +63,12 @@ type
     FProcessing: Boolean;
     FProgressTimer: TTimer;
     FProgressStep: Integer;
-    FShowProgress: Boolean; // This will be a published property, but the field is private
-    FProgressColor: TColor; // This will be a published property, but the field is private
+    FProgressSettings: TProgressSettings; // Added
     FOriginalCaption: string;
-    FHideCaptionWhileProcessing: Boolean; // This will be a published property, but the field is private
     FOriginalEnabledState: Boolean; // New field
     // End of new fields
 
-    procedure SetShowProgress(const Value: Boolean); // New Setter
-    procedure SetProgressColor(const Value: TColor); // New Setter
-    procedure SetHideCaptionWhileProcessing(const Value: Boolean); // New Setter
+    procedure SetProgressSettings(const Value: TProgressSettings); // Added
 
     procedure ProgressTimerHandler(Sender: TObject); // Added
     procedure SetInternalHoverSettings(const Value: THoverSettings);
@@ -214,10 +210,7 @@ type
 
     property PresetType: TPresetType read FPresetType write SetPresetType default cptNone;
 
-    // New properties for progress animation
-    property ShowProgress: Boolean read FShowProgress write SetShowProgress default True;
-    property ProgressColor: TColor read FProgressColor write SetProgressColor default clGray;
-    property HideCaptionWhileProcessing: Boolean read FHideCaptionWhileProcessing write SetHideCaptionWhileProcessing default True;
+    property ProgressSettings: TProgressSettings read FProgressSettings write SetProgressSettings;
 
     property Anchors;
     property Constraints;
@@ -360,14 +353,14 @@ begin
   FInternalTagExtended := TANDMR_TagExtended.Create;
   FInternalTagObject := TANDMR_TagObject.Create;
 
+  FProgressSettings := TProgressSettings.Create(Self);
+  FProgressSettings.OnChange := SettingsChanged;
+
   // Initializations for progress animation
   FProcessing := False;
-  FShowProgress := True;
-  FProgressColor := clGray;
-  FHideCaptionWhileProcessing := True;
   FProgressTimer := TTimer.Create(Self);
   FProgressTimer.Enabled := False;
-  FProgressTimer.Interval := 100;
+  FProgressTimer.Interval := FProgressSettings.AnimationTimerInterval;
   FProgressTimer.OnTimer := ProgressTimerHandler;
   FOriginalEnabledState := True;
 end;
@@ -390,6 +383,13 @@ begin
 
   FTextMargins.Free;
   FClickEffectTimer.Free;
+
+  if Assigned(FProgressSettings) then
+  begin
+    FProgressSettings.OnChange := nil;
+    FProgressSettings.Free;
+    FProgressSettings := nil;
+  end;
   FProgressTimer.Free; // Added
 
   FInternalTagString.Free;
@@ -404,13 +404,13 @@ end;
 
 procedure TANDMR_CButton.StartProcessing;
 begin
-  if FShowProgress and not FProcessing then
+  if FProgressSettings.ShowProgress and not FProcessing then
   begin
     FProcessing := True;
     FOriginalCaption := Self.Caption;
     FOriginalEnabledState := Self.Enabled;
 
-    if FHideCaptionWhileProcessing then
+    if FProgressSettings.HideCaptionWhileProcessing then
       Self.Caption := '';
 
     if Self.Enabled then // Only change if it was enabled
@@ -439,31 +439,9 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetShowProgress(const Value: Boolean);
+procedure TANDMR_CButton.SetProgressSettings(const Value: TProgressSettings);
 begin
-  if FShowProgress <> Value then
-  begin
-    FShowProgress := Value;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButton.SetProgressColor(const Value: TColor);
-begin
-  if FProgressColor <> Value then
-  begin
-    FProgressColor := Value;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButton.SetHideCaptionWhileProcessing(const Value: Boolean);
-begin
-  if FHideCaptionWhileProcessing <> Value then
-  begin
-    FHideCaptionWhileProcessing := Value;
-    Repaint;
-  end;
+  FProgressSettings.Assign(Value);
 end;
 
 procedure TANDMR_CButton.ProgressTimerHandler(Sender: TObject);
@@ -1563,7 +1541,7 @@ begin
         InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
 
     // >>> START NEW PROGRESS ANIMATION LOGIC <<<
-    if FProcessing and FShowProgress then
+    if FProcessing and FProgressSettings.ShowProgress then
     begin
       var  LProgressRect: TRect;
       var  LArcThickness: Integer;
@@ -1608,7 +1586,7 @@ begin
           begin
             LProgressPath.AddArc(ArcRectF, LStartAngle, LSweepAngle);
 
-            LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressColor, 255), LArcThickness);
+            LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressSettings.ProgressColor, 255), LArcThickness);
             LProgressBarPen.SetStartCap(LineCapRound);
             LProgressBarPen.SetEndCap(LineCapRound);
             try
@@ -1625,7 +1603,7 @@ begin
     // >>> END NEW PROGRESS ANIMATION LOGIC <<<
 
     // Conditionally draw image and caption
-    if not (FProcessing and FShowProgress and FHideCaptionWhileProcessing) then
+    if not (FProcessing and FProgressSettings.ShowProgress and FProgressSettings.HideCaptionWhileProcessing) then
     begin
       if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then // Use FImageSettings.Picture
       begin

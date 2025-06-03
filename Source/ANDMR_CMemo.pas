@@ -133,7 +133,7 @@ end;
 constructor TANDMR_CMemo.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csSetCaption];
+  ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csSetCaption, csAcceptsControls];
   DoubleBuffered := True;
   Width := 185;
   Height := 80;

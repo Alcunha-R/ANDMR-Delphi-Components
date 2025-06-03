@@ -24,7 +24,7 @@ type
     // Fields specific to TANDMR_CMemo or retained temporarily
     FCaptionRect: TRect;
     FHovered: Boolean;
-    FActiveColor: TColor; // Retained for now (used for focus border if FFocusSettings.BorderColor is not set)
+    // FActiveColor: TColor; // Removed
 
     FOpacity: Byte;
     FInternalMemo: TMemo;
@@ -54,7 +54,7 @@ type
     procedure SetCornerRadius(const Value: Integer);
     function GetRoundCornerType: TRoundCornerType;
     procedure SetRoundCornerType(const Value: TRoundCornerType);
-    procedure SetActiveColor(const Value: TColor);
+    // procedure SetActiveColor(const Value: TColor); // Removed
     function GetInactiveColor: TColor;
     procedure SetInactiveColor(const Value: TColor);
     function GetBorderColor: TColor;
@@ -158,7 +158,7 @@ type
     // Appearance Properties
     property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 8;
     property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight;
+    // property ActiveColor: TColor read FActiveColor write SetActiveColor default clHighlight; // Removed
     property InactiveColor: TColor read GetInactiveColor write SetInactiveColor default clBtnFace;
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
@@ -247,8 +247,8 @@ begin
 
   FFocusSettings := TFocusSettings.Create;
   FFocusSettings.OnChange := SettingsChanged;
-  FFocusSettings.BorderColorVisible := False;
-  FFocusSettings.BorderColor := clBlack;
+  FFocusSettings.BorderColorVisible := True; // Changed
+  FFocusSettings.BorderColor := clHighlight; // Changed
   FFocusSettings.BackgroundColorVisible := False;
   FFocusSettings.BackgroundColor := clWindow;
   FFocusSettings.UnderlineVisible := False;
@@ -280,7 +280,7 @@ begin
   FTextMargins := TANDMR_Margins.Create;
   FTextMargins.OnChange := TextMarginsChanged;
 
-  FActiveColor := clHighlight;
+  // FActiveColor := clHighlight; // Removed
   FCaptionRect := Rect(0,0,0,0);
   FHovered := False;
   FOpacity := 255;
@@ -422,7 +422,7 @@ function TANDMR_CMemo.GetCornerRadius: Integer; begin Result := FBorderSettings.
 procedure TANDMR_CMemo.SetCornerRadius(const Value: Integer); begin FBorderSettings.CornerRadius := Value; end;
 function TANDMR_CMemo.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
 procedure TANDMR_CMemo.SetRoundCornerType(const Value: TRoundCornerType); begin FBorderSettings.RoundCornerType := Value; end;
-procedure TANDMR_CMemo.SetActiveColor(const Value: TColor); begin if FActiveColor <> Value then begin FActiveColor := Value; Invalidate; end; end;
+// procedure TANDMR_CMemo.SetActiveColor(const Value: TColor); // Removed
 function TANDMR_CMemo.GetInactiveColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
 procedure TANDMR_CMemo.SetInactiveColor(const Value: TColor); begin FBorderSettings.BackgroundColor := Value; end;
 function TANDMR_CMemo.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
@@ -919,7 +919,7 @@ begin
 
       var FocusFrameBG, FocusBorderColor, FocusMemoBG, FocusMemoFontColor, FocusCaptionColor: TColor;
       FocusFrameBG := clNone;
-      FocusBorderColor := IfThen(FFocusSettings.BorderColorVisible, FFocusSettings.BorderColor, FActiveColor);
+      FocusBorderColor := FFocusSettings.BorderColor; // Changed: FActiveColor removed, ResolveStateColor handles visibility
       FocusMemoBG := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone);
       FocusMemoFontColor := BaseMemoFontColor;
       FocusCaptionColor := BaseCaptionColor;

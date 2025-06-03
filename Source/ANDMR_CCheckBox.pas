@@ -14,14 +14,15 @@ type
   TANDMR_CCheckBox = class(TCustomControl)
   private
     FBorderSettings: TBorderSettings; // Added
+    FCaptionSettings: TCaptionSettings; // Added
     FState: TCheckBoxState;
-    FCaption: string;
+    // FCaption: string; // Removed
     // FCornerRadius: Integer; // Moved to FBorderSettings
     // FRoundCornerType: TRoundCornerType; // Moved to FBorderSettings
     FBoxColorUnchecked: TColor;
     FBoxColorChecked: TColor;
     FCheckMarkColor: TColor;
-    FTitleFont: TFont;
+    // FTitleFont: TFont; // Removed
     FTransparent: Boolean;
     FOnClick: TNotifyEvent;
     FOnCheckChanged: TNotifyEvent;
@@ -30,6 +31,7 @@ type
     function GetChecked: Boolean; // Added
     procedure SetChecked(const Value: Boolean);
     procedure SetState(const Value: TCheckBoxState); // Added
+    function GetCaption: string; // Added
     procedure SetCaption(const Value: string);
     function GetCornerRadius: Integer; // Getter
     procedure SetCornerRadius(const Value: Integer); // Setter
@@ -38,12 +40,13 @@ type
     procedure SetBoxColorUnchecked(const Value: TColor);
     procedure SetBoxColorChecked(const Value: TColor);
     procedure SetCheckMarkColor(const Value: TColor);
+    function GetTitleFont: TFont; // Added
     procedure SetTitleFont(const Value: TFont);
     procedure SetTransparent(const Value: Boolean);
     procedure SetInternalHoverSettings(const Value: THoverSettings);
     procedure SetEnabled(Value: Boolean);
 
-    procedure FontChanged(Sender: TObject);
+    // procedure FontChanged(Sender: TObject); // Removed
     procedure InternalHoverSettingsChanged(Sender: TObject);
     procedure SettingsChanged(Sender: TObject); // Added
 
@@ -64,13 +67,13 @@ type
   published
     property Checked: Boolean read GetChecked write SetChecked;
     property State: TCheckBoxState read FState write SetState; // Added
-    property Caption: string read FCaption write SetCaption;
+    property Caption: string read GetCaption write SetCaption; // Changed
     property CornerRadius: Integer read GetCornerRadius write SetCornerRadius;
     property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType;
     property BoxColorUnchecked: TColor read FBoxColorUnchecked write SetBoxColorUnchecked;
     property BoxColorChecked: TColor read FBoxColorChecked write SetBoxColorChecked;
     property CheckMarkColor: TColor read FCheckMarkColor write SetCheckMarkColor;
-    property TitleFont: TFont read FTitleFont write SetTitleFont;
+    property TitleFont: TFont read GetTitleFont write SetTitleFont; // Changed
     property Transparent: Boolean read FTransparent write SetTransparent;
     property Enabled: Boolean read GetEnabled write SetEnabled;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
@@ -103,7 +106,7 @@ begin
   Height := 24;
 
   FState := csUnchecked;
-  FCaption := Name;
+  // FCaption := Name; // This line is effectively replaced by FCaptionSettings.Text := Name below
   // FCornerRadius := 3; // Moved to FBorderSettings
   // FRoundCornerType := rctAll; // Moved to FBorderSettings
   FBoxColorUnchecked := clWindow;
@@ -123,11 +126,11 @@ begin
   else
     ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
 
-  FTitleFont := TFont.Create;
-  FTitleFont.Name := 'Segoe UI';
-  FTitleFont.Size := 9;
-  FTitleFont.Color := clWindowText;
-  FTitleFont.OnChange := FontChanged;
+  // FTitleFont := TFont.Create; // Removed
+  // FTitleFont.Name := 'Segoe UI'; // Removed
+  // FTitleFont.Size := 9; // Removed
+  // FTitleFont.Color := clWindowText; // Removed
+  // FTitleFont.OnChange := FontChanged; // Removed
 
   FInternalHoverSettings := THoverSettings.Create(Self);
   FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
@@ -135,6 +138,26 @@ begin
   FInternalHoverSettings.BorderColor := clNone;
   FInternalHoverSettings.FontColor := clNone;
   FInternalHoverSettings.Enabled := True;
+
+  // Temp FTitleFont to assign to FCaptionSettings, as original FTitleFont is removed
+  var TempTitleFont: TFont;
+  TempTitleFont := TFont.Create;
+  try
+    TempTitleFont.Name := 'Segoe UI';
+    TempTitleFont.Size := 9;
+    TempTitleFont.Color := clWindowText;
+    // TempTitleFont.OnChange is not needed here as FCaptionSettings.Font.OnChange will be set
+
+    FCaptionSettings := TCaptionSettings.Create(Self);
+    FCaptionSettings.OnChange := SettingsChanged; // Use existing SettingsChanged
+    FCaptionSettings.Text := Name; // Set default caption to component Name
+    FCaptionSettings.Font.Assign(TempTitleFont); // Transfer initial font settings
+    // FCaptionSettings.Font.OnChange := FontChanged; // Removed assignment
+  finally
+    TempTitleFont.Free;
+  end;
+  FCaptionSettings.Alignment := taLeftJustify; // Default for checkbox caption
+  FCaptionSettings.VerticalAlignment := cvaCenter;
 
   TabStop := True; // Important for keyboard interaction
   Cursor := crHandPoint;
@@ -157,12 +180,19 @@ begin
     FInternalHoverSettings := nil;
   end;
 
-  if Assigned(FTitleFont) then
+  if Assigned(FCaptionSettings) then
   begin
-    FTitleFont.OnChange := nil;
-    FTitleFont.Free;
-    FTitleFont := nil;
+    FCaptionSettings.OnChange := nil;
+    FCaptionSettings.Free;
+    FCaptionSettings := nil;
   end;
+
+  // if Assigned(FTitleFont) then // Removed
+  // begin // Removed
+  //   FTitleFont.OnChange := nil; // Removed
+  //   FTitleFont.Free; // Removed
+  //   FTitleFont := nil; // Removed
+  // end; // Removed
 
   inherited Destroy;
 end;
@@ -172,10 +202,10 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.FontChanged(Sender: TObject);
-begin
-  Invalidate;
-end;
+// procedure TANDMR_CCheckBox.FontChanged(Sender: TObject); // Removed
+// begin // Removed
+// Invalidate; // Removed
+// end; // Removed
 
 procedure TANDMR_CCheckBox.InternalHoverSettingsChanged(Sender: TObject);
 begin
@@ -294,21 +324,28 @@ begin
       LCurrentBoxColor := FBoxColorUnchecked;
     end;
     LCurrentCheckMarkColor := FCheckMarkColor;
-    LCurrentCaptionColor := FTitleFont.Color;
+    // LCurrentCaptionColor := FTitleFont.Color; // Base color from FCaptionSettings.Color
+    LCurrentCaptionColor := FCaptionSettings.Color;
+
 
     if LIsHovering then
     begin
       if FInternalHoverSettings.BackgroundColor <> clNone then
         LCurrentBoxColor := BlendColors(LCurrentBoxColor, FInternalHoverSettings.BackgroundColor, LHoverProgress);
-      if FInternalHoverSettings.FontColor <> clNone then
-        LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, FInternalHoverSettings.FontColor, LHoverProgress);
+      // Hover caption color from FInternalHoverSettings.CaptionFontColor
+      if FInternalHoverSettings.CaptionFontColor <> clNone then
+        LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, FInternalHoverSettings.CaptionFontColor, LHoverProgress);
     end;
 
     if not Self.Enabled then
     begin
       LCurrentBoxColor := BlendColors(LCurrentBoxColor, clGray, 0.60);
       LCurrentCheckMarkColor := BlendColors(LCurrentCheckMarkColor, clGray, 0.60);
-      LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, clGray, 0.50);
+      // Disabled caption color from FCaptionSettings.DisabledColor or default graying
+      if FCaptionSettings.DisabledColor <> clNone then
+        LCurrentCaptionColor := FCaptionSettings.DisabledColor
+      else
+        LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, clGray, 0.50);
     end;
 
     LBoxBorderColor := DarkerColor(LCurrentBoxColor, IfThen(LIsHovering and (FInternalHoverSettings.BorderColor = clNone), 15, 5));
@@ -377,14 +414,24 @@ begin
       end;
     end;
 
-    if (FCaption <> '') and (CaptionRect.Right > CaptionRect.Left) then
+    if (FCaptionSettings.Text <> '') and (CaptionRect.Right > CaptionRect.Left) then // Use FCaptionSettings.Text
     begin
       LCaptionFont := TFont.Create;
       try
-        LCaptionFont.Assign(FTitleFont);
-        LCaptionFont.Color := LCurrentCaptionColor;
+        LCaptionFont.Assign(FCaptionSettings.Font); // Use FCaptionSettings.Font
+        LCaptionFont.Color := LCurrentCaptionColor; // Already determined
         CaptionRect.Left := CaptionRect.Left + Padding;
-        ANDMR_ComponentUtils.DrawComponentCaption(Self.Canvas, CaptionRect, FCaption, LCaptionFont, LCurrentCaptionColor, taLeftJustify, cvaCenter, False, 255);
+        ANDMR_ComponentUtils.DrawComponentCaption(
+          Self.Canvas,
+          CaptionRect,
+          FCaptionSettings.Text, // Use FCaptionSettings.Text
+          LCaptionFont, // Assigned from FCaptionSettings.Font
+          LCurrentCaptionColor,
+          FCaptionSettings.Alignment, // Use FCaptionSettings.Alignment
+          FCaptionSettings.VerticalAlignment, // Use FCaptionSettings.VerticalAlignment
+          FCaptionSettings.WordWrap, // Use FCaptionSettings.WordWrap
+          255
+        );
       finally
         LCaptionFont.Free;
       end;
@@ -399,7 +446,7 @@ begin
         CombinedRect.Width := (CaptionRect.Right - BoxRect.X) + 2;
         CombinedRect.Height := BoxRect.Height + 2;
 
-        if FCaption = '' then
+        if FCaptionSettings.Text = '' then // Use FCaptionSettings.Text
         begin
            CombinedRect.X := BoxRect.X - 1;
            CombinedRect.Y := BoxRect.Y - 1;
@@ -422,13 +469,15 @@ begin
   end;
 end;
 
+function TANDMR_CCheckBox.GetCaption: string;
+begin
+  Result := FCaptionSettings.Text;
+end;
+
 procedure TANDMR_CCheckBox.SetCaption(const Value: string);
 begin
-  if FCaption <> Value then
-  begin
-    FCaption := Value;
-    Invalidate;
-  end;
+  FCaptionSettings.Text := Value;
+  // Invalidation is handled by FCaptionSettings.OnChange via SettingsChanged
 end;
 
 function TANDMR_CCheckBox.GetChecked: Boolean;
@@ -506,9 +555,15 @@ begin
   Result := FBorderSettings.RoundCornerType;
 end;
 
+function TANDMR_CCheckBox.GetTitleFont: TFont;
+begin
+  Result := FCaptionSettings.Font;
+end;
+
 procedure TANDMR_CCheckBox.SetTitleFont(const Value: TFont);
 begin
-  FTitleFont.Assign(Value);
+  FCaptionSettings.Font.Assign(Value);
+  // Invalidation is handled by FCaptionSettings.OnChange or its Font.OnChange via SettingsChanged
 end;
 
 procedure TANDMR_CCheckBox.SetTransparent(const Value: Boolean);

@@ -33,16 +33,19 @@ type
   private
     FBorderSettings: TBorderSettings;
     FCaption: string;
-    FTitleFont: TFont;
-    FImage: TPicture;
-    FTextAlign: TAlignment;
+    FCaptionSettings: TCaptionSettings; // Added
+    FImageSettings: TImageSettings;   // Added
+    // FTitleFont: TFont; // Removed
+    // FImage: TPicture; // Removed
+    // FTextAlign: TAlignment; // Removed
     FGradientEnabled: Boolean;
     FGradientType: TGradientType;
     FGradientStartColor: TColor;
     FGradientEndColor: TColor;
     FImagePosition: TImagePosition;
-    FImageMargins, FTextMargins: TANDMR_Margins;
-    FImageStretchMode: TImageStretchMode;
+    // FImageMargins, Removed, FTextMargins: TANDMR_Margins;
+    FTextMargins: TANDMR_Margins; // FImageMargins removed
+    // FImageStretchMode: TImageStretchMode; // Removed
     FTag: Integer;
     FTagString: string;
     FTagExtended: Extended;
@@ -68,6 +71,7 @@ type
     procedure SetInternalHoverSettings(const Value: THoverSettings);
     procedure InternalHoverSettingsChanged(Sender: TObject);
     procedure BorderSettingsChanged(Sender: TObject); // New handler for FBorderSettings
+    procedure SettingsChanged(Sender: TObject); // Added
 
     procedure SetStyle(const Value: TButtonStyle);
     function GetAlign: TAlign;
@@ -87,21 +91,26 @@ type
     function GetActiveColor: TColor; // Getter for FBorderSettings.BackgroundColor
     procedure SetActiveColor(const Value: TColor); // Setter for FBorderSettings.BackgroundColor
     procedure SetHoverColor(const Value: TColor);
+    function GetTitleFont: TFont; // Changed
     procedure SetTitleFont(const Value: TFont);
-    procedure FontChanged(Sender: TObject);
+    procedure FontChanged(Sender: TObject); // This will be FCaptionSettings.Font.OnChange
+    function GetImage: TPicture; // Changed
     procedure SetImage(const Value: TPicture);
+    function GetTextAlign: TAlignment; // Changed
     procedure SetTextAlign(const Value: TAlignment);
     procedure SetGradientEnabled(const Value: Boolean);
     procedure SetGradientType(const Value: TGradientType);
     procedure SetGradientStartColor(const Value: TColor);
     procedure SetGradientEndColor(const Value: TColor);
     procedure SetImagePosition(const Value: TImagePosition);
+    function GetImageStretchMode: TImageStretchMode; // Changed
     procedure SetImageStretchMode(const Value: TImageStretchMode);
     procedure SetTag(const Value: Integer);
     procedure SetTagString(const Value: string);
     procedure SetTagObject(const Value: TObject);
     procedure SetHoverEffect(const Value: THoverEffect);
     procedure SetDisabledCursor(const Value: TCursor);
+    function GetImageMargins: TANDMR_Margins; // Changed
     procedure SetImageMargins(const Value: TANDMR_Margins);
     procedure SetTextMargins(const Value: TANDMR_Margins);
     function GetBorderColor: TColor; // Getter
@@ -153,9 +162,9 @@ type
     property HoverColor: TColor read GetHoverColor write SetHoverColor;
     property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
     property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
-    property TitleFont: TFont read FTitleFont write SetTitleFont;
-    property Image: TPicture read FImage write SetImage;
-    property TextAlign: TAlignment read FTextAlign write SetTextAlign default taCenter;
+    property TitleFont: TFont read GetTitleFont write SetTitleFont; // Changed
+    property Image: TPicture read GetImage write SetImage; // Changed
+    property TextAlign: TAlignment read GetTextAlign write SetTextAlign default taCenter; // Changed
 
     property GradientEnabled: Boolean read FGradientEnabled write SetGradientEnabled default False;
     property GradientType: TGradientType read FGradientType write SetGradientType default gtLinearVertical;
@@ -163,9 +172,9 @@ type
     property GradientEndColor: TColor read FGradientEndColor write SetGradientEndColor;
 
     property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
-    property ImageMargins: TANDMR_Margins read FImageMargins write SetImageMargins;
+    property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
-    property ImageStretchMode: TImageStretchMode read FImageStretchMode write SetImageStretchMode default ismProportional;
+    property ImageStretchMode: TImageStretchMode read GetImageStretchMode write SetImageStretchMode default ismProportional; // Changed
 
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
@@ -243,22 +252,22 @@ begin
   FTransparent := False;
   FClickTitleColor := clNone;
 
-  FTitleFont := TFont.Create;
-  FTitleFont.Name := 'Segoe UI';
-  FTitleFont.Size := 9;
-  FTitleFont.Style := [fsBold];
-  FTitleFont.Color := clWindowText;
-  FTitleFont.OnChange := FontChanged;
+  // FTitleFont := TFont.Create; // Removed
+  // FTitleFont.Name := 'Segoe UI'; // Removed
+  // FTitleFont.Size := 9; // Removed
+  // FTitleFont.Style := [fsBold]; // Removed
+  // FTitleFont.Color := clWindowText; // Removed
+  // FTitleFont.OnChange := FontChanged; // Will be handled by FCaptionSettings.Font.OnChange
 
   FTextMargins := TANDMR_Margins.Create;
   FTextMargins.OnChange := MarginsChanged;
-  FTextAlign := taCenter;
+  // FTextAlign := taCenter; // Removed
 
-  FImage := TPicture.Create;
+  // FImage := TPicture.Create; // Removed
   FImagePosition := ipLeft;
-  FImageMargins := TANDMR_Margins.Create;
-  FImageMargins.OnChange := MarginsChanged;
-  FImageStretchMode := ismProportional;
+  // FImageMargins := TANDMR_Margins.Create; // Removed
+  // FImageMargins.OnChange := MarginsChanged; // Removed
+  // FImageStretchMode := ismProportional; // Removed
 
   FGradientEnabled := False;
   FGradientType := gtLinearVertical;
@@ -296,6 +305,42 @@ begin
   FBorderSettings.Color := clBlack; // Default FBorderColor
   FBorderSettings.Thickness := 1; // Default FBorderThickness
   FBorderSettings.Style := psSolid; // Default FBorderStyle
+
+  // Create and initialize FCaptionSettings
+  FCaptionSettings := TCaptionSettings.Create(Self);
+  FCaptionSettings.OnChange := SettingsChanged;
+  // Transfer initial values from old fields (if they existed before this point) to FCaptionSettings.Font
+  // Assuming FTitleFont was created temporarily for this or accessed via a property if it still exists
+  // For a clean refactor, FTitleFont fields would be set directly if no TFont object was created yet.
+  // However, the original code creates FTitleFont, then transfers.
+  // We need to ensure FCaptionSettings gets these initial values if FTitleFont is removed before this block.
+  // Let's assume FTitleFont was created for setup and values are transferred:
+  var TempTitleFont: TFont;
+  TempTitleFont := TFont.Create;
+  try
+    TempTitleFont.Name := 'Segoe UI';
+    TempTitleFont.Size := 9;
+    TempTitleFont.Style := [fsBold];
+    TempTitleFont.Color := clWindowText;
+    FCaptionSettings.Font.Assign(TempTitleFont);
+  finally
+    TempTitleFont.Free;
+  end;
+  FCaptionSettings.Font.OnChange := FontChanged;
+  FCaptionSettings.Alignment := taCenter; // Default FTextAlign
+
+  // Create and initialize FImageSettings
+  FImageSettings := TImageSettings.Create(Self);
+  FImageSettings.OnChange := SettingsChanged;
+  // Similarly, for FImage, FImageMargins, FImageStretchMode
+  // FImageSettings.Picture.Assign(FImage); // FImage would be created temporarily or use defaults
+  // FImageSettings.Margins.Assign(FImageMargins); // FImageMargins would be created temporarily or use defaults
+  // Default assignment for picture and margins if not assigned from old fields
+  FImageSettings.Picture.Create; // Ensure picture object exists
+  FImageSettings.Margins.Create; // Ensure margins object exists
+
+  // Initial FImageStretchMode was ismProportional
+  FImageSettings.DrawMode := idmProportional;
 end;
 
 destructor TANDMR_CButton.Destroy;
@@ -306,10 +351,14 @@ begin
   FInternalHoverSettings.OnChange := nil;
   FInternalHoverSettings.Free;
 
-  FTitleFont.OnChange := nil;
-  FTitleFont.Free;
-  FImage.Free;
-  FImageMargins.Free;
+  // Free FCaptionSettings
+  FCaptionSettings.OnChange := nil;
+  FCaptionSettings.Free;
+
+  // Free FImageSettings
+  FImageSettings.OnChange := nil;
+  FImageSettings.Free;
+
   FTextMargins.Free;
   FClickEffectTimer.Free;
   inherited;
@@ -329,6 +378,12 @@ end;
 procedure TANDMR_CButton.BorderSettingsChanged(Sender: TObject);
 begin
   Invalidate; // Or Repaint if more direct control is needed
+end;
+
+procedure TANDMR_CButton.SettingsChanged(Sender: TObject);
+begin
+  Repaint;
+  Invalidate;
 end;
 
 procedure TANDMR_CButton.Loaded;
@@ -527,12 +582,12 @@ begin
     Self.HoverBorderColor := BaseColor;
     Self.ClickColor := DarkerColor(BaseColor, 25);
     Self.ClickBorderColor := DarkerColor(BaseColor, 30);
-    Self.TitleFont.Color := NewTitleColor;
+    FCaptionSettings.Font.Color := NewTitleColor; // Changed
 
     if (GetRValue(Self.HoverColor) * 0.299 + GetGValue(Self.HoverColor) * 0.587 + GetBValue(Self.HoverColor) * 0.114) > 186 then
-      Self.HoverTitleColor := clBlack
+      FInternalHoverSettings.FontColor := clBlack // Changed
     else
-      Self.HoverTitleColor := clWhite;
+      FInternalHoverSettings.FontColor := clWhite; // Changed
 
     if (GetRValue(Self.ClickColor) * 0.299 + GetGValue(Self.ClickColor) * 0.587 + GetBValue(Self.ClickColor) * 0.114) > 186 then
       Self.ClickTitleColor := clBlack
@@ -545,9 +600,14 @@ begin
     end
     else if FPresetType <> cptNone then // Repaint if a preset was applied, even if caption didn't change
     begin
-      Repaint;
+      Repaint; // This repaint might be redundant if FCaptionSettings.OnChange handles it.
     end;
   end;
+end;
+
+function TANDMR_CButton.GetTitleFont: TFont;
+begin
+  Result := FCaptionSettings.Font;
 end;
 
 procedure TANDMR_CButton.SetHoverColor(const Value: TColor);
@@ -565,27 +625,43 @@ end;
 
 procedure TANDMR_CButton.SetTitleFont(const Value: TFont);
 begin
-  FTitleFont.Assign(Value);
+  FCaptionSettings.Font.Assign(Value);
+  // Repaint is handled by FCaptionSettings.OnChange via SettingsChanged or FontChanged directly
 end;
 
 procedure TANDMR_CButton.FontChanged(Sender: TObject);
+// This method is now assigned to FCaptionSettings.Font.OnChange
+// Or, if FCaptionSettings.OnChange = SettingsChanged is sufficient, this can be removed
+// and SettingsChanged will handle the repaint. For now, let's keep it for directness.
 begin
   Repaint;
+end;
+
+function TANDMR_CButton.GetImage: TPicture;
+begin
+  Result := FImageSettings.Picture;
 end;
 
 procedure TANDMR_CButton.SetImage(const Value: TPicture);
 begin
-  FImage.Assign(Value);
-  Repaint;
+  FImageSettings.Picture.Assign(Value);
+  // Repaint is handled by FImageSettings.OnChange via SettingsChanged
+  Repaint; // Keep repaint for safety, though SettingsChanged should cover it.
+end;
+
+function TANDMR_CButton.GetTextAlign: TAlignment;
+begin
+  Result := FCaptionSettings.Alignment;
 end;
 
 procedure TANDMR_CButton.SetTextAlign(const Value: TAlignment);
 begin
-  if FTextAlign <> Value then
-  begin
-    FTextAlign := Value;
-    Repaint;
-  end;
+  // FCaptionSettings.Alignment setter should handle repaint via OnChange
+  FCaptionSettings.Alignment := Value;
+  // If FCaptionSettings.OnChange doesn't trigger repaint for Alignment, add Repaint here.
+  // Based on TCaptionSettings implementation, its OnChange should be called.
+  // Adding Repaint just in case, but ideally SettingsChanged covers this.
+  Repaint;
 end;
 
 procedure TANDMR_CButton.SetGradientEnabled(const Value: Boolean);
@@ -633,18 +709,36 @@ begin
   end;
 end;
 
+function TANDMR_CButton.GetImageStretchMode: TImageStretchMode;
+begin
+  if FImageSettings.DrawMode = idmProportional then
+    Result := ismProportional
+  else if FImageSettings.DrawMode = idmStretch then // Assuming idmStretch is the equivalent of ismFlat
+    Result := ismFlat
+  else
+    Result := ismProportional; // Default or map other modes if necessary
+end;
+
 procedure TANDMR_CButton.SetImageStretchMode(const Value: TImageStretchMode);
 begin
-  if FImageStretchMode <> Value then
-  begin
-    FImageStretchMode := Value;
-    Repaint;
-  end;
+  if Value = ismProportional then
+    FImageSettings.DrawMode := idmProportional
+  else if Value = ismFlat then
+    FImageSettings.DrawMode := idmStretch;
+  // Repaint is handled by FImageSettings.OnChange via SettingsChanged
+  Repaint; // Keep repaint for safety
+end;
+
+function TANDMR_CButton.GetImageMargins: TANDMR_Margins;
+begin
+  Result := FImageSettings.Margins;
 end;
 
 procedure TANDMR_CButton.SetImageMargins(const Value: TANDMR_Margins);
 begin
-  FImageMargins.Assign(Value);
+  FImageSettings.Margins.Assign(Value);
+  // Repaint is handled by FImageSettings.OnChange via SettingsChanged
+  Repaint; // Keep repaint for safety
 end;
 
 procedure TANDMR_CButton.SetTextMargins(const Value: TANDMR_Margins);
@@ -1110,17 +1204,17 @@ begin
         InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
 
 
-    if (FImage.Graphic <> nil) and not FImage.Graphic.Empty then
+    if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then // Use FImageSettings.Picture
     begin
-      LImgW := FImage.Width; LImgH := FImage.Height;
-      case FImageStretchMode of
-        ismProportional:
+      LImgW := FImageSettings.Picture.Width; LImgH := FImageSettings.Picture.Height; // Use FImageSettings.Picture
+      case FImageSettings.DrawMode of // Use FImageSettings.DrawMode
+        idmProportional: // Changed from ismProportional
         begin
           if (LImgW = 0) or (LImgH = 0) then begin LDrawW := 0; LDrawH := 0; end
           else
           begin
-            AvailableWidth  := Max(0, LImageClipRect.Width - FImageMargins.Left - FImageMargins.Right);
-            AvailableHeight := Max(0, LImageClipRect.Height - FImageMargins.Top - FImageMargins.Bottom);
+            AvailableWidth  := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right); // Use FImageSettings.Margins
+            AvailableHeight := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom); // Use FImageSettings.Margins
             if FImagePosition in [ipLeft, ipRight] then
             begin
               LDrawH := AvailableHeight;
@@ -1143,12 +1237,12 @@ begin
             end;
           end;
         end;
-        ismFlat:
+        idmStretch: // Changed from ismFlat
         begin
-          LDrawW := Max(0, LImageClipRect.Width - FImageMargins.Left - FImageMargins.Right);
-          LDrawH := Max(0, LImageClipRect.Height - FImageMargins.Top - FImageMargins.Bottom);
+          LDrawW := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right); // Use FImageSettings.Margins
+          LDrawH := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom); // Use FImageSettings.Margins
         end;
-      else LDrawW := LImgW; LDrawH := LImgH;
+      else LDrawW := LImgW; LDrawH := LImgH; // Default case if FImageSettings.DrawMode is neither
       end;
 
       if (LImgW > 0) and (LDrawW <=0) then LDrawW := Min(LImgW, Max(0, LImageClipRect.Width div 3));
@@ -1157,44 +1251,44 @@ begin
       case FImagePosition of
         ipLeft:
         begin
-          LImgX := LImageClipRect.Left + FImageMargins.Left;
-          LImgY := LImageClipRect.Top + FImageMargins.Top + (Max(0,LImageClipRect.Height - FImageMargins.Top - FImageMargins.Bottom - LDrawH)) div 2;
-          LTextArea := Rect(LImgX + LDrawW + FImageMargins.Right + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
+          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left; // Use FImageSettings.Margins
+          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top + (Max(0,LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom - LDrawH)) div 2; // Use FImageSettings.Margins
+          LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top, // Use FImageSettings.Margins
                             LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
         end;
         ipRight:
         begin
-          LImgX := LImageClipRect.Right - LDrawW - FImageMargins.Right;
-          LImgY := LImageClipRect.Top + FImageMargins.Top + (Max(0,LImageClipRect.Height - FImageMargins.Top - FImageMargins.Bottom - LDrawH)) div 2;
+          LImgX := LImageClipRect.Right - LDrawW - FImageSettings.Margins.Right; // Use FImageSettings.Margins
+          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top + (Max(0,LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom - LDrawH)) div 2; // Use FImageSettings.Margins
           LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                            LImgX - FImageMargins.Left - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
+                            LImgX - FImageSettings.Margins.Left - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom); // Use FImageSettings.Margins
         end;
         ipAbove:
         begin
-          LImgX := LImageClipRect.Left + FImageMargins.Left + (Max(0,LImageClipRect.Width - FImageMargins.Left - FImageMargins.Right - LDrawW)) div 2;
-          LImgY := LImageClipRect.Top + FImageMargins.Top;
-          LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImgY + LDrawH + FImageMargins.Bottom + FTextMargins.Top,
+          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left + (Max(0,LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right - LDrawW)) div 2; // Use FImageSettings.Margins
+          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top; // Use FImageSettings.Margins
+          LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImgY + LDrawH + FImageSettings.Margins.Bottom + FTextMargins.Top, // Use FImageSettings.Margins
                             LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
         end;
         ipBelow:
         begin
-          LImgX := LImageClipRect.Left + FImageMargins.Left + (Max(0,LImageClipRect.Width - FImageMargins.Left - FImageMargins.Right - LDrawW)) div 2;
-          LImgY := LImageClipRect.Bottom - LDrawH - FImageMargins.Bottom;
+          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left + (Max(0,LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right - LDrawW)) div 2; // Use FImageSettings.Margins
+          LImgY := LImageClipRect.Bottom - LDrawH - FImageSettings.Margins.Bottom; // Use FImageSettings.Margins
           LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                            LImageClipRect.Right - FTextMargins.Right, LImgY - FImageMargins.Top - FTextMargins.Bottom);
+                            LImageClipRect.Right - FTextMargins.Right, LImgY - FImageSettings.Margins.Top - FTextMargins.Bottom); // Use FImageSettings.Margins
         end;
         ipBehind:
         begin
-          LImgX := LImageClipRect.Left + FImageMargins.Left + (Max(0,LImageClipRect.Width - FImageMargins.Left - FImageMargins.Right - LDrawW)) div 2;
-          LImgY := LImageClipRect.Top + FImageMargins.Top + (Max(0,LImageClipRect.Height - FImageMargins.Top - FImageMargins.Bottom - LDrawH)) div 2;
+          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left + (Max(0,LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right - LDrawW)) div 2; // Use FImageSettings.Margins
+          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top + (Max(0,LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom - LDrawH)) div 2; // Use FImageSettings.Margins
           LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
                             LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
         end;
-      else
+      else // Default to ipLeft
         begin
-          LImgX := LImageClipRect.Left + FImageMargins.Left;
-          LImgY := LImageClipRect.Top + FImageMargins.Top + (Max(0,LImageClipRect.Height - FImageMargins.Top - FImageMargins.Bottom - LDrawH)) div 2;
-          LTextArea := Rect(LImgX + LDrawW + FImageMargins.Right + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
+          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left; // Use FImageSettings.Margins
+          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top + (Max(0,LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom - LDrawH)) div 2; // Use FImageSettings.Margins
+          LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top, // Use FImageSettings.Margins
                             LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
         end;
       end;
@@ -1208,19 +1302,19 @@ begin
 
       if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
       begin
-        // LDestRect is ALREADY calculated based on FImageStretchMode.
+        // LDestRect is ALREADY calculated based on FImageSettings.DrawMode.
         // The drawing helpers should stretch the source image into this pre-calculated LDestRect.
-        if FImage.Graphic is TPNGImage then
+        if FImageSettings.Picture.Graphic is TPNGImage then // Use FImageSettings.Picture
         begin
-          DrawPNGImageWithGDI(LG, FImage.Graphic as TPNGImage, LDestRect, idmStretch); // Always stretch into LDestRect
+          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, LDestRect, idmStretch); // Always stretch into LDestRect // Use FImageSettings.Picture
         end
-        else if FImage.Graphic <> nil then
+        else if FImageSettings.Picture.Graphic <> nil then // Use FImageSettings.Picture
         begin
-          DrawNonPNGImageWithCanvas(Self.Canvas, FImage.Graphic, LDestRect, idmStretch); // Always stretch into LDestRect
+          DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, LDestRect, idmStretch); // Always stretch into LDestRect // Use FImageSettings.Picture
         end;
       end;
     end
-    else
+    else // No image
       LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
                         LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
 
@@ -1236,19 +1330,19 @@ begin
     begin
       LCurrentTitleFont := TFont.Create;
       try
-        LCurrentTitleFont.Assign(FTitleFont);
+        LCurrentTitleFont.Assign(FCaptionSettings.Font); // Use FCaptionSettings.Font
 
         if Enabled then
         begin
           if GetEnableHoverEffect and (LHoverProgress > 0) then
           begin
             if FInternalHoverSettings.FontColor <> clNone then
-              LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, FInternalHoverSettings.FontColor, LHoverProgress)
+              LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, FInternalHoverSettings.FontColor, LHoverProgress) // Use FCaptionSettings.Font.Color
             else if FInternalHoverSettings.HoverEffect = heFade then
-              LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, LighterColor(LActualFillColor, 80), LHoverProgress * 0.5);
+              LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, LighterColor(LActualFillColor, 80), LHoverProgress * 0.5); // Use FCaptionSettings.Font.Color
 
             if FInternalHoverSettings.HoverEffect = heScale then
-              LCurrentTitleFont.Size := Round(FTitleFont.Size * (1 + LHoverProgress * (1.05 - 1)));
+              LCurrentTitleFont.Size := Round(FCaptionSettings.Font.Size * (1 + LHoverProgress * (1.05 - 1))); // Use FCaptionSettings.Font.Size
           end;
 
           if FClickEffectActive and (LClickProgress > 0) and (FClickEffectDuration > 0) then
@@ -1259,7 +1353,7 @@ begin
         end
         else
         begin
-          LCurrentTitleFont.Color := BlendColors(FTitleFont.Color, clGray, 0.6);
+          LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, clGray, 0.6); // Use FCaptionSettings.Font.Color
         end;
 
         if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
@@ -1271,7 +1365,7 @@ begin
 
         if (LTextArea.Width > 0) and (LTextArea.Height > 0) then
         begin
-          DrawComponentCaption( Self.Canvas, LTextArea, LFinalCaptionToDraw, LCurrentTitleFont, LCurrentTitleFont.Color, FTextAlign, cvaCenter, False, 255 );
+          DrawComponentCaption( Self.Canvas, LTextArea, LFinalCaptionToDraw, LCurrentTitleFont, LCurrentTitleFont.Color, FCaptionSettings.Alignment, cvaCenter, False, 255 ); // Use FCaptionSettings.Alignment
         end;
       finally
         LCurrentTitleFont.Free;

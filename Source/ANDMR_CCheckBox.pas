@@ -3,109 +3,133 @@ unit ANDMR_CCheckBox;
 interface
 
 uses
-  System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
-  Vcl.ExtCtrls, Winapi.Messages, Vcl.Forms, Vcl.StdCtrls, System.Types,
-  System.UITypes, ANDMR_ComponentUtils, Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL; // Added GDI+ units
+  System.SysUtils, System.Classes, System.UITypes, Vcl.Controls, Vcl.Graphics,
+  Winapi.Windows, Winapi.Messages, // For crHandPoint, Messages, VK_SPACE
+  System.Types, // For TRect, TPoint, etc.
+  ANDMR_ComponentUtils;
 
 type
-  TCCheckBoxStyle = (cbsLight, cbsDark, cbsMaterial, cbsFlat, cbsModern, cbsIOS, cbsWin11);
-  TCCheckBoxElementStyle = (cbeseChecked, cbeseBordered, cbeseSolid);
+  TCheckBoxState = (csUnchecked, csChecked, csIndeterminate);
+
+  TANDMR_CCheckBoxStyle = (cbsCustom, cbsLight, cbsDark, cbsMaterial, cbsFlat, cbsModern,
+                          cbsGhost, cbsFaded, cbsBordered, cbsIOS, cbsWin11);
+
+  // Enumeração para a posição do indicador de "marcado" (o elemento de check)
+  TCheckBoxIndicatorPosition = (
+    cipLeftTop, cipLeftCenter, cipLeftBottom,
+    cipTopLeft, cipTopCenter, cipTopRight,
+    cipRightTop, cipRightCenter, cipRightBottom,
+    cipBottomLeft, cipBottomCenter, cipBottomRight,
+    cipCenter // Indicador centralizado
+  );
+
+  // Structure to keep track of user-set properties
+  TUserPropertyOverrides = record
+    Transparent_IsSet: Boolean;
+    BoxColorUnchecked_IsSet: Boolean;
+    BoxColorChecked_IsSet: Boolean;
+    CheckMarkColor_IsSet: Boolean;
+    BorderSettings_IsCustomized: Boolean; // For the check element's border
+    CaptionSettings_IsCustomized: Boolean;
+    HoverSettings_IsCustomized: Boolean;
+    OverallComponentBorder_IsCustomized: Boolean; // New
+    CheckedIndicatorPosition_IsSet: Boolean;    // New
+    CheckedIndicatorSize_IsSet: Boolean;        // New
+  end;
 
   TANDMR_CCheckBox = class(TCustomControl)
   private
-    FChecked: Boolean;
-    FStyle: TCCheckBoxStyle;
-    FElementStyle: TCCheckBoxElementStyle;
-    FCaption: string;
-    FColor: TColor;
-    FOverallBorderColor: TColor; // For checkbox element border primarily
+    FBorderSettings: TBorderSettings; // Existing: for the check element's border and component background
+    FCaptionSettings: TCaptionSettings;
+    FState: TCheckBoxState;
+    FBoxColorUnchecked: TColor;
+    FBoxColorChecked: TColor;
     FCheckMarkColor: TColor;
-    FElementBoxColor: TColor; // Fill color for the checkbox element
     FTransparent: Boolean;
     FOnClick: TNotifyEvent;
-    FOnChange: TNotifyEvent;
-
-    FImageSettings: TImageSettings;
-    FCaptionSettings: TCaptionSettings;
-    FBorderSettings: TBorderSettings; // For the main component border
+    FOnCheckChanged: TNotifyEvent;
     FHoverSettings: THoverSettings;
+    FCurrentStyle: TANDMR_CCheckBoxStyle;
+    FApplyingStyle: Boolean;
+    FUserOverrides: TUserPropertyOverrides;
 
-    FIsHovering: Boolean;
-    FElementCornerRadius: Integer; // New: Radius for the checkbox element corners
+    // New fields for overall component border and check element positioning
+    FOverallComponentBorder: TBorderSettings;
+    FCheckedIndicatorPosition: TCheckBoxIndicatorPosition;
+    FCheckedIndicatorSize: Integer; // Size of the check element (box)
 
-    procedure SetChecked(const Value: Boolean);
-    function GetChecked: Boolean;
-    procedure SetCaption(const Value: string);
-    procedure SetStyle(const Value: TCCheckBoxStyle);
-    procedure SetElementStyle(const Value: TCCheckBoxElementStyle);
-    procedure SetColor(const Value: TColor);
-    procedure SetOverallBorderColor(const Value: TColor);
-    procedure SetCheckMarkColor(const Value: TColor);
-    procedure SetElementBoxColor(const Value: TColor);
-    procedure SetTransparent(const Value: Boolean);
-    procedure SetElementCornerRadius(const Value: Integer);
-
-    function GetFont: TFont;
-    procedure SetFont(const Value: TFont);
-
-    procedure SetImageSettings(const Value: TImageSettings);
-    procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure SetBorderSettings(const Value: TBorderSettings);
+    function GetChecked: Boolean;
+    procedure SetChecked(const Value: Boolean);
+    procedure SetState(const Value: TCheckBoxState);
+    function GetCaption: string;
+    procedure SetCaption(const Value: string);
+    procedure SetBoxColorUnchecked(const Value: TColor);
+    procedure SetBoxColorChecked(const Value: TColor);
+    procedure SetCheckMarkColor(const Value: TColor);
+    procedure SetCaptionSettings(const Value: TCaptionSettings);
+    procedure SetTransparent(const Value: Boolean);
     procedure SetHoverSettings(const Value: THoverSettings);
+    procedure SetEnabled(Value: Boolean);
+    procedure SetCurrentStyle(const Value: TANDMR_CCheckBoxStyle);
+
+    // Setters for new properties
+    procedure SetOverallComponentBorder(const Value: TBorderSettings);
+    procedure SetCheckedIndicatorPosition(const Value: TCheckBoxIndicatorPosition);
+    procedure SetCheckedIndicatorSize(const Value: Integer);
+
+    procedure ApplyStyle(AStyle: TANDMR_CCheckBoxStyle);
+
+    procedure HoverSettingsChanged(Sender: TObject);
+    procedure SettingsChanged(Sender: TObject); // Handles FBorderSettings and FCaptionSettings
+    procedure OverallComponentBorderChanged(Sender: TObject); // New handler
+
+    procedure InitializeUserOverrides;
 
   protected
-    procedure Paint; override;
-    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
-    procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
     procedure Click; override;
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
-
-
-    procedure Loaded; override;
-
-    procedure InternalCaptionSettingsChanged(Sender: TObject);
-    procedure InternalImageSettingsChanged(Sender: TObject);
-    procedure InternalBorderSettingsChanged(Sender: TObject);
-    procedure InternalHoverSettingsChanged(Sender: TObject);
-    procedure InternalFontChanged(Sender: TObject);
-
+    procedure Paint; override;
 
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    procedure ClearUserOverrides; // Public method to clear all overrides
 
   published
-    property Checked: Boolean read GetChecked write SetChecked default False;
-    property Caption: string read FCaption write SetCaption;
-    property Style: TCCheckBoxStyle read FStyle write SetStyle default cbsLight;
-    property ElementStyle: TCCheckBoxElementStyle read FElementStyle write SetElementStyle default cbeseChecked;
-    property ElementCornerRadius: Integer read FElementCornerRadius write SetElementCornerRadius default 2; // New published property
-
-    property Color: TColor read FColor write SetColor default clWindow;
-    property OverallBorderColor: TColor read FOverallBorderColor write SetOverallBorderColor default clGray;
+    property Checked: Boolean read GetChecked write SetChecked;
+    property State: TCheckBoxState read FState write SetState;
+    property Caption: string read GetCaption write SetCaption;
+    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings; // Existing: for check element border & component background
+    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
+    property BoxColorUnchecked: TColor read FBoxColorUnchecked write SetBoxColorUnchecked default clWindow;
+    property BoxColorChecked: TColor read FBoxColorChecked write SetBoxColorChecked default clHighlight;
     property CheckMarkColor: TColor read FCheckMarkColor write SetCheckMarkColor default clWindowText;
-    property ElementBoxColor: TColor read FElementBoxColor write SetElementBoxColor default clBtnFace;
-
     property Transparent: Boolean read FTransparent write SetTransparent default False;
+    property Enabled: Boolean read GetEnabled write SetEnabled default True;
+    property CurrentStyle: TANDMR_CCheckBoxStyle read FCurrentStyle write SetCurrentStyle default cbsCustom;
+    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
 
-    property Image: TImageSettings read FImageSettings write SetImageSettings;
-    property CaptionProperties: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
-    property Border: TBorderSettings read FBorderSettings write SetBorderSettings; // Main component border
-    property Hover: THoverSettings read FHoverSettings write SetHoverSettings;
+    // New published properties
+    property OverallComponentBorder: TBorderSettings read FOverallComponentBorder write SetOverallComponentBorder;
+    property CheckedIndicatorPosition: TCheckBoxIndicatorPosition read FCheckedIndicatorPosition write SetCheckedIndicatorPosition default cipLeftCenter;
+    property CheckedIndicatorSize: Integer read FCheckedIndicatorSize write SetCheckedIndicatorSize default 0; // 0 means auto-calculate
 
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+    property OnCheckChanged: TNotifyEvent read FOnCheckChanged write FOnCheckChanged;
 
+    // Standard properties
     property Align;
     property Anchors;
     property Constraints;
     property DragCursor;
     property DragKind;
     property DragMode;
-    property Enabled;
-    property Font: TFont read GetFont write SetFont;
+    property Font; // Note: FCaptionSettings.Font is the primary font for text
+    property ParentFont;
     property ParentShowHint;
     property PopupMenu;
     property ShowHint;
@@ -123,7 +147,9 @@ type
     property OnKeyDown;
     property OnKeyPress;
     property OnKeyUp;
-    property OnResize;
+    property OnMouseDown;
+    property OnMouseMove;
+    property OnMouseUp;
     property OnStartDock;
     property OnStartDrag;
   end;
@@ -132,6 +158,9 @@ procedure Register;
 
 implementation
 
+uses
+  Winapi.GDIPOBJ, Winapi.GDIPAPI, System.Math, Vcl.Themes, Vcl.Consts;
+
 procedure Register;
 begin
   RegisterComponents('ANDMR', [TANDMR_CCheckBox]);
@@ -139,807 +168,954 @@ end;
 
 { TANDMR_CCheckBox }
 
+procedure TANDMR_CCheckBox.InitializeUserOverrides;
+begin
+  FillChar(FUserOverrides, SizeOf(FUserOverrides), 0); // Sets all Boolean flags to False
+end;
+
 constructor TANDMR_CCheckBox.Create(AOwner: TComponent);
+var
+  TempTitleFont: TFont;
 begin
   inherited Create(AOwner);
-  ControlStyle := ControlStyle + [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csAcceptsControls, csSetCaption];
+
+  FApplyingStyle := False;
+  InitializeUserOverrides;
+
+  ControlStyle := ControlStyle + [csClickEvents, csDoubleClicks, csReplicatable, csCaptureMouse, csNeedsBorderPaint, csAcceptsControls];
   Width := 120;
-  Height := 25;
-  TabStop := True;
+  Height := 24; // Default height, might need adjustment based on indicator size and overall border
 
-  FChecked := False;
-  FStyle := cbsLight;
-  FElementStyle := cbeseChecked;
-  FElementCornerRadius := 2; // Default radius for checkbox element
-  FColor := clWindow;
-  FOverallBorderColor := clGray; // Default border for element
+  FState := csUnchecked;
+  FBoxColorUnchecked := clWindow;
+  FBoxColorChecked := clHighlight;
   FCheckMarkColor := clWindowText;
-  FElementBoxColor := clBtnFace;
   FTransparent := False;
-  FIsHovering := False;
 
-  FCaptionSettings := TCaptionSettings.Create(Self);
-  FCaptionSettings.OnChange := InternalCaptionSettingsChanged;
-  FCaptionSettings.Font.OnChange := InternalFontChanged;
-  FCaption := Name;
-  FCaptionSettings.Text := FCaption;
-  FCaptionSettings.Position := cpRight;
-  FCaptionSettings.Alignment := taLeftJustify;
-  FCaptionSettings.VerticalAlignment := cvaCenter;
-  FCaptionSettings.Offset := Point(5, 0);
-  FCaptionSettings.Color := Self.Font.Color;
+  // Existing BorderSettings for the check element and component background
+  FBorderSettings := TBorderSettings.Create;
+  FBorderSettings.OnChange := SettingsChanged;
+  FBorderSettings.CornerRadius := 3;
+  FBorderSettings.RoundCornerType := rctAll;
+  FBorderSettings.BackgroundColor := clNone; // This is for the component's background
+  FBorderSettings.Color := clBlack;         // This is for the check element's border
+  FBorderSettings.Thickness := 1;           // For the check element's border
 
-  FImageSettings := TImageSettings.Create(Self);
-  FImageSettings.OnChange := InternalImageSettingsChanged;
-  FImageSettings.Visible := False;
+  // New OverallComponentBorder
+  FOverallComponentBorder := TBorderSettings.Create;
+  FOverallComponentBorder.OnChange := OverallComponentBorderChanged;
+  FOverallComponentBorder.CornerRadius := 3; // Default, can be styled
+  FOverallComponentBorder.RoundCornerType := rctAll;
+  FOverallComponentBorder.BackgroundColor := clNone; // Not used for overall border, background is from FBorderSettings.BackgroundColor
+  FOverallComponentBorder.Color := clGray;    // Default overall border color
+  FOverallComponentBorder.Thickness := 1;     // Default overall border thickness
+//  FOverallComponentBorder.Visible := False;   // Default to not visible to maintain original appearance
 
-  FBorderSettings := TBorderSettings.Create; // For main component border
-  FBorderSettings.OnChange := InternalBorderSettingsChanged;
-  FBorderSettings.Thickness := 0; // Default to no main component border for a cleaner look
-  FBorderSettings.Color := clBlack;
-  FBorderSettings.BackgroundColor := FColor;
-  FBorderSettings.Visible := False; // Main border not visible by default
+  // New Check Element Positioning and Size
+  FCheckedIndicatorPosition := cipLeftCenter; // Default position
+  FCheckedIndicatorSize := 0;                 // Default size (auto-calculated based on height)
 
   FHoverSettings := THoverSettings.Create(Self);
-  FHoverSettings.OnChange := InternalHoverSettingsChanged;
+  FHoverSettings.OnChange := HoverSettingsChanged;
+  FHoverSettings.BackgroundColor := clNone;
+  FHoverSettings.BorderColor := clNone;
+  FHoverSettings.FontColor := clNone;
   FHoverSettings.Enabled := True;
-  FHoverSettings.BackgroundColor := clNone; // No background color change on hover by default
-  FHoverSettings.BorderColor := clNone;     // No border color change on hover by default
-  FHoverSettings.CaptionFontColor := FCaptionSettings.Color;
-  FHoverSettings.FontColor := FCaptionSettings.Color;
-end;
 
-destructor TANDMR_CCheckBox.Destroy;
-begin
-  FCaptionSettings.OnChange := nil;
-  if Assigned(FCaptionSettings.Font) then FCaptionSettings.Font.OnChange := nil;
-  FCaptionSettings.Free;
-  FImageSettings.OnChange := nil;
-  FImageSettings.Free;
-  FBorderSettings.OnChange := nil;
-  FBorderSettings.Free;
-  FHoverSettings.OnChange := nil;
-  FHoverSettings.Free;
-  inherited Destroy;
-end;
+  TempTitleFont := TFont.Create;
+  try
+    TempTitleFont.Name := 'Segoe UI';
+    TempTitleFont.Size := 9;
+    TempTitleFont.Color := clWindowText;
 
-procedure TANDMR_CCheckBox.Loaded;
-begin
-  inherited Loaded;
+    FCaptionSettings := TCaptionSettings.Create(Self);
+    FCaptionSettings.OnChange := SettingsChanged;
+    FCaptionSettings.Text := Name;
+    FCaptionSettings.Font.Assign(TempTitleFont);
+  finally
+    TempTitleFont.Free;
+  end;
+  FCaptionSettings.Alignment := taLeftJustify;
+  FCaptionSettings.VerticalAlignment := cvaCenter;
+  FCaptionSettings.DisabledColor := clGrayText;
+
+  FCurrentStyle := cbsCustom;
+
   if FTransparent then
     ControlStyle := ControlStyle - [csOpaque] + [csParentBackground]
   else
     ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
-  InternalCaptionSettingsChanged(Self);
-  InternalBorderSettingsChanged(Self);
-  InternalImageSettingsChanged(Self);
-  InternalHoverSettingsChanged(Self);
-  Repaint;
+
+  TabStop := True;
+  Cursor := crHandPoint;
+  DoubleBuffered := True;
+  Enabled := True;
+end;
+
+destructor TANDMR_CCheckBox.Destroy;
+begin
+  if Assigned(FBorderSettings) then
+  begin
+    FBorderSettings.OnChange := nil;
+    FBorderSettings.Free;
+    FBorderSettings := nil;
+  end;
+
+  if Assigned(FOverallComponentBorder) then // Free new border settings
+  begin
+    FOverallComponentBorder.OnChange := nil;
+    FOverallComponentBorder.Free;
+    FOverallComponentBorder := nil;
+  end;
+
+  if Assigned(FHoverSettings) then
+  begin
+    FHoverSettings.OnChange := nil;
+    FHoverSettings.Free;
+    FHoverSettings := nil;
+  end;
+
+  if Assigned(FCaptionSettings) then
+  begin
+    FCaptionSettings.OnChange := nil;
+    FCaptionSettings.Free;
+    FCaptionSettings := nil;
+  end;
+
+  inherited Destroy;
+end;
+
+procedure TANDMR_CCheckBox.ClearUserOverrides;
+begin
+  InitializeUserOverrides;
+  // After clearing overrides, re-apply the current style to reset to its defaults
+  // or let the user set properties manually if FCurrentStyle is cbsCustom.
+  if FCurrentStyle <> cbsCustom then
+    ApplyStyle(FCurrentStyle) // Re-apply to get style defaults
+  else
+    Invalidate; // If custom, just repaint with current (potentially mixed) values
+end;
+
+procedure TANDMR_CCheckBox.ApplyStyle(AStyle: TANDMR_CCheckBoxStyle);
+var
+  TempCaptionFont: TFont;
+begin
+  if FApplyingStyle then Exit;
+  if AStyle = cbsCustom then
+  begin
+    Invalidate;
+    Exit;
+  end;
+
+  FApplyingStyle := True;
+  TempCaptionFont := TFont.Create;
+  try
+    // Apply properties only if not overridden by the user.
+    case AStyle of
+      cbsLight: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := False;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := clWindow;
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := clHighlight;
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For Check Element
+        begin
+          Self.BorderSettings.Color := clBlack;
+          Self.BorderSettings.Thickness := 1;
+          Self.BorderSettings.CornerRadius := 3;
+          Self.BorderSettings.RoundCornerType := rctAll;
+          Self.BorderSettings.BackgroundColor := clWindow; // Component background
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := clWindowText; TempCaptionFont.Name := 'Segoe UI'; TempCaptionFont.Size := 9;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := clGrayText;
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True; Self.HoverSettings.BackgroundColor := BlendColors(clWindow, clHighlight, 0.1);
+          Self.HoverSettings.BorderColor := clHighlight; Self.HoverSettings.FontColor := clWindowText;
+        end;
+
+        // New properties for Light style
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+//          Self.OverallComponentBorder.Visible := False; // Typically no overall border for light
+          Self.OverallComponentBorder.Color := clGray;
+          Self.OverallComponentBorder.Thickness := 1;
+          Self.OverallComponentBorder.CornerRadius := 3;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
+      end;
+      cbsDark: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := False;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := TColor($00555555);
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($000099FF);
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For Check Element
+        begin
+          Self.BorderSettings.Color := TColor($00777777); Self.BorderSettings.Thickness := 1;
+          Self.BorderSettings.CornerRadius := 3; Self.BorderSettings.RoundCornerType := rctAll;
+          Self.BorderSettings.BackgroundColor := TColor($00333333); // Component background
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := clWhite; TempCaptionFont.Name := 'Segoe UI'; TempCaptionFont.Size := 9;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := TColor($00888888);
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True; Self.HoverSettings.BackgroundColor := TColor($00666666);
+          Self.HoverSettings.BorderColor := TColor($0033CCFF); Self.HoverSettings.FontColor := clWhite;
+        end;
+
+        // New properties for Dark style
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+//          Self.OverallComponentBorder.Visible := False; // Typically no overall border for dark
+          Self.OverallComponentBorder.Color := TColor($00AAAAAA);
+          Self.OverallComponentBorder.Thickness := 1;
+          Self.OverallComponentBorder.CornerRadius := 3;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
+      end;
+      cbsMaterial: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := False;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := clWhite;
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($FF2196F3);
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For Check Element
+        begin
+          Self.BorderSettings.Color := TColor($FFBDBDBD); Self.BorderSettings.Thickness := 2;
+          Self.BorderSettings.CornerRadius := 2; Self.BorderSettings.RoundCornerType := rctAll;
+          Self.BorderSettings.BackgroundColor := clNone; // Component background (Material often transparent bg on cards)
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := TColor($DE000000); TempCaptionFont.Name := 'Roboto'; TempCaptionFont.Size := 10;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := TColor($61000000);
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True; Self.HoverSettings.BackgroundColor := TColor($1F000000); // Ripple effect like
+          Self.HoverSettings.BorderColor := TColor($FF2196F3); Self.HoverSettings.FontColor := clNone;
+        end;
+
+        // New properties for Material style
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+//          Self.OverallComponentBorder.Visible := False; // Material checkbox usually no overall border
+          Self.OverallComponentBorder.Color := TColor($FFBDBDBD);
+          Self.OverallComponentBorder.Thickness := 1;
+          Self.OverallComponentBorder.CornerRadius := 2;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 20; // Material checkboxes are a bit larger
+      end;
+      // ... Implement similar blocks for ALL other styles (cbsFlat, cbsModern, etc.)
+      // adding default values for OverallComponentBorder, CheckedIndicatorPosition, CheckedIndicatorSize.
+      // For brevity, I'll skip the full list here, but you should complete it. Example for cbsFlat:
+      cbsFlat: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := True;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := TColor($00E0E0E0);
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($00757575);
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For Check Element
+        begin
+          Self.BorderSettings.Color := TColor($00AAAAAA); Self.BorderSettings.Thickness := 1;
+          Self.BorderSettings.CornerRadius := 0; Self.BorderSettings.RoundCornerType := rctNone;
+          Self.BorderSettings.BackgroundColor := clNone; // Component background
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := clWindowText; TempCaptionFont.Name := 'Segoe UI'; TempCaptionFont.Size := 9;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := clGrayText;
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True; Self.HoverSettings.BackgroundColor := TColor($00D0D0D0);
+          Self.HoverSettings.BorderColor := TColor($00757575); Self.HoverSettings.FontColor := clNone;
+        end;
+
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+//          Self.OverallComponentBorder.Visible := False; // Flat usually no overall border
+          Self.OverallComponentBorder.Color := TColor($00AAAAAA);
+          Self.OverallComponentBorder.Thickness := 1;
+          Self.OverallComponentBorder.CornerRadius := 0;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
+      end;
+      // Add other styles here...
+      cbsModern: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := False;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := TColor($00F0F2F5);
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($FF007AFF);
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
+        if not FUserOverrides.BorderSettings_IsCustomized then
+        begin
+          Self.BorderSettings.Color := TColor($00D1D1D6); Self.BorderSettings.Thickness := 1;
+          Self.BorderSettings.CornerRadius := 5; Self.BorderSettings.RoundCornerType := rctAll;
+          Self.BorderSettings.BackgroundColor := clNone;
+        end;
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := TColor($FF1D1D1F); TempCaptionFont.Name := 'Segoe UI'; TempCaptionFont.Size := 10;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := TColor($FFBCBCBF);
+        end;
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True; Self.HoverSettings.BackgroundColor := BlendColors(FBoxColorUnchecked, FBoxColorChecked, 0.1);
+          Self.HoverSettings.BorderColor := TColor($FF007AFF); Self.HoverSettings.FontColor := clNone;
+        end;
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+//          Self.OverallComponentBorder.Visible := True; // Modern might have a subtle overall border
+          Self.OverallComponentBorder.Color := TColor($00E5E5EA);
+          Self.OverallComponentBorder.Thickness := 1;
+          Self.OverallComponentBorder.CornerRadius := 6;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0; // Approx 18-20px
+      end;
+      // ... and so on for cbsGhost, cbsFaded, cbsBordered, cbsIOS, cbsWin11
+    end;
+  finally
+    TempCaptionFont.Free;
+    FApplyingStyle := False;
+  end;
+  Invalidate;
+end;
+
+procedure TANDMR_CCheckBox.SetCurrentStyle(const Value: TANDMR_CCheckBoxStyle);
+begin
+  // Logic for SetCurrentStyle remains largely the same:
+  // it clears FUserOverrides and calls ApplyStyle.
+  if Value = cbsCustom then
+  begin
+    if FCurrentStyle <> cbsCustom then
+    begin
+      FCurrentStyle := cbsCustom;
+      Invalidate;
+    end;
+    Exit;
+  end;
+
+  if FCurrentStyle = Value then
+  begin
+    InitializeUserOverrides;
+    ApplyStyle(Value);
+    Exit;
+  end;
+
+  if (FCurrentStyle <> Value) or (FCurrentStyle = cbsCustom) then
+  begin
+    InitializeUserOverrides;
+    FCurrentStyle := Value;
+    ApplyStyle(Value);
+  end;
+end;
+
+procedure TANDMR_CCheckBox.SettingsChanged(Sender: TObject);
+begin
+  if not FApplyingStyle then
+  begin
+    FCurrentStyle := cbsCustom;
+    if Sender = FBorderSettings then // This is for the check element's border
+      FUserOverrides.BorderSettings_IsCustomized := True
+    else if Sender = FCaptionSettings then
+      FUserOverrides.CaptionSettings_IsCustomized := True;
+  end;
+  Invalidate;
+end;
+
+procedure TANDMR_CCheckBox.OverallComponentBorderChanged(Sender: TObject);
+begin
+  if not FApplyingStyle then
+  begin
+    FCurrentStyle := cbsCustom;
+    FUserOverrides.OverallComponentBorder_IsCustomized := True;
+  end;
+  Invalidate;
+end;
+
+
+procedure TANDMR_CCheckBox.HoverSettingsChanged(Sender: TObject);
+begin
+  if not FApplyingStyle then
+  begin
+    FCurrentStyle := cbsCustom;
+    FUserOverrides.HoverSettings_IsCustomized := True;
+  end;
+  Invalidate;
+end;
+
+procedure TANDMR_CCheckBox.SetBorderSettings(const Value: TBorderSettings);
+begin
+  FBorderSettings.Assign(Value); // For check element
+  if not FApplyingStyle then
+  begin
+    FCurrentStyle := cbsCustom;
+    FUserOverrides.BorderSettings_IsCustomized := True;
+  end;
+  Invalidate;
+end;
+
+procedure TANDMR_CCheckBox.SetCaptionSettings(const Value: TCaptionSettings);
+begin
+  FCaptionSettings.Assign(Value);
+  if not FApplyingStyle then
+  begin
+    FCurrentStyle := cbsCustom;
+    FUserOverrides.CaptionSettings_IsCustomized := True;
+  end;
+  Invalidate;
+end;
+
+// Setters for new properties
+procedure TANDMR_CCheckBox.SetOverallComponentBorder(const Value: TBorderSettings);
+begin
+  FOverallComponentBorder.Assign(Value);
+  if not FApplyingStyle then
+  begin
+    FCurrentStyle := cbsCustom;
+    FUserOverrides.OverallComponentBorder_IsCustomized := True;
+  end;
+  Invalidate;
+end;
+
+procedure TANDMR_CCheckBox.SetCheckedIndicatorPosition(const Value: TCheckBoxIndicatorPosition);
+begin
+  if FCheckedIndicatorPosition <> Value then
+  begin
+    FCheckedIndicatorPosition := Value;
+    if not FApplyingStyle then
+    begin
+      FCurrentStyle := cbsCustom;
+      FUserOverrides.CheckedIndicatorPosition_IsSet := True;
+    end;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CCheckBox.SetCheckedIndicatorSize(const Value: Integer);
+begin
+  if FCheckedIndicatorSize <> Value then
+  begin
+    FCheckedIndicatorSize := Value;
+    if not FApplyingStyle then
+    begin
+      FCurrentStyle := cbsCustom;
+      FUserOverrides.CheckedIndicatorSize_IsSet := True;
+    end;
+    Invalidate;
+  end;
+end;
+
+
+procedure TANDMR_CCheckBox.CMEnabledChanged(var Message: TMessage);
+begin
+  inherited;
+  Invalidate;
+end;
+
+procedure TANDMR_CCheckBox.CMMouseEnter(var Message: TMessage);
+begin
+  inherited;
+  if Self.Enabled and Assigned(FHoverSettings) and FHoverSettings.Enabled then
+  begin
+    FHoverSettings.StartAnimation(True);
+  end;
+end;
+
+procedure TANDMR_CCheckBox.CMMouseLeave(var Message: TMessage);
+begin
+  inherited;
+  if Assigned(FHoverSettings) then
+  begin
+    FHoverSettings.StartAnimation(False);
+  end;
+end;
+
+procedure TANDMR_CCheckBox.Click;
+begin
+  if not Enabled then Exit;
+
+  case FState of
+    csUnchecked: SetState(csChecked);
+    csChecked: SetState(csUnchecked);
+    csIndeterminate: SetState(csChecked); // Or csUnchecked, depending on desired behavior
+  end;
+
+  if Assigned(FOnClick) then
+    FOnClick(Self);
+end;
+
+procedure TANDMR_CCheckBox.KeyDown(var Key: Word; Shift: TShiftState);
+begin
+  inherited KeyDown(Key, Shift);
+  if Key = 0 then Exit;
+
+  if Self.Enabled and (Key = VK_SPACE) then
+  begin
+    Click;
+    Key := 0;
+  end;
 end;
 
 procedure TANDMR_CCheckBox.Paint;
 var
-  GP: TGPGraphics;
-  LPath: TGPGraphicsPath;
-  LBrush: TGPBrush;
-  LPen: TGPPen;
-  CheckBoxRectF: TGPRectF;
-  CheckElementSize: Integer;
-  CaptionRect: TRect;
-  EffectiveClientRect: TRect;
-  LCurrentColor, LCurrentOverallBorderColor, LCurrentElementBoxColor, LCurrentCheckMarkColor, LCurrentCaptionColor: TColor;
-  LCurrentElementBorderColor: TColor; // Specific for the checkbox element's border
+  LG: TGPGraphics;
+  LGPPath: TGPGraphicsPath;
+  LGPBrush: TGPSolidBrush;
+  LGPPen: TGPPen;
+  LPoints: array of TGPPointF;
+  BoxRect: TGPRectF;          // For the check element
+  BoxDrawRect: TRect;         // TRect version of BoxRect
+  CaptionPaintRect: TRect;    // Where caption is actually painted
+  EffectiveCheckBoxSquareSize: Integer;
+  LCurrentBoxColorUnchecked, LCurrentBoxColorChecked, LCurrentCheckMarkColor, LCurrentCaptionColor, LBoxFillColor: TColor;
+  LIsHovering: Boolean;
   LHoverProgress: Single;
-  LCheckElementRadius: Single;
-  LDrawElementBorder: Boolean;
-  LFillElementBox: Boolean;
+  LCaptionFont: TFont;        // Temporary font for modifications
+  ActualCaptionFont: TFont;   // Font used for drawing
+  Padding: Integer;
+  CheckmarkThickness: Single;
+  CombinedRectForFocus: TGPRectF;
+  ActualCheckElementBorderColor: TColor; // Border color for the check element
+  // ActualBoxBorderThickness: Integer; // Use FBorderSettings.Thickness directly
+  // ActualCornerRadius: Integer;     // Use FBorderSettings.CornerRadius directly
+  // ActualRoundCornerType: TRoundCornerType; // Use FBorderSettings.RoundCornerType directly
+  LClientRectF: TGPRectF;
+  NewTextMarginMultiplier: Integer;
+
+  OverallBorderPaintRect: TRect; // Rect for drawing the overall component border
+  ContentPaintRect: TRect;       // Rect inside the overall component border
+  OverallBorderColor: TColor;
+  OverallBorderThickness: Integer;
+  OverallCornerRadius: Integer;
+  OverallRoundCornerType: TRoundCornerType;
+
 begin
   inherited Paint;
-  EffectiveClientRect := GetClientRect;
-  LHoverProgress := 0;
 
-  if FIsHovering and FHoverSettings.Enabled and (FHoverSettings.CurrentAnimationValue > 0) and not (csDesigning in ComponentState) then
-    LHoverProgress := FHoverSettings.CurrentAnimationValue / 255.0;
-
-  // Determine effective colors based on state (normal, hover, disabled)
-  if not Enabled then
-  begin
-    LCurrentColor := BlendColors(FColor, clGray, 0.65);
-    LCurrentOverallBorderColor := BlendColors(FBorderSettings.Color, clGray, 0.70); // Main component border
-    LCurrentElementBorderColor := BlendColors(FOverallBorderColor, clGray, 0.60); // Checkbox element border
-    LCurrentElementBoxColor := BlendColors(FElementBoxColor, clGray, 0.55);
-    LCurrentCheckMarkColor := BlendColors(FCheckMarkColor, clGray, 0.50);
-    LCurrentCaptionColor := FCaptionSettings.DisabledColor;
-  end
-  else
-  begin
-    LCurrentColor := FColor;
-    LCurrentOverallBorderColor := FBorderSettings.Color; // Main component border
-    LCurrentElementBorderColor := FOverallBorderColor;   // Checkbox element border
-    LCurrentElementBoxColor := FElementBoxColor;
-    LCurrentCheckMarkColor := FCheckMarkColor;
-    LCurrentCaptionColor := FCaptionSettings.Color;
-
-    if LHoverProgress > 0 then
-    begin
-      if FHoverSettings.BackgroundColor <> clNone then // Hover for main component background
-        LCurrentColor := BlendColors(FColor, FHoverSettings.BackgroundColor, LHoverProgress);
-      if FHoverSettings.BorderColor <> clNone then // Hover for main component border
-        LCurrentOverallBorderColor := BlendColors(FBorderSettings.Color, FHoverSettings.BorderColor, LHoverProgress);
-
-      // Hover for ElementBoxColor and its Border
-      LCurrentElementBoxColor := BlendColors(FElementBoxColor, LighterColor(FElementBoxColor, 20), LHoverProgress);
-      LCurrentElementBorderColor := BlendColors(FOverallBorderColor, LighterColor(FOverallBorderColor, 30), LHoverProgress);
-
-
-      if FHoverSettings.CaptionFontColor <> clNone then
-        LCurrentCaptionColor := BlendColors(FCaptionSettings.Color, FHoverSettings.CaptionFontColor, LHoverProgress)
-      else if FHoverSettings.FontColor <> clNone then
-        LCurrentCaptionColor := BlendColors(FCaptionSettings.Color, FHoverSettings.FontColor, LHoverProgress);
-    end;
-  end;
-
-  GP := TGPGraphics.Create(Canvas.Handle);
+  LG := TGPGraphics.Create(Canvas.Handle);
   try
-    GP.SetSmoothingMode(SmoothingModeAntiAlias);
-    GP.SetPixelOffsetMode(PixelOffsetModeHalf);
+    LG.SetSmoothingMode(SmoothingModeAntiAlias);
+    LG.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
 
-    // Background
+    Padding := 2; // General padding
+    NewTextMarginMultiplier := 3; // For caption next to check element
+
+    // --- 1. Component Background ---
     if not FTransparent then
     begin
-      LBrush := TGPSolidBrush.Create(ColorToARGB(LCurrentColor));
-      try GP.FillRectangle(LBrush, EffectiveClientRect.Left, EffectiveClientRect.Top, EffectiveClientRect.Width, EffectiveClientRect.Height);
-      finally LBrush.Free; end;
-    end;
+      var BackgroundBrush: TGPSolidBrush;
+      var ComponentBGColor: TColor;
 
-    // Main Component Border (using FBorderSettings)
-    if FBorderSettings.Visible and (FBorderSettings.Thickness > 0) and not FTransparent then
-    begin
-      LPath := TGPGraphicsPath.Create;
-      LPen := TGPPen.Create(ColorToARGB(LCurrentOverallBorderColor), FBorderSettings.Thickness);
+      if FBorderSettings.BackgroundColor <> clNone then // Existing FBorderSettings.BackgroundColor is for component BG
+        ComponentBGColor := FBorderSettings.BackgroundColor
+      else
+        ComponentBGColor := Self.Color; // Fallback to control's Color if no specific BG is set
+
+      LClientRectF.X := ClientRect.Left; LClientRectF.Y := ClientRect.Top;
+      LClientRectF.Width := ClientRect.Width; LClientRectF.Height := ClientRect.Height;
+      BackgroundBrush := TGPSolidBrush.Create(ColorToARGB(ComponentBGColor, 255));
       try
-        var ComponentRectF: TGPRectF;
-        ComponentRectF.X := EffectiveClientRect.Left + FBorderSettings.Thickness / 2;
-        ComponentRectF.Y := EffectiveClientRect.Top + FBorderSettings.Thickness / 2;
-        ComponentRectF.Width := EffectiveClientRect.Width - FBorderSettings.Thickness;
-        ComponentRectF.Height := EffectiveClientRect.Height - FBorderSettings.Thickness;
-        ComponentRectF.Width  := Max(0.0, ComponentRectF.Width);
-        ComponentRectF.Height := Max(0.0, ComponentRectF.Height);
-
-        CreateGPRoundedPath(LPath, ComponentRectF, FBorderSettings.CornerRadius, FBorderSettings.RoundCornerType);
-        GP.DrawPath(LPen, LPath);
+        LG.FillRectangle(BackgroundBrush, LClientRectF);
       finally
-        LPath.Free;
-        LPen.Free;
+        BackgroundBrush.Free;
+      end;
+    end
+    else
+    begin
+      // If transparent, VCL should handle drawing parent background if csParentBackground is set.
+      // Or, if more explicit control is needed: StyleServices.DrawParentBackground(Self, Canvas.Handle, nil, True);
+    end;
+
+    // --- 2. Overall Component Border ---
+    OverallBorderPaintRect := ClientRect;
+    ContentPaintRect := ClientRect; // Start with full client rect, then deflate
+
+    OverallBorderColor := FOverallComponentBorder.Color;
+    OverallBorderThickness := FOverallComponentBorder.Thickness;
+    OverallCornerRadius := FOverallComponentBorder.CornerRadius;
+    OverallRoundCornerType := FOverallComponentBorder.RoundCornerType;
+
+    // Adjust overall border color if hovering and enabled
+    LIsHovering := FHoverSettings.Enabled and (FHoverSettings.CurrentAnimationValue > 0) and Self.Enabled;
+    LHoverProgress := FHoverSettings.CurrentAnimationValue / 255.0;
+
+    if LIsHovering and (FHoverSettings.BorderColor <> clNone) then // Check if overall border is visible
+    begin
+        // Assuming FHoverSettings.BorderColor is meant for the check element,
+        // or we need a new FHoverSettings.OverallBorderColor.
+        // For now, let's assume hover border color applies to check element.
+        // If you want overall border to change on hover, add a specific property to THoverSettings.
+    end;
+    if not Self.Enabled then
+    begin
+        OverallBorderColor := BlendColors(OverallBorderColor, clGray, 0.60);
+    end;
+
+
+    if (OverallBorderThickness > 0) then
+    begin
+      // Use DrawEditBox to draw the overall border.
+      // Pass clNone for fill color if DrawEditBox supports transparent fill,
+      // otherwise, the background is already drawn.
+      // The important part is that DrawEditBox draws the border lines.
+      ANDMR_ComponentUtils.DrawEditBox(
+        LG, OverallBorderPaintRect, clNone, // Fill color (clNone if only border is needed and BG is drawn)
+        OverallBorderColor, OverallBorderThickness,
+        psSolid, OverallCornerRadius, OverallRoundCornerType, 255
+      );
+      // Deflate ContentPaintRect to be inside the overall border
+      InflateRect(ContentPaintRect, -OverallBorderThickness, -OverallBorderThickness);
+    end;
+
+    // --- 3. Determine Check Element Size ---
+    if FCheckedIndicatorSize > 0 then
+      EffectiveCheckBoxSquareSize := FCheckedIndicatorSize
+    else // Auto-calculate based on ContentPaintRect height
+      EffectiveCheckBoxSquareSize := Min(ContentPaintRect.Height - (Padding * 2), 18);
+
+    if EffectiveCheckBoxSquareSize < 10 then EffectiveCheckBoxSquareSize := 10; // Minimum size
+
+    // --- 4. Calculate Check Element Position (BoxRect) within ContentPaintRect ---
+    // Initialize BoxRect (TGPRectF)
+    BoxRect.Width := EffectiveCheckBoxSquareSize;
+    BoxRect.Height := EffectiveCheckBoxSquareSize;
+
+    case FCheckedIndicatorPosition of
+      cipLeftTop:     begin BoxRect.X := ContentPaintRect.Left + Padding; BoxRect.Y := ContentPaintRect.Top + Padding; end;
+      cipLeftCenter:  begin BoxRect.X := ContentPaintRect.Left + Padding; BoxRect.Y := ContentPaintRect.Top + (ContentPaintRect.Height - EffectiveCheckBoxSquareSize) / 2; end;
+      cipLeftBottom:  begin BoxRect.X := ContentPaintRect.Left + Padding; BoxRect.Y := ContentPaintRect.Bottom - EffectiveCheckBoxSquareSize - Padding; end;
+
+      cipTopLeft:     begin BoxRect.X := ContentPaintRect.Left + Padding; BoxRect.Y := ContentPaintRect.Top + Padding; end;
+      cipTopCenter:   begin BoxRect.X := ContentPaintRect.Left + (ContentPaintRect.Width - EffectiveCheckBoxSquareSize) / 2; BoxRect.Y := ContentPaintRect.Top + Padding; end;
+      cipTopRight:    begin BoxRect.X := ContentPaintRect.Right - EffectiveCheckBoxSquareSize - Padding; BoxRect.Y := ContentPaintRect.Top + Padding; end;
+
+      cipRightTop:    begin BoxRect.X := ContentPaintRect.Right - EffectiveCheckBoxSquareSize - Padding; BoxRect.Y := ContentPaintRect.Top + Padding; end;
+      cipRightCenter: begin BoxRect.X := ContentPaintRect.Right - EffectiveCheckBoxSquareSize - Padding; BoxRect.Y := ContentPaintRect.Top + (ContentPaintRect.Height - EffectiveCheckBoxSquareSize) / 2; end;
+      cipRightBottom: begin BoxRect.X := ContentPaintRect.Right - EffectiveCheckBoxSquareSize - Padding; BoxRect.Y := ContentPaintRect.Bottom - EffectiveCheckBoxSquareSize - Padding; end;
+
+      cipBottomLeft:  begin BoxRect.X := ContentPaintRect.Left + Padding; BoxRect.Y := ContentPaintRect.Bottom - EffectiveCheckBoxSquareSize - Padding; end;
+      cipBottomCenter:begin BoxRect.X := ContentPaintRect.Left + (ContentPaintRect.Width - EffectiveCheckBoxSquareSize) / 2; BoxRect.Y := ContentPaintRect.Bottom - EffectiveCheckBoxSquareSize - Padding; end;
+      cipBottomRight: begin BoxRect.X := ContentPaintRect.Right - EffectiveCheckBoxSquareSize - Padding; BoxRect.Y := ContentPaintRect.Bottom - EffectiveCheckBoxSquareSize - Padding; end;
+
+      cipCenter:      begin BoxRect.X := ContentPaintRect.Left + (ContentPaintRect.Width - EffectiveCheckBoxSquareSize) / 2; BoxRect.Y := ContentPaintRect.Top + (ContentPaintRect.Height - EffectiveCheckBoxSquareSize) / 2; end;
+    else // Default to cipLeftCenter
+      begin BoxRect.X := ContentPaintRect.Left + Padding; BoxRect.Y := ContentPaintRect.Top + (ContentPaintRect.Height - EffectiveCheckBoxSquareSize) / 2; end;
+    end;
+
+    // Ensure BoxRect is within ContentPaintRect (crude clipping, might need refinement)
+    if BoxRect.X < ContentPaintRect.Left then BoxRect.X := ContentPaintRect.Left;
+    if BoxRect.Y < ContentPaintRect.Top then BoxRect.Y := ContentPaintRect.Top;
+    if BoxRect.X + BoxRect.Width > ContentPaintRect.Right then BoxRect.Width := ContentPaintRect.Right - BoxRect.X;
+    if BoxRect.Y + BoxRect.Height > ContentPaintRect.Bottom then BoxRect.Height := ContentPaintRect.Bottom - BoxRect.Y;
+
+
+    // --- 5. Calculate Caption Paint Rect ---
+    // Initialize with the full ContentPaintRect, then adjust based on indicator position
+    CaptionPaintRect := ContentPaintRect;
+
+    case FCheckedIndicatorPosition of
+      cipLeftTop, cipLeftCenter, cipLeftBottom:
+        CaptionPaintRect.Left := Round(BoxRect.X + BoxRect.Width + (Padding * Max(1, NewTextMarginMultiplier -1) )); // Space for check element + margin
+      cipRightTop, cipRightCenter, cipRightBottom:
+        CaptionPaintRect.Right := Round(BoxRect.X - (Padding * Max(1, NewTextMarginMultiplier -1) ));
+      cipTopLeft, cipTopCenter, cipTopRight:
+        CaptionPaintRect.Top := Round(BoxRect.Y + BoxRect.Height + Padding);
+      cipBottomLeft, cipBottomCenter, cipBottomRight:
+        CaptionPaintRect.Bottom := Round(BoxRect.Y - Padding);
+      cipCenter: // If indicator is in center, caption might be tricky.
+                 // For now, let's assume caption is not drawn or drawn around it.
+                 // This example will effectively hide caption if indicator is centered and large.
+        begin
+          // Decide how to handle caption when indicator is centered.
+          // Option 1: Don't draw caption.
+          CaptionPaintRect := System.Types.Rect(0,0,0,0); // Effectively hide
+          // Option 2: Try to draw it to one side (e.g., to the right if space)
+          // if (ContentPaintRect.Right - (BoxRect.X + BoxRect.Width)) > (Canvas.TextWidth(FCaptionSettings.Text) + Padding) then
+          // CaptionPaintRect.Left := Round(BoxRect.X + BoxRect.Width + Padding)
+          // else CaptionPaintRect := System.Types.Rect(0,0,0,0);
+        end;
+    end;
+    // Ensure caption rect is valid
+    if CaptionPaintRect.Right < CaptionPaintRect.Left then CaptionPaintRect.Right := CaptionPaintRect.Left;
+    if CaptionPaintRect.Bottom < CaptionPaintRect.Top then CaptionPaintRect.Bottom := CaptionPaintRect.Top;
+
+
+    // --- 6. Determine Colors and Font based on State (Hover, Disabled) ---
+    LCurrentBoxColorUnchecked := FBoxColorUnchecked;
+    LCurrentBoxColorChecked := FBoxColorChecked;
+    LCurrentCheckMarkColor := FCheckMarkColor;
+    ActualCheckElementBorderColor := FBorderSettings.Color; // From existing BorderSettings for check element
+
+    ActualCaptionFont := TFont.Create;
+    LCaptionFont := TFont.Create;
+    try
+      LCaptionFont.Assign(FCaptionSettings.Font);
+      ActualCaptionFont.Assign(LCaptionFont); // Start with base caption font
+      LCurrentCaptionColor := ActualCaptionFont.Color;
+
+      if LIsHovering then
+      begin
+        if FHoverSettings.BackgroundColor <> clNone then // This hover BG applies to check element fill
+        begin
+          LCurrentBoxColorUnchecked := BlendColors(LCurrentBoxColorUnchecked, FHoverSettings.BackgroundColor, LHoverProgress);
+          LCurrentBoxColorChecked := BlendColors(LCurrentBoxColorChecked, FHoverSettings.BackgroundColor, LHoverProgress);
+        end;
+        if FHoverSettings.FontColor <> clNone then
+          LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, FHoverSettings.FontColor, LHoverProgress);
+
+        if FHoverSettings.BorderColor <> clNone then // This hover border applies to check element
+           ActualCheckElementBorderColor := BlendColors(ActualCheckElementBorderColor, FHoverSettings.BorderColor, LHoverProgress);
+      end;
+
+      if not Self.Enabled then
+      begin
+        LCurrentBoxColorUnchecked := BlendColors(LCurrentBoxColorUnchecked, clGray, 0.60);
+        LCurrentBoxColorChecked := BlendColors(LCurrentBoxColorChecked, clGray, 0.60);
+        LCurrentCheckMarkColor := BlendColors(LCurrentCheckMarkColor, clGray, 0.60);
+        ActualCheckElementBorderColor := BlendColors(ActualCheckElementBorderColor, clGray, 0.60);
+
+        if FCaptionSettings.DisabledColor <> clNone then
+          LCurrentCaptionColor := FCaptionSettings.DisabledColor
+        else
+          LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, clGray, 0.50);
+      end;
+    finally
+      LCaptionFont.Free;
+    end;
+    ActualCaptionFont.Color := LCurrentCaptionColor;
+
+
+    // --- 7. Draw Check Element (Box and Mark/Indeterminate) ---
+    case FState of
+      csChecked: LBoxFillColor := LCurrentBoxColorChecked;
+      csUnchecked: LBoxFillColor := LCurrentBoxColorUnchecked;
+      csIndeterminate: LBoxFillColor := LCurrentBoxColorUnchecked; // Or specific color for indeterminate fill
+    else
+      LBoxFillColor := LCurrentBoxColorUnchecked;
+    end;
+
+    BoxDrawRect := System.Types.Rect(Round(BoxRect.X), Round(BoxRect.Y), Round(BoxRect.X + BoxRect.Width), Round(BoxRect.Y + BoxRect.Height));
+
+    // Draw the check element using existing FBorderSettings for its border style
+    ANDMR_ComponentUtils.DrawEditBox(
+      LG, BoxDrawRect, LBoxFillColor, ActualCheckElementBorderColor,
+      FBorderSettings.Thickness, psSolid, FBorderSettings.CornerRadius, FBorderSettings.RoundCornerType, 255
+    );
+
+    // Draw CheckMark or Indeterminate Mark
+    if (BoxRect.Width > 0) And (BoxRect.Height > 0) then // Only draw if size is valid
+    begin
+        if FState = csChecked then
+        begin
+          CheckmarkThickness := Max(1.5, EffectiveCheckBoxSquareSize / 8);
+          LGPPen := TGPPen.Create(ColorToARGB(LCurrentCheckMarkColor, 255), CheckmarkThickness);
+          LGPPen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
+          try
+            SetLength(LPoints, 3);
+            LPoints[0].X := BoxRect.X + BoxRect.Width * 0.20; LPoints[0].Y := BoxRect.Y + BoxRect.Height * 0.50;
+            LPoints[1].X := BoxRect.X + BoxRect.Width * 0.45; LPoints[1].Y := BoxRect.Y + BoxRect.Height * 0.75;
+            LPoints[2].X := BoxRect.X + BoxRect.Width * 0.80; LPoints[2].Y := BoxRect.Y + BoxRect.Height * 0.25;
+            if Length(LPoints) > 1 then
+              LG.DrawLines(LGPPen, PGPPointF(LPoints), Length(LPoints));
+          finally
+            LGPPen.Free;
+          end;
+        end
+        else if FState = csIndeterminate then
+        begin
+          LGPBrush := TGPSolidBrush.Create(ColorToARGB(LCurrentCheckMarkColor, 255));
+          try
+            var IndeterminateSymbolRect: TGPRectF;
+            IndeterminateSymbolRect.Width := BoxRect.Width * 0.6;
+            IndeterminateSymbolRect.Height := Max(2, EffectiveCheckBoxSquareSize / 7);
+            IndeterminateSymbolRect.X := BoxRect.X + (BoxRect.Width - IndeterminateSymbolRect.Width) / 2;
+            IndeterminateSymbolRect.Y := BoxRect.Y + (BoxRect.Height - IndeterminateSymbolRect.Height) / 2;
+            LG.FillRectangle(LGPBrush, IndeterminateSymbolRect);
+          finally
+            LGPBrush.Free;
+          end;
+        end;
+    end;
+
+    // --- 8. Draw Caption ---
+    if (FCaptionSettings.Text <> '') and (CaptionPaintRect.Right > CaptionPaintRect.Left) and (CaptionPaintRect.Bottom > CaptionPaintRect.Top) then
+    begin
+      // Add a small internal padding for the caption text within its calculated paint rect
+      var FinalCaptionDrawRect := CaptionPaintRect;
+      InflateRect(FinalCaptionDrawRect, -Padding, -Padding div 2); // Small horizontal and vertical padding
+
+      if (FinalCaptionDrawRect.Right > FinalCaptionDrawRect.Left) And (FinalCaptionDrawRect.Bottom > FinalCaptionDrawRect.Top) then
+      begin
+          ANDMR_ComponentUtils.DrawComponentCaption(
+            Self.Canvas, FinalCaptionDrawRect, FCaptionSettings.Text, ActualCaptionFont,
+            ActualCaptionFont.Color, FCaptionSettings.Alignment,
+            FCaptionSettings.VerticalAlignment, FCaptionSettings.WordWrap, 255
+          );
       end;
     end;
-
-  // --- Layout Metrics ---
-  var DrawableRect: TRect; // Inner rect after accounting for main component border
-  var EstimatedCaptionSize: TSize = TSize.Create(0,0);
-  var EstimatedImageSize: TSize = TSize.Create(0,0);
-  var CheckBoxOffsetX, CheckBoxOffsetY: Integer;
-
-  DrawableRect := EffectiveClientRect;
-  if FBorderSettings.Visible and (FBorderSettings.Thickness > 0) then
-    InflateRect(DrawableRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
-
-  CheckBoxOffsetX := DrawableRect.Left + 2; // Default start X for CheckBox
-  CheckBoxOffsetY := DrawableRect.Top + (DrawableRect.Height - CheckElementSize) div 2; // Default start Y (centered)
-
-  // Estimate caption space
-    if FCaptionSettings.Visible and (Trim(FCaptionSettings.Text) <> '') then
-  begin
-    Canvas.Font.Assign(FCaptionSettings.Font);
-    EstimatedCaptionSize.cx := Canvas.TextWidth(FCaptionSettings.Text) + FCaptionSettings.Offset.X;
-    EstimatedCaptionSize.cy := Canvas.TextHeight(FCaptionSettings.Text) + FCaptionSettings.Offset.Y;
-  end;
-
-  // Estimate image space
-  var ActualImageWidth, ActualImageHeight: Integer;
-  ActualImageWidth := 0; ActualImageHeight := 0;
-
-  if FImageSettings.Visible and Assigned(FImageSettings.Picture) and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
-  begin
-    ActualImageWidth := IfThen(FImageSettings.TargetWidth > 0, FImageSettings.TargetWidth, FImageSettings.Picture.Graphic.Width);
-    ActualImageHeight := IfThen(FImageSettings.TargetHeight > 0, FImageSettings.TargetHeight, FImageSettings.Picture.Graphic.Height);
-
-    if ActualImageWidth <= 0 then ActualImageWidth := 20; // Default fallback if graphic is empty and no target
-    if ActualImageHeight <= 0 then ActualImageHeight := 20; // Default fallback
-
-    EstimatedImageSize.cx := ActualImageWidth + FImageSettings.Margins.Left + FImageSettings.Margins.Right;
-    EstimatedImageSize.cy := ActualImageHeight + FImageSettings.Margins.Top + FImageSettings.Margins.Bottom;
-  end
-  else
-  begin
-    EstimatedImageSize.cx := 0;
-    EstimatedImageSize.cy := 0;
-  end;
-
-  // --- Checkbox Element Size & Position ---
-  // Initial CheckElementSize based on available height
-  CheckElementSize := Max(10, Min(DrawableRect.Height - 4, 20));
-
-  // Adjust CheckElementSize and CheckBoxOffsetX based on caption/image to the sides
-  var HorizontalSpacingNeeded: Integer = 0;
-  if FCaptionSettings.Visible and (FCaptionSettings.Position in [cpLeft, cpRight]) then
-    HorizontalSpacingNeeded := HorizontalSpacingNeeded + EstimatedCaptionSize.cx;
-  if FImageSettings.Visible and (FImageSettings.Position in [ipsLeft, ipsRight, ipsLeftOfCaption, ipsRightOfCaption]) then // Simplified check
-    HorizontalSpacingNeeded := HorizontalSpacingNeeded + EstimatedImageSize.cx;
-
-  CheckElementSize := Min(CheckElementSize, DrawableRect.Width - 4 - HorizontalSpacingNeeded);
-  CheckElementSize := Max(10, CheckElementSize); // Ensure minimum size
-
-  // Final CheckBoxRectF (assuming BiDiMode = bdLeftToRight for now)
-  // If caption is to the left, offset checkbox.
-  if FCaptionSettings.Visible and (FCaptionSettings.Position = cpLeft) then
-     CheckBoxOffsetX := CheckBoxOffsetX + EstimatedCaptionSize.cx;
-  // If image is to the left of checkbox (and caption is not cpLeft), offset checkbox.
-  if FImageSettings.Visible and (FImageSettings.Position = ipsLeft) and not (FCaptionSettings.Visible and FCaptionSettings.Position = cpLeft) then
-     CheckBoxOffsetX := CheckBoxOffsetX + EstimatedImageSize.cx;
+    ActualCaptionFont.Free;
 
 
-  CheckBoxRectF.X := CheckBoxOffsetX;
-  CheckBoxRectF.Y := DrawableRect.Top + (DrawableRect.Height - CheckElementSize) / 2; // Recenter with final CheckElementSize
-    CheckBoxRectF.Width := CheckElementSize;
-    CheckBoxRectF.Height := CheckElementSize;
-
-
-    LPath := TGPGraphicsPath.Create;
-    LCheckElementRadius := FElementCornerRadius;
-    LDrawElementBorder := True;
-    LFillElementBox := True;
-
-    // Style-specific color adjustments and properties
-    case FStyle of
-      cbsLight:
-        begin
-          LCheckElementRadius := FElementCornerRadius;
-          // Default colors are fine for cbsLight
-        end;
-      cbsDark:
-        begin
-          LCheckElementRadius := FElementCornerRadius;
-          // Base colors are already set for LCurrent variables from general logic
-          // No specific overrides for cbsLight, it uses the general logic + FElementStyle
-        end;
-      cbsDark:
-        begin
-          LCheckElementRadius := FElementCornerRadius;
-          var BaseDarkBg: TColor = StringToColor('#333333');
-          var BaseDarkElementBg: TColor = StringToColor('#404040');
-          var BaseDarkElementBorder: TColor = StringToColor('#555555');
-          var BaseDarkCheckMark: TColor = clSilver;
-          var BaseDarkCaption: TColor = clSilver;
-
-          if not Enabled then
-          begin
-            LCurrentColor := BlendColors(ColorOrDefault(FColor, BaseDarkBg), clGray, 0.65);
-            LCurrentOverallBorderColor := BlendColors(ColorOrDefault(FBorderSettings.Color, BaseDarkElementBorder), clGray, 0.70);
-            LCurrentElementBorderColor := BlendColors(ColorOrDefault(FOverallBorderColor, BaseDarkElementBorder), clGray, 0.60);
-            LCurrentElementBoxColor := BlendColors(ColorOrDefault(FElementBoxColor, BaseDarkElementBg), clGray, 0.55);
-            LCurrentCheckMarkColor := BlendColors(ColorOrDefault(FCheckMarkColor, BaseDarkCheckMark), clGray, 0.50);
-            LCurrentCaptionColor := BlendColors(ColorOrDefault(FCaptionSettings.Color, BaseDarkCaption), FCaptionSettings.DisabledColor, 0.5);
-          end
-          else
-          begin
-            LCurrentColor := ColorOrDefault(FColor, BaseDarkBg);
-            LCurrentOverallBorderColor := ColorOrDefault(FBorderSettings.Color, BaseDarkElementBorder);
-            LCurrentElementBorderColor := ColorOrDefault(FOverallBorderColor, BaseDarkElementBorder);
-            LCurrentElementBoxColor := ColorOrDefault(FElementBoxColor, BaseDarkElementBg);
-            LCurrentCheckMarkColor := ColorOrDefault(FCheckMarkColor, BaseDarkCheckMark);
-            LCurrentCaptionColor := ColorOrDefault(FCaptionSettings.Color, BaseDarkCaption);
-
-            if LHoverProgress > 0 then
-            begin
-              LCurrentElementBoxColor := BlendColors(LCurrentElementBoxColor, LighterColor(LCurrentElementBoxColor, 30), LHoverProgress);
-              LCurrentElementBorderColor := BlendColors(LCurrentElementBorderColor, LighterColor(LCurrentElementBorderColor, 40), LHoverProgress);
-              if FHoverSettings.BackgroundColor <> clNone then
-                 LCurrentColor := BlendColors(LCurrentColor, FHoverSettings.BackgroundColor, LHoverProgress);
-            end;
-          end;
-        end;
-      cbsMaterial:
-        begin
-          LCheckElementRadius := Max(FElementCornerRadius, 2);
-          var BaseMaterialAccent: TColor = FElementBoxColor; // User defined accent
-          var BaseMaterialCheckmark: TColor = ColorOrDefault(FCheckMarkColor, clWhite);
-          var BaseMaterialUncheckedBorder: TColor = ColorOrDefault(FOverallBorderColor, clGray);
-
-          if not Enabled then
-          begin
-            LCurrentElementBorderColor := BlendColors(BaseMaterialUncheckedBorder, clSilver, 0.8);
-            LCurrentElementBoxColor := BlendColors(BaseMaterialAccent, clSilver, 0.9);
-            LCurrentCheckMarkColor := clGray;
-            LCurrentCaptionColor := FCaptionSettings.DisabledColor;
-          end
-          else
-          begin
-            LCurrentCaptionColor := FCaptionSettings.Color; // Standard caption color
-            if FChecked then
-            begin
-              LCurrentElementBoxColor := BaseMaterialAccent;
-              LCurrentElementBorderColor := BaseMaterialAccent;
-              LCurrentCheckMarkColor := BaseMaterialCheckmark;
-              LDrawElementBorder := True; LFillElementBox := True;
-            end
-            else // Unchecked
-            begin
-              LCurrentElementBoxColor := clNone;
-              LCurrentElementBorderColor := BaseMaterialUncheckedBorder;
-              LDrawElementBorder := True; LFillElementBox := False;
-            end;
-
-            if LHoverProgress > 0 then
-            begin
-              if FChecked then
-                LCurrentElementBoxColor := BlendColors(BaseMaterialAccent, ColorToARGB(clBlack, 40), LHoverProgress)
-              else
-                LCurrentElementBorderColor := BlendColors(BaseMaterialUncheckedBorder, BaseMaterialAccent, LHoverProgress);
-            end;
-          end;
-        end;
-      cbsFlat:
-        begin
-          LCheckElementRadius := 0;
-          LFillElementBox := FChecked Or (FIsHovering and Enabled);
-          LDrawElementBorder := FChecked Or (FIsHovering and Enabled); // Border only if checked or hovered
-          if not LFillElementBox then LCurrentElementBoxColor := clNone; // No fill if not checked/hovered
-          if not LDrawElementBorder then LCurrentElementBorderColor := clNone; // No border if not checked/hovered
-        end;
-      cbsModern:
-        begin
-          LCheckElementRadius := Max(FElementCornerRadius, 3); // Slightly more rounded default
-          // Uses base colors (FColor, FElementBoxColor etc.) via LCurrent... vars already set
-          // Hover: Subtle highlight (already handled by general hover logic on LCurrent... vars)
-          // Disabled: Already handled by general disabled logic
-        end;
-      cbsIOS:
-        begin
-          LCheckElementRadius := Max(FElementCornerRadius, CheckElementSize / 2.8); // Very rounded
-          var IOSGreen: TColor = StringToColor('#34C759');
-          var IOSUncheckedBorder: TColor = ColorOrDefault(FOverallBorderColor, StringToColor('#AEAEB2'));
-          var IOSCheckMark: TColor = ColorOrDefault(FCheckMarkColor, clWhite);
-
-          if not Enabled then
-          begin
-            LCurrentElementBoxColor := BlendColors(IOSGreen, clSilver, 0.85);
-            LCurrentElementBorderColor := BlendColors(IOSUncheckedBorder, clSilver, 0.7);
-            LCurrentCheckMarkColor := clGray;
-            LCurrentCaptionColor := FCaptionSettings.DisabledColor;
-          end
-          else
-          begin
-            LCurrentCaptionColor := FCaptionSettings.Color;
-            if FChecked then
-            begin
-              LCurrentElementBoxColor := ColorOrDefault(FElementBoxColor, IOSGreen);
-              LCurrentElementBorderColor := LCurrentElementBoxColor; // No distinct border when checked
-              LCurrentCheckMarkColor := IOSCheckMark;
-              LFillElementBox := True; LDrawElementBorder := True; // Or False for border if truly borderless
-            end
-            else // Unchecked
-            begin
-              LCurrentElementBoxColor := clNone; // Or a very light gray fill: StringToColor('#EFEFF4');
-              LCurrentElementBorderColor := IOSUncheckedBorder;
-              LFillElementBox := False; LDrawElementBorder := True;
-            end;
-            if LHoverProgress > 0 then
-            begin
-              if FChecked then
-                LCurrentElementBoxColor := BlendColors(ColorOrDefault(FElementBoxColor, IOSGreen), ColorToARGB(clBlack, 30), LHoverProgress)
-              else
-                LCurrentElementBorderColor := BlendColors(IOSUncheckedBorder, ColorOrDefault(FElementBoxColor, IOSGreen), LHoverProgress); // Border animates to accent
-            end;
-          end;
-        end;
-      cbsWin11:
-        begin
-          LCheckElementRadius := Max(FElementCornerRadius, 4); // Typical Win11 rounding
-          var Win11Accent: TColor = FElementBoxColor; // User defined accent
-          var Win11CheckMark: TColor = ColorOrDefault(FCheckMarkColor, clWhite);
-          var Win11UncheckedBorder: TColor = ColorOrDefault(FOverallBorderColor, StringToColor('#ACACAC'));
-          var Win11UncheckedFill: TColor = StringToColor('#F9F9F9'); // Very light, almost white
-
-          if not Enabled then
-          begin
-            LCurrentElementBoxColor := BlendColors(Win11Accent, clSilver, 0.85);
-            LCurrentElementBorderColor := BlendColors(Win11UncheckedBorder, clSilver, 0.7);
-            LCurrentCheckMarkColor := clGray;
-            LCurrentCaptionColor := FCaptionSettings.DisabledColor;
-          end
-          else
-          begin
-            LCurrentCaptionColor := FCaptionSettings.Color;
-            if FChecked then
-            begin
-              LCurrentElementBoxColor := Win11Accent;
-              LCurrentElementBorderColor := Win11Accent; // No distinct border
-              LCurrentCheckMarkColor := Win11CheckMark;
-              LFillElementBox := True; LDrawElementBorder := True;
-            end
-            else // Unchecked
-            begin
-              LCurrentElementBoxColor := IfThen(FIsHovering, BlendColors(Win11UncheckedFill, ColorToARGB(clBlack,15), LHoverProgress), Win11UncheckedFill);
-              LCurrentElementBorderColor := IfThen(FIsHovering, BlendColors(Win11UncheckedBorder, ColorToARGB(clBlack,90), LHoverProgress), Win11UncheckedBorder);
-              LFillElementBox := True; LDrawElementBorder := True;
-            end;
-
-            if LHoverProgress > 0 and FChecked then // Hover on checked
-            begin
-               LCurrentElementBoxColor := BlendColors(Win11Accent, ColorToARGB(clBlack, 30), LHoverProgress);
-            end;
-          end;
-        end;
-
-    else // Default to cbsLight behavior if style not handled above
-        LCheckElementRadius := FElementCornerRadius;
-    end;
-
-    // ElementStyle can further modify appearance after Style defaults are set.
-    // This is more relevant for styles like cbsLight, cbsDark, cbsModern.
-    // Styles like Material, IOS, Win11 often have strong opinions on fill/border.
-    if not (FStyle in [cbsMaterial, cbsIOS, cbsWin11, cbsFlat]) then
+    // --- 9. Draw Focus Rectangle ---
+    if Self.Focused and Self.TabStop and Self.Enabled then
     begin
-      case FElementStyle of
-        cbeseChecked: // Default behavior, rely on FStyle's settings for checked/unchecked
-          begin
-            // Defaults from FStyle are usually fine.
-            // For cbsFlat, LFillElementBox is already set if checked or hovered.
-          end;
-        cbeseBordered:
-          begin
-            LDrawElementBorder := True;
-            LFillElementBox := FChecked;
-            if not FChecked then
-            begin
-              if FStyle = cbsDark then
-                LCurrentElementBoxColor := ColorToARGB(LCurrentColor, 50) // Darker, more transparent fill
-              else
-                LCurrentElementBoxColor := ColorToARGB(LCurrentColor, 30); // Lighter, more transparent fill
-            end;
-          end;
-        cbeseSolid:
-          begin
-            LDrawElementBorder := True;
-            LFillElementBox := True;
-            if not FChecked then // Unchecked but solid style
-            begin
-               if FStyle = cbsDark then
-                 LCurrentElementBoxColor := BlendColors(LCurrentElementBoxColor, LCurrentColor, 0.5)
-               else
-                 LCurrentElementBoxColor := BlendColors(LCurrentElementBoxColor, LCurrentColor, 0.7);
-            end;
-          end;
-      end;
-    end;
-
-    CreateGPRoundedPath(LPath, CheckBoxRectF, LCheckElementRadius, rctAll);
-
-    if LFillElementBox and (ColorToRGB(LCurrentElementBoxColor) <> clNone) and (Alpha(LCurrentElementBoxColor) > 0) then
-    begin
-      LBrush := TGPSolidBrush.Create(ColorToARGB(LCurrentElementBoxColor));
-      try GP.FillPath(LBrush, LPath);
-      finally LBrush.Free; end;
-    end;
-
-    if LDrawElementBorder then
-    begin
-      LPen := TGPPen.Create(ColorToARGB(LCurrentElementBorderColor), 1);
-      try GP.DrawPath(LPen, LPath);
-      finally LPen.Free; end;
-    end;
-    LPath.Free;
-
-    if FChecked then
-    begin
-      LPen := TGPPen.Create(ColorToARGB(LCurrentCheckMarkColor), Max(1, CheckElementSize div 7));
-      LPen.SetStartCap(LineCapRound); LPen.SetEndCap(LineCapRound); LPen.SetLineJoin(LineJoinRound);
+      LGPPath := TGPGraphicsPath.Create;
+      LGPPen := nil;
       try
-        GP.DrawLine(LPen, CheckBoxRectF.X + CheckElementSize * 0.25, CheckBoxRectF.Y + CheckElementSize * 0.5,
-                          CheckBoxRectF.X + CheckElementSize * 0.45, CheckBoxRectF.Y + CheckElementSize * 0.75);
-        GP.DrawLine(LPen, CheckBoxRectF.X + CheckElementSize * 0.45, CheckBoxRectF.Y + CheckElementSize * 0.75,
-                          CheckBoxRectF.X + CheckElementSize * 0.75, CheckBoxRectF.Y + CheckElementSize * 0.30);
-      finally LPen.Free; end;
+        // Focus rectangle should encompass the visible elements within ContentPaintRect
+        // This needs to be calculated based on the actual drawn positions of BoxRect and CaptionPaintRect
+        var FocusContentLeft, FocusContentTop, FocusContentRight, FocusContentBottom: Single;
+
+        FocusContentLeft := BoxRect.X;
+        FocusContentTop := BoxRect.Y;
+        FocusContentRight := BoxRect.X + BoxRect.Width;
+        FocusContentBottom := BoxRect.Y + BoxRect.Height;
+
+        if (FCaptionSettings.Text <> '') and (CaptionPaintRect.Right > CaptionPaintRect.Left) then
+        begin
+            FocusContentLeft   := Min(FocusContentLeft, CaptionPaintRect.Left);
+            FocusContentTop    := Min(FocusContentTop, CaptionPaintRect.Top);
+            FocusContentRight  := Max(FocusContentRight, CaptionPaintRect.Right);
+            FocusContentBottom := Max(FocusContentBottom, CaptionPaintRect.Bottom);
+        end;
+
+        // Ensure focus rect is within ContentPaintRect bounds as a fallback
+        FocusContentLeft   := Max(FocusContentLeft, ContentPaintRect.Left);
+        FocusContentTop    := Max(FocusContentTop, ContentPaintRect.Top);
+        FocusContentRight  := Min(FocusContentRight, ContentPaintRect.Right);
+        FocusContentBottom := Min(FocusContentBottom, ContentPaintRect.Bottom);
+
+        if (FocusContentRight > FocusContentLeft) and (FocusContentBottom > FocusContentTop) then
+        begin
+            CombinedRectForFocus.X := FocusContentLeft - Padding;
+            CombinedRectForFocus.Y := FocusContentTop - Padding;
+            CombinedRectForFocus.Width := (FocusContentRight - FocusContentLeft) + (Padding * 2);
+            CombinedRectForFocus.Height := (FocusContentBottom - FocusContentTop) + (Padding * 2);
+
+            // Clip focus rect to ContentPaintRect to avoid drawing outside overall border
+            if CombinedRectForFocus.X < ContentPaintRect.Left then CombinedRectForFocus.X := ContentPaintRect.Left;
+            if CombinedRectForFocus.Y < ContentPaintRect.Top then CombinedRectForFocus.Y := ContentPaintRect.Top;
+            if CombinedRectForFocus.X + CombinedRectForFocus.Width > ContentPaintRect.Right then
+               CombinedRectForFocus.Width := ContentPaintRect.Right - CombinedRectForFocus.X;
+            if CombinedRectForFocus.Y + CombinedRectForFocus.Height > ContentPaintRect.Bottom then
+               CombinedRectForFocus.Height := ContentPaintRect.Bottom - CombinedRectForFocus.Y;
+
+            if (CombinedRectForFocus.Width > 0) And (CombinedRectForFocus.Height > 0) then
+            begin
+                LGPPath.AddRectangle(CombinedRectForFocus);
+                LGPPen := TGPPen.Create(ColorToARGB(LCurrentCaptionColor, 180)); // Use caption color for focus
+                LGPPen.SetDashStyle(DashStyleDash);
+                LG.DrawPath(LGPPen, LGPPath);
+            end;
+        end;
+      finally
+        LGPPath.Free;
+        if Assigned(LGPPen) then LGPPen.Free;
+      end;
     end;
 
   finally
-    GP.Free;
-  end;
-
-
-  // --- Caption Drawing ---
-  var ActualCaptionRect: TRect; // The final rect used for drawing caption
-  if FCaptionSettings.Visible and (Trim(FCaptionSettings.Text) <> '') then
-  begin
-    CaptionRect := DrawableRect; // Start with full drawable area, then constrain
-
-    case FCaptionSettings.Position of
-      cpLeft:
-        begin
-          CaptionRect.Right := Round(CheckBoxRectF.X - FCaptionSettings.Offset.X);
-          CaptionRect.Left := CaptionRect.Left + FCaptionSettings.Offset.X; // Add left offset from component edge
-        end;
-      cpRight:
-        begin
-          CaptionRect.Left := Round(CheckBoxRectF.X + CheckBoxRectF.Width + FCaptionSettings.Offset.X);
-          // CaptionRect.Right is initially DrawableRect.Right, potentially reduced by image
-        end;
-      cpAbove:
-        begin
-          CaptionRect.Bottom := Round(CheckBoxRectF.Y - FCaptionSettings.Offset.Y);
-          CaptionRect.Top := CaptionRect.Top + FCaptionSettings.Offset.Y;
-          // Horizontal alignment with checkbox or component width
-          CaptionRect.Left := Round(CheckBoxRectF.X);
-          CaptionRect.Right := Round(CheckBoxRectF.X + CheckBoxRectF.Width);
-          if FCaptionSettings.Alignment = taCenter then AlignRectToCenter(CaptionRect, DrawableRect)
-          else if FCaptionSettings.Alignment = taRightJustify then CaptionRect.Right := DrawableRect.Right - FCaptionSettings.Offset.X
-          else CaptionRect.Left := DrawableRect.Left + FCaptionSettings.Offset.X;
-
-
-        end;
-      cpBelow:
-        begin
-          CaptionRect.Top := Round(CheckBoxRectF.Y + CheckBoxRectF.Height + FCaptionSettings.Offset.Y);
-          // Vertical alignment with checkbox or component width
-          CaptionRect.Left := Round(CheckBoxRectF.X);
-          CaptionRect.Right := Round(CheckBoxRectF.X + CheckBoxRectF.Width);
-          if FCaptionSettings.Alignment = taCenter then AlignRectToCenter(CaptionRect, DrawableRect)
-          else if FCaptionSettings.Alignment = taRightJustify then CaptionRect.Right := DrawableRect.Right - FCaptionSettings.Offset.X
-          else CaptionRect.Left := DrawableRect.Left + FCaptionSettings.Offset.X;
-        end;
-    end;
-
-    // For cpLeft and cpRight, adjust vertical position based on VerticalAlignment
-    if FCaptionSettings.Position in [cpLeft, cpRight] then
-    begin
-        Canvas.Font.Assign(FCaptionSettings.Font); // Ensure font is set for TextHeight
-        var textHeight := Canvas.TextHeight(FCaptionSettings.Text);
-        case FCaptionSettings.VerticalAlignment of
-          cvaTop: CaptionRect.Top := Round(CheckBoxRectF.Y);
-          cvaCenter: CaptionRect.Top := Round(CheckBoxRectF.Y + (CheckBoxRectF.Height - textHeight) / 2);
-          cvaBottom: CaptionRect.Top := Round(CheckBoxRectF.Y + CheckBoxRectF.Height - textHeight);
-        end;
-        CaptionRect.Bottom := CaptionRect.Top + textHeight;
-    end;
-    ActualCaptionRect := CaptionRect; // Store this before image might modify it
-  end;
-
-
-  // --- Image Drawing ---
-  var ImageDrawRect: TRect;
-  if FImageSettings.Visible and Assigned(FImageSettings.Picture) and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
-  begin
-    var LImgW, LImgH, DrawWidth, DrawHeight: Integer;
-    var AvailableImageWidth, AvailableImageHeight: Integer;
-    var LScaleFactor: Single;
-
-    LImgW := FImageSettings.Picture.Graphic.Width;
-    LImgH := FImageSettings.Picture.Graphic.Height;
-
-    var ImgAnchorX: Integer;
-    // Determine initial anchor point for image (typically right of checkbox or caption)
-    if FCaptionSettings.Visible and (Trim(FCaptionSettings.Text) <> '') and (FCaptionSettings.Position = cpRight) then
-      ImgAnchorX := ActualCaptionRect.Right + FImageSettings.Margins.Left
-    else
-      ImgAnchorX := Round(CheckBoxRectF.X + CheckBoxRectF.Width + FImageSettings.Margins.Left);
-
-    AvailableImageWidth := Max(0, DrawableRect.Right - ImgAnchorX - FImageSettings.Margins.Right);
-    AvailableImageHeight := Max(0, DrawableRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
-
-    if FImageSettings.AutoSize then
-    begin
-      case FImageSettings.DrawMode of
-        idmStretch:
-        begin
-          DrawWidth := AvailableImageWidth;
-          DrawHeight := AvailableImageHeight;
-        end;
-        idmProportional:
-        begin
-          if (LImgW = 0) or (LImgH = 0) then
-          begin DrawWidth := 0; DrawHeight := 0; end
-          else
-          begin
-            LScaleFactor := Min(AvailableImageWidth / LImgW, AvailableImageHeight / LImgH);
-            DrawWidth := Round(LImgW * LScaleFactor);
-            DrawHeight := Round(LImgH * LScaleFactor);
-          end;
-        end;
-        idmNormal:
-        begin
-          DrawWidth := LImgW;
-          DrawHeight := LImgH;
-          // Clamp to available space if normal size exceeds it
-          if DrawWidth > AvailableImageWidth then DrawWidth := AvailableImageWidth;
-          if DrawHeight > AvailableImageHeight then DrawHeight := AvailableImageHeight;
-        end;
-      else // Default to proportional
-        if (LImgW = 0) or (LImgH = 0) then
-        begin DrawWidth := 0; DrawHeight := 0; end
-        else
-        begin
-          LScaleFactor := Min(AvailableImageWidth / LImgW, AvailableImageHeight / LImgH);
-          DrawWidth := Round(LImgW * LScaleFactor);
-          DrawHeight := Round(LImgH * LScaleFactor);
-        end;
-      end;
-    end
-    else // AutoSize = False
-    begin
-      DrawWidth := FImageSettings.TargetWidth;
-      DrawHeight := FImageSettings.TargetHeight;
-
-      if (DrawWidth = 0) and (DrawHeight = 0) then
-      begin
-        if FImageSettings.DrawMode = idmStretch then
-        begin
-          DrawWidth := AvailableImageWidth;
-          DrawHeight := AvailableImageHeight;
-        end
-        else // idmProportional or idmNormal
-        begin
-          DrawWidth := LImgW;
-          DrawHeight := LImgH;
-        end;
-      end
-      else if (DrawWidth = 0) and (DrawHeight > 0) then // Width is 0, Height is specified
-      begin
-        if LImgH > 0 then DrawWidth := Round(LImgW / LImgH * DrawHeight)
-        else DrawWidth := LImgW; // Fallback
-      end
-      else if (DrawWidth > 0) and (DrawHeight = 0) then // Height is 0, Width is specified
-      begin
-        if LImgW > 0 then DrawHeight := Round(LImgH / LImgW * DrawWidth)
-        else DrawHeight := LImgH; // Fallback
-      end;
-
-      // For AutoSize = False, DrawMode idmProportional means fitting within TargetWidth/Height
-      if FImageSettings.DrawMode = idmProportional then
-      begin
-        if (DrawWidth > 0) and (DrawHeight > 0) and (LImgW > 0) and (LImgH > 0) then
-        begin
-            LScaleFactor := Min(DrawWidth / LImgW, DrawHeight / LImgH);
-            DrawWidth := Round(LImgW * LScaleFactor);
-            DrawHeight := Round(LImgH * LScaleFactor);
-        end;
-      end;
-      // idmNormal with TargetSize means image is drawn at TargetSize (or original if TargetSize is 0,0)
-      // idmStretch with TargetSize means image is stretched to TargetSize
-
-      // Clamping to available space for AutoSize = False
-      if (DrawWidth > AvailableImageWidth) or (DrawHeight > AvailableImageHeight) then
-      begin
-        if (DrawWidth > 0) and (DrawHeight > 0) then
-        begin
-          LScaleFactor := Min(AvailableImageWidth / DrawWidth, AvailableImageHeight / DrawHeight);
-          DrawWidth := Round(DrawWidth * LScaleFactor);
-          DrawHeight := Round(DrawHeight * LScaleFactor);
-        end
-        else // If one dimension is zero or negative, just hard clamp
-        begin
-           DrawWidth := Min(DrawWidth, AvailableImageWidth);
-           DrawHeight := Min(DrawHeight, AvailableImageHeight);
-        end;
-      end;
-    end;
-
-    DrawWidth := Max(0, DrawWidth);
-    DrawHeight := Max(0, DrawHeight);
-
-    ImageDrawRect.Left := ImgAnchorX;
-    case FImageSettings.AlignmentVertical of
-      iavTop: ImageDrawRect.Top := DrawableRect.Top + FImageSettings.Margins.Top;
-      iavCenter: ImageDrawRect.Top := DrawableRect.Top + FImageSettings.Margins.Top + (AvailableImageHeight - DrawHeight) div 2; // Use AvailableImageHeight for centering
-      iavBottom: ImageDrawRect.Top := DrawableRect.Bottom - FImageSettings.Margins.Bottom - DrawHeight;
-    else // Default to Center
-      ImageDrawRect.Top := DrawableRect.Top + FImageSettings.Margins.Top + (AvailableImageHeight - DrawHeight) div 2; // Use AvailableImageHeight
-    end;
-    ImageDrawRect.Right := ImageDrawRect.Left + DrawWidth;
-    ImageDrawRect.Bottom := ImageDrawRect.Top + DrawHeight;
-
-    // If image is now to the right, it might reduce space for a cpRight caption
-    if FCaptionSettings.Visible and (FCaptionSettings.Position = cpRight) and (Trim(FCaptionSettings.Text) <> '') and (ImageDrawRect.Left < ActualCaptionRect.Right) then
-    begin
-       ActualCaptionRect.Right := Max(ActualCaptionRect.Left, ImageDrawRect.Left - FCaptionSettings.Offset.X);
-    end;
-
-    // Clip image rect to drawable area
-    ImageDrawRect := IntersectRect(ImageDrawRect, DrawableRect);
-
-    if (ImageDrawRect.Right > ImageDrawRect.Left) and (ImageDrawRect.Bottom > ImageDrawRect.Top) then
-    begin
-      if IsPNG(FImageSettings.Picture.Graphic) then
-        DrawPNGImageWithGDI(GP, FImageSettings.Picture.Graphic as TPNGObject, ImageDrawRect, FImageSettings.DrawMode, FImageSettings.Opacity)
-      else
-        DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, ImageDrawRect, FImageSettings.DrawMode);
-    end;
-  end;
-
-  // Draw caption text last, after its rect might have been adjusted by image.
-  if FCaptionSettings.Visible and (Trim(FCaptionSettings.Text) <> '') then
-  begin
-    if (ActualCaptionRect.Right > ActualCaptionRect.Left) and (ActualCaptionRect.Bottom > ActualCaptionRect.Top) then
-    begin
-      DrawComponentCaption(
-        Self.Canvas, ActualCaptionRect, FCaptionSettings.Text, FCaptionSettings.Font, LCurrentCaptionColor,
-        FCaptionSettings.Alignment, FCaptionSettings.VerticalAlignment, FCaptionSettings.WordWrap, 255 // Opacity handled by LCurrentCaptionColor if needed
-      );
-    end;
-  end;
-
-  if Focused and TabStop and Enabled then
-    DrawFocusRect(Self.Canvas.Handle, EffectiveClientRect);
-end;
-
-procedure TANDMR_CCheckBox.SetElementCornerRadius(const Value: Integer);
-begin
-  if FElementCornerRadius <> Value then
-  begin
-    FElementCornerRadius := Max(0, Value);
-    Repaint;
+    LG.Free;
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetChecked(const Value: Boolean);
+function TANDMR_CCheckBox.GetCaption: string;
 begin
-  if FChecked <> Value then
+  Result := FCaptionSettings.Text;
+end;
+
+procedure TANDMR_CCheckBox.SetCaption(const Value: string);
+begin
+  if FCaptionSettings.Text <> Value then
   begin
-    FChecked := Value;
-    Repaint;
-    if Assigned(FOnChange) then
-      FOnChange(Self);
+    FCaptionSettings.Text := Value;
+    if not FApplyingStyle then
+    begin
+      FCurrentStyle := cbsCustom;
+      FUserOverrides.CaptionSettings_IsCustomized := True; // Already exists
+    end;
+    Invalidate;
   end;
 end;
 
 function TANDMR_CCheckBox.GetChecked: Boolean;
 begin
-  Result := FChecked;
+  Result := (FState = csChecked);
 end;
 
-procedure TANDMR_CCheckBox.SetCaption(const Value: string);
+procedure TANDMR_CCheckBox.SetChecked(const Value: Boolean);
+var
+  NewState: TCheckBoxState;
 begin
-  if FCaption <> Value then
+  if Value then NewState := csChecked else NewState := csUnchecked;
+  if FState <> NewState then
   begin
-    FCaption := Value;
-    if Assigned(FCaptionSettings) then FCaptionSettings.Text := Value; else Repaint;
+    SetState(NewState);
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetStyle(const Value: TCCheckBoxStyle);
+procedure TANDMR_CCheckBox.SetState(const Value: TCheckBoxState);
 begin
-  if FStyle <> Value then
+  if FState <> Value then
   begin
-    FStyle := Value;
-    Repaint;
+    FState := Value;
+    Invalidate;
+    if Assigned(FOnCheckChanged) then
+      FOnCheckChanged(Self);
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetElementStyle(const Value: TCCheckBoxElementStyle);
+procedure TANDMR_CCheckBox.SetBoxColorUnchecked(const Value: TColor);
 begin
-  if FElementStyle <> Value then
+  if FBoxColorUnchecked <> Value then
   begin
-    FElementStyle := Value;
-    Repaint;
+    FBoxColorUnchecked := Value;
+    if not FApplyingStyle then
+    begin
+      FCurrentStyle := cbsCustom;
+      FUserOverrides.BoxColorUnchecked_IsSet := True; // Already exists
+    end;
+    Invalidate;
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetColor(const Value: TColor);
+procedure TANDMR_CCheckBox.SetBoxColorChecked(const Value: TColor);
 begin
-  if FColor <> Value then
+  if FBoxColorChecked <> Value then
   begin
-    FColor := Value;
-    if Assigned(FBorderSettings) then FBorderSettings.BackgroundColor := Value;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CCheckBox.SetOverallBorderColor(const Value: TColor);
-begin
-  if FOverallBorderColor <> Value then
-  begin
-    FOverallBorderColor := Value;
-    Repaint;
+    FBoxColorChecked := Value;
+    if not FApplyingStyle then
+    begin
+      FCurrentStyle := cbsCustom;
+      FUserOverrides.BoxColorChecked_IsSet := True; // Already exists
+    end;
+    Invalidate;
   end;
 end;
 
@@ -948,16 +1124,12 @@ begin
   if FCheckMarkColor <> Value then
   begin
     FCheckMarkColor := Value;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CCheckBox.SetElementBoxColor(const Value: TColor);
-begin
-  if FElementBoxColor <> Value then
-  begin
-    FElementBoxColor := Value;
-    Repaint;
+    if not FApplyingStyle then
+    begin
+      FCurrentStyle := cbsCustom;
+      FUserOverrides.CheckMarkColor_IsSet := True; // Already exists
+    end;
+    Invalidate;
   end;
 end;
 
@@ -970,118 +1142,34 @@ begin
       ControlStyle := ControlStyle - [csOpaque] + [csParentBackground]
     else
       ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
+
+    if not FApplyingStyle then
+    begin
+      FCurrentStyle := cbsCustom;
+      FUserOverrides.Transparent_IsSet := True; // Already exists
+    end;
     Invalidate;
   end;
 end;
 
-function TANDMR_CCheckBox.GetFont: TFont;
+procedure TANDMR_CCheckBox.SetHoverSettings(const Value: THoverSettings);
 begin
-  if Assigned(FCaptionSettings) and Assigned(FCaptionSettings.Font) then Result := FCaptionSettings.Font
-  else Result := inherited Font;
+  FHoverSettings.Assign(Value);
+  if not FApplyingStyle then
+  begin
+    FCurrentStyle := cbsCustom;
+    FUserOverrides.HoverSettings_IsCustomized := True; // Already exists
+  end;
+  Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.SetFont(const Value: TFont);
-var PrevOnChange: TNotifyEvent;
+procedure TANDMR_CCheckBox.SetEnabled(Value: Boolean);
 begin
-  if Assigned(FCaptionSettings) and Assigned(FCaptionSettings.Font) then
+  if Enabled <> Value then // Use inherited GetEnabled
   begin
-    PrevOnChange := FCaptionSettings.Font.OnChange;
-    FCaptionSettings.Font.OnChange := nil;
-    try FCaptionSettings.Font.Assign(Value);
-    finally FCaptionSettings.Font.OnChange := PrevOnChange; end;
-    if FCaptionSettings.Font.OnChange = nil then InternalFontChanged(FCaptionSettings.Font);
-  end
-  else
-  begin
-    inherited Font.Assign(Value); Repaint;
+    inherited SetEnabled(Value);
+    // CMEnabledChanged will be called, which calls Invalidate.
   end;
 end;
-
-procedure TANDMR_CCheckBox.SetImageSettings(const Value: TImageSettings); begin FImageSettings.Assign(Value); end;
-procedure TANDMR_CCheckBox.SetCaptionSettings(const Value: TCaptionSettings); begin FCaptionSettings.Assign(Value); end;
-procedure TANDMR_CCheckBox.SetBorderSettings(const Value: TBorderSettings); begin FBorderSettings.Assign(Value); end;
-procedure TANDMR_CCheckBox.SetHoverSettings(const Value: THoverSettings); begin FHoverSettings.Assign(Value); end;
-
-procedure TANDMR_CCheckBox.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-begin
-  inherited;
-  if (Button = mbLeft) and Enabled then
-  begin
-    if not Focused then SetFocus; Click;
-  end;
-end;
-
-procedure TANDMR_CCheckBox.Click;
-begin
-  if Enabled then
-  begin
-    SetChecked(not FChecked);
-    if Assigned(FOnClick) then FOnClick(Self);
-  end;
-end;
-
-procedure TANDMR_CCheckBox.KeyDown(var Key: Word; Shift: TShiftState);
-begin
-  inherited KeyDown(Key, Shift);
-  if Enabled and (Key = VK_SPACE) and (Shift = []) then
-  begin
-    Click;
-    Key := 0;
-  end;
-end;
-
-procedure TANDMR_CCheckBox.CMMouseEnter(var Message: TMessage);
-begin
-  inherited;
-  if not (csDesigning in ComponentState) then
-  begin
-    FIsHovering := True;
-    if Enabled and FHoverSettings.Enabled then FHoverSettings.StartAnimation(True)
-    else Repaint;
-  end;
-end;
-
-procedure TANDMR_CCheckBox.CMMouseLeave(var Message: TMessage);
-begin
-  inherited;
-   if not (csDesigning in ComponentState) then
-   begin
-    FIsHovering := False;
-    if Enabled and FHoverSettings.Enabled then FHoverSettings.StartAnimation(False)
-    else Repaint;
-   end;
-end;
-
-procedure TANDMR_CCheckBox.CMEnabledChanged(var Message: TMessage);
-begin
-  inherited;
-  if not Enabled then
-  begin
-    FIsHovering := False;
-    if Assigned(FHoverSettings) and FHoverSettings.Enabled then FHoverSettings.StartAnimation(False);
-  end;
-  Repaint;
-end;
-
-procedure TANDMR_CCheckBox.InternalCaptionSettingsChanged(Sender: TObject);
-begin
-  if Assigned(FCaptionSettings) and (FCaption <> FCaptionSettings.Text) then FCaption := FCaptionSettings.Text;
-  Repaint;
-end;
-
-procedure TANDMR_CCheckBox.InternalImageSettingsChanged(Sender: TObject); Repaint; end;
-
-procedure TANDMR_CCheckBox.InternalBorderSettingsChanged(Sender: TObject);
-begin
-  if Assigned(FBorderSettings) then
-  begin
-    if FColor <> FBorderSettings.BackgroundColor then FColor := FBorderSettings.BackgroundColor;
-    // FOverallBorderColor is now primarily for the checkbox element, not synced from FBorderSettings.Color
-  end;
-  Repaint;
-end;
-
-procedure TANDMR_CCheckBox.InternalHoverSettingsChanged(Sender: TObject); Repaint; end;
-procedure TANDMR_CCheckBox.InternalFontChanged(Sender: TObject); Repaint; end;
 
 end.

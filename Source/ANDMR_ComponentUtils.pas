@@ -49,6 +49,8 @@ type
 
   TTagType = (ttDefault, ttString, ttExtended, ttObject);
 
+  TProgressAnimationStyle = (pasRotatingSemiCircle, pasFullCircularSpinner, pasHorizontalBar, pasBouncingDots);
+
   TANDMR_Tag = class(TPersistent)
   private
     FValue: Variant;
@@ -432,11 +434,17 @@ type
     FAnimationTimerInterval: Integer;
     FOwnerControl: TWinControl; // Used to invalidate the control when a setting changes
     FOnChange: TNotifyEvent;
+    FAnimationStyle: TProgressAnimationStyle;
+    FProgressText: string;
+    FShowProgressText: Boolean;
 
     procedure SetShowProgress(const Value: Boolean);
     procedure SetProgressColor(const Value: TColor);
     procedure SetHideCaptionWhileProcessing(const Value: Boolean);
     procedure SetAnimationTimerInterval(const Value: Integer);
+    procedure SetAnimationStyle(const Value: TProgressAnimationStyle);
+    procedure SetProgressText(const Value: string);
+    procedure SetShowProgressText(const Value: Boolean);
   protected
     procedure Changed; virtual;
   public
@@ -448,6 +456,9 @@ type
     property ProgressColor: TColor read FProgressColor write SetProgressColor default clGray;
     property HideCaptionWhileProcessing: Boolean read FHideCaptionWhileProcessing write SetHideCaptionWhileProcessing default True;
     property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 100;
+    property AnimationStyle: TProgressAnimationStyle read FAnimationStyle write SetAnimationStyle default pasRotatingSemiCircle;
+    property ProgressText: string read FProgressText write SetProgressText;
+    property ShowProgressText: Boolean read FShowProgressText write SetShowProgressText default False;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
@@ -815,6 +826,9 @@ begin
   FProgressColor := clGray;
   FHideCaptionWhileProcessing := True;
   FAnimationTimerInterval := 100;
+  FAnimationStyle := pasRotatingSemiCircle;
+  FProgressText := '';
+  FShowProgressText := False;
 end;
 
 destructor TProgressSettings.Destroy;
@@ -833,6 +847,9 @@ begin
     SetProgressColor(LSource.ProgressColor);
     SetHideCaptionWhileProcessing(LSource.HideCaptionWhileProcessing);
     SetAnimationTimerInterval(LSource.AnimationTimerInterval);
+    SetAnimationStyle(LSource.AnimationStyle);
+    SetProgressText(LSource.ProgressText);
+    SetShowProgressText(LSource.ShowProgressText);
   end
   else
     inherited Assign(Source);
@@ -880,6 +897,33 @@ begin
   if FAnimationTimerInterval <> Max(10, Value) then
   begin
     FAnimationTimerInterval := Max(10, Value);
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetAnimationStyle(const Value: TProgressAnimationStyle);
+begin
+  if FAnimationStyle <> Value then
+  begin
+    FAnimationStyle := Value;
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetProgressText(const Value: string);
+begin
+  if FProgressText <> Value then
+  begin
+    FProgressText := Value;
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetShowProgressText(const Value: Boolean);
+begin
+  if FShowProgressText <> Value then
+  begin
+    FShowProgressText := Value;
     Changed;
   end;
 end;

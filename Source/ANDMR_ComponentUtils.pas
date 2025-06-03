@@ -38,6 +38,52 @@ type
     pmtDateDMY
   );
 
+  TTagType = (ttDefault, ttString, ttExtended, ttObject);
+
+  TANDMR_Tag = class(TPersistent)
+  private
+    FValue: Variant;
+    FType: TTagType;
+    FOnChange: TNotifyEvent;
+    procedure SetValue(const AValue: Variant);
+    procedure SetType(const AValue: TTagType);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Value: Variant read FValue write SetValue;
+    property TagType: TTagType read FType write SetType default ttDefault;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  TANDMR_TagString = class(TANDMR_Tag)
+  public
+    constructor Create;
+  published
+    // Specific properties for string tag can be added here if needed later
+  end;
+
+  TANDMR_TagExtended = class(TANDMR_Tag)
+  public
+    constructor Create;
+  published
+    // Specific properties for extended tag can be added here
+  end;
+
+  TANDMR_TagObject = class(TANDMR_Tag)
+  private
+    FObjectValue: TObject; // Keep a direct reference for type safety
+    procedure SetObjectValue(const AValue: TObject);
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property AsObject: TObject read FObjectValue write SetObjectValue;
+  end;
+
   TANDMR_Margins = class(TPersistent)
   private
     FLeft, FTop, FRight, FBottom: Integer;
@@ -708,6 +754,146 @@ begin
   if FBlurRadius <> Value then
   begin
     FBlurRadius := Value;
+    Changed;
+  end;
+end;
+
+{ TANDMR_Tag }
+
+constructor TANDMR_Tag.Create;
+begin
+  inherited Create;
+  FType := ttDefault;
+  // FValue is initialized to Null/Empty by default for Variant
+end;
+
+procedure TANDMR_Tag.Assign(Source: TPersistent);
+begin
+  if Source is TANDMR_Tag then
+  begin
+    FValue := TANDMR_Tag(Source).FValue;
+    FType := TANDMR_Tag(Source).FType;
+    // Do not copy OnChange event handler
+    Changed; // Notify about changes
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TANDMR_Tag.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TANDMR_Tag.SetValue(const AValue: Variant);
+begin
+  if FValue <> AValue then
+  begin
+    FValue := AValue;
+    Changed;
+  end;
+end;
+
+procedure TANDMR_Tag.SetType(const AValue: TTagType);
+begin
+  if FType <> AValue then
+  begin
+    FType := AValue;
+    Changed;
+  end;
+end;
+
+{ TANDMR_TagString }
+
+constructor TANDMR_TagString.Create;
+begin
+  inherited Create;
+  FType := ttString; // Set the specific type
+end;
+
+{ TANDMR_TagExtended }
+
+constructor TANDMR_TagExtended.Create;
+begin
+  inherited Create;
+  FType := ttExtended; // Set the specific type
+end;
+
+{ TANDMR_TagObject }
+
+constructor TANDMR_TagObject.Create;
+begin
+  inherited Create;
+  FType := ttObject;
+  FObjectValue := nil;
+  // The generic FValue (Variant) could store the pointer as an Integer/IntPtr,
+  // but FObjectValue provides type safety.
+  // We might decide to store FObjectValue in FValue as well for consistency or keep them separate.
+  // For now, let's manage FObjectValue directly.
+end;
+
+destructor TANDMR_TagObject.Destroy;
+begin
+  // Note: This class does NOT own the FObjectValue.
+  // The component or user is responsible for managing the lifetime of the assigned object.
+  FObjectValue := nil;
+  inherited Destroy;
+end;
+
+procedure TANDMR_TagObject.Assign(Source: TPersistent);
+begin
+  if Source is TANDMR_TagObject then
+  begin
+    inherited Assign(Source); // Assign common TANDMR_Tag properties (like FType, potentially FValue if used)
+    FObjectValue := TANDMR_TagObject(Source).FObjectValue;
+    // FValue from parent could also be set to Pointer(FObjectValue) if desired.
+    // For now, keeping FValue and FObjectValue potentially separate.
+    // If FValue was also set, ensure parent Assign handles it correctly or override.
+    Changed; // Notify about changes
+  end
+  else if Source is TANDMR_Tag then // Handle assignment from a generic TANDMR_Tag
+  begin
+    inherited Assign(Source); // Assigns FValue, FType from the source.
+    // If FValue from source is an object pointer, try to assign it.
+    // This is tricky due to Variants. For now, direct assignment to FObjectValue
+    // only happens from another TANDMR_TagObject.
+    // If FValue contains an object reference (e.g., as an IntPtr or IInterface),
+    // one might attempt to cast it here, but it's safer to require TANDMR_TagObject source.
+    if (Value <> Null) and (VarType(Value) = varObject) then
+    begin
+       FObjectValue := VariantToObject(Value)
+    end
+    else if (Value <> Null) and (VarType(Value) = varUnknown) then // Check for IInterface
+    begin
+      try
+        FObjectValue := IUnknown(Value) as TObject; // May fail if not a TObject based interface
+      except
+        FObjectValue := nil; // Or handle error
+      end;
+    end
+    else
+    begin
+      FObjectValue := nil; // Cannot determine object from variant
+    end;
+
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TANDMR_TagObject.SetObjectValue(const AValue: TObject);
+begin
+  if FObjectValue <> AValue then
+  begin
+    FObjectValue := AValue;
+    // Optionally, update the generic FValue as well:
+    // if AValue <> nil then
+    //   Value := Variant(AValue) // Store as TObject Variant
+    // else
+    //   Value := Null;
+    // For now, we manage FObjectValue directly and FValue might not reflect this TObject reference
+    // unless explicitly set by the user through the parent's Value property.
     Changed;
   end;
 end;

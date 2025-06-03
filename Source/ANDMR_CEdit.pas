@@ -41,74 +41,20 @@ type
     FOnExit: TNotifyEvent;
     FOnChange: TNotifyEvent;
     FOnEnter: TNotifyEvent;
-    FPredefinedStyle: TCEditPredefinedStyle; // New field
+    FStatus: TCEditStatus; // New field
 
     procedure SetText(const Value: string);
     procedure SetMaxLength(const Value: Integer);
     procedure SetPasswordChar(const Value: Char);
     procedure SetReadOnly(const Value: Boolean);
     procedure SetBorderSettings(const Value: TBorderSettings); // New
-    (* function GetCornerRadius: Integer;
-    procedure SetCornerRadius(const Value: Integer);
-    function GetRoundCornerType: TRoundCornerType;
-    procedure SetRoundCornerType(const Value: TRoundCornerType);
-    function GetInactiveColor: TColor;
-    procedure SetInactiveColor(const Value: TColor);
-    function GetBorderColor: TColor;
-    procedure SetBorderColor(const Value: TColor);
-    function GetBorderThickness: Integer;
-    procedure SetBorderThickness(const Value: Integer);
-    function GetBorderStyle: TPenStyle;
-    procedure SetBorderStyle(const Value: TPenStyle); *)
     procedure SetImageSettings(const Value: TImageSettings); // New
 
-    (* function GetImage: TPicture;
-    procedure SetImage(const Value: TPicture);
-    function GetImageVisible: Boolean;
-    procedure SetImageVisible(const Value: Boolean);
-    function GetImagePosition: TImagePositionSide;
-    procedure SetImagePosition(const Value: TImagePositionSide);
-    function GetImageAlignment: TImageAlignmentVertical;
-    procedure SetImageAlignment(const Value: TImageAlignmentVertical);
-    function GetImageMargins: TANDMR_Margins;
-    procedure SetImageMargins(const Value: TANDMR_Margins);
-    function GetImagePlacement: TImagePlacement;
-    procedure SetImagePlacement(const Value: TImagePlacement);
-    function GetImageDrawMode: TImageDrawMode;
-    procedure SetImageDrawMode(const Value: TImageDrawMode); *)
     procedure SetSeparatorSettings(const Value: TSeparatorSettings);
 
-    (* function GetSeparatorVisible: Boolean;
-    procedure SetSeparatorVisible(const Value: Boolean);
-    function GetSeparatorColor: TColor;
-    procedure SetSeparatorColor(const Value: TColor);
-    function GetSeparatorThickness: Integer;
-    procedure SetSeparatorThickness(const Value: Integer);
-    function GetSeparatorPadding: Integer;
-    procedure SetSeparatorPadding(const Value: Integer);
-    function GetSeparatorHeightMode: TSeparatorHeightMode;
-    procedure SetSeparatorHeightMode(const Value: TSeparatorHeightMode);
-    function GetSeparatorCustomHeight: Integer;
-    procedure SetSeparatorCustomHeight(const Value: Integer); *)
     procedure CaretTimerTick(Sender: TObject);
     procedure SetFocusSettings(const Value: TFocusSettings);
 
-    (* function GetFocusBorderColor: TColor;
-    procedure SetFocusBorderColor(const Value: TColor);
-    function GetFocusBorderColorVisible: Boolean;
-    procedure SetFocusBorderColorVisible(const Value: Boolean);
-    function GetFocusBackgroundColor: TColor;
-    procedure SetFocusBackgroundColor(const Value: TColor);
-    function GetFocusBackgroundColorVisible: Boolean;
-    procedure SetFocusBackgroundColorVisible(const Value: Boolean);
-    function GetFocusUnderlineColor: TColor;
-    procedure SetFocusUnderlineColor(const Value: TColor);
-    function GetFocusUnderlineVisible: Boolean;
-    procedure SetFocusUnderlineVisible(const Value: Boolean);
-    function GetFocusUnderlineThickness: Integer;
-    procedure SetFocusUnderlineThickness(const Value: Integer);
-    function GetFocusUnderlineStyle: TPenStyle;
-    procedure SetFocusUnderlineStyle(const Value: TPenStyle); *)
     procedure SetOpacity(const Value: Byte);
     procedure SetCurrentCursor(const Value: TCursor);
     procedure SetInputType(const Value: TInputType);
@@ -121,7 +67,7 @@ type
     procedure TextMarginsChanged(Sender: TObject);
     procedure SetTextMargins(const Value: TANDMR_Margins);
     procedure SetPredefinedMask(const Value: TPredefinedMaskType);
-    procedure SetPredefinedStyle(const Value: TCEditPredefinedStyle); // New setter declaration
+    procedure SetStatus(const Value: TCEditStatus); // New setter declaration
 
     procedure SettingsChanged(Sender: TObject); // Generic handler for Border, Focus, Separator settings
     procedure ImageSettingsChanged(Sender: TObject);
@@ -149,30 +95,9 @@ type
     property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
     property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
     property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings; // New
-    (* property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 8;
-    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    property InactiveColor: TColor read GetInactiveColor write SetInactiveColor default clBtnFace; // Delegates to FBorderSettings.BackgroundColor
-    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid; *)
     property ImageSettings: TImageSettings read FImageSettings write SetImageSettings; // New
 
-    (* property Image: TPicture read GetImage write SetImage;
-    property ImageVisible: Boolean read GetImageVisible write SetImageVisible default True;
-    property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins;
-    property ImageDrawMode: TImageDrawMode read GetImageDrawMode write SetImageDrawMode default idmProportional;
-
-    property ImagePosition: TImagePositionSide read GetImagePosition write SetImagePosition default ipsLeft;
-    property ImageAlignment: TImageAlignmentVertical read GetImageAlignment write SetImageAlignment default iavCenter;
-    property ImagePlacement: TImagePlacement read GetImagePlacement write SetImagePlacement default iplInsideBounds; *)
     property SeparatorSettings: TSeparatorSettings read FSeparatorSettings write SetSeparatorSettings;
-
-    (* property SeparatorVisible: Boolean read GetSeparatorVisible write SetSeparatorVisible default False;
-    property SeparatorColor: TColor read GetSeparatorColor write SetSeparatorColor default clGrayText;
-    property SeparatorThickness: Integer read GetSeparatorThickness write SetSeparatorThickness default 1;
-    property SeparatorPadding: Integer read GetSeparatorPadding write SetSeparatorPadding default 2;
-    property SeparatorHeightMode: TSeparatorHeightMode read GetSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
-    property SeparatorCustomHeight: Integer read GetSeparatorCustomHeight write SetSeparatorCustomHeight default 0; *)
 
     property Align;
     property Anchors;
@@ -198,14 +123,6 @@ type
     property OnKeyUp;
 
     property FocusSettings: TFocusSettings read FFocusSettings write SetFocusSettings; // New
-    (* property FocusBorderColor: TColor read GetFocusBorderColor write SetFocusBorderColor;
-    property FocusBorderColorVisible: Boolean read GetFocusBorderColorVisible write SetFocusBorderColorVisible;
-    property FocusBackgroundColor: TColor read GetFocusBackgroundColor write SetFocusBackgroundColor;
-    property FocusBackgroundColorVisible: Boolean read GetFocusBackgroundColorVisible write SetFocusBackgroundColorVisible;
-    property FocusUnderlineColor: TColor read GetFocusUnderlineColor write SetFocusUnderlineColor;
-    property FocusUnderlineVisible: Boolean read GetFocusUnderlineVisible write SetFocusUnderlineVisible;
-    property FocusUnderlineThickness: Integer read GetFocusUnderlineThickness write SetFocusUnderlineThickness;
-    property FocusUnderlineStyle: TPenStyle read GetFocusUnderlineStyle write SetFocusUnderlineStyle; *)
     property Opacity: Byte read FOpacity write SetOpacity;
     property CurrentCursor: TCursor read FCurrentCursor write SetCurrentCursor;
     property InputType: TInputType read FInputType write SetInputType default itNormal;
@@ -215,7 +132,7 @@ type
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
     property PredefinedMask: TPredefinedMaskType read FPredefinedMask write SetPredefinedMask default pmtNone;
-    property PredefinedStyle: TCEditPredefinedStyle read FPredefinedStyle write SetPredefinedStyle; // New published property
+    property Status: TCEditStatus read FStatus write SetStatus; // New published property
   end;
 
 procedure Register;
@@ -223,8 +140,7 @@ procedure Register;
 implementation
 
 uses
-  System.Character,
-  ANDMR_ComponentUtils; // Added for DarkerColor and TCEditPredefinedStyle
+  System.Character;
 
 procedure Register;
 begin
@@ -306,7 +222,7 @@ begin
   FTextMargins := TANDMR_Margins.Create;
   FTextMargins.OnChange := TextMarginsChanged;
   FPredefinedMask := pmtNone;
-  FPredefinedStyle := cepsNormal; // Initialize new field
+  FStatus := cepsNormal; // Initialize new field
 end;
 
 destructor TANDMR_CEdit.Destroy;
@@ -468,20 +384,6 @@ begin
   Invalidate;
 end;
 
-// Getters and Setters for Border Properties - To be removed
-(* function TANDMR_CEdit.GetCornerRadius: Integer; begin Result := FBorderSettings.CornerRadius; end;
-procedure TANDMR_CEdit.SetCornerRadius(const Value: Integer); begin FBorderSettings.CornerRadius := Value; end;
-function TANDMR_CEdit.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
-procedure TANDMR_CEdit.SetRoundCornerType(const Value: TRoundCornerType); begin FBorderSettings.RoundCornerType := Value; end;
-function TANDMR_CEdit.GetInactiveColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
-procedure TANDMR_CEdit.SetInactiveColor(const Value: TColor); begin FBorderSettings.BackgroundColor := Value; end;
-function TANDMR_CEdit.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
-procedure TANDMR_CEdit.SetBorderColor(const Value: TColor); begin FBorderSettings.Color := Value; end;
-function TANDMR_CEdit.GetBorderThickness: Integer; begin Result := FBorderSettings.Thickness; end;
-procedure TANDMR_CEdit.SetBorderThickness(const Value: Integer); begin FBorderSettings.Thickness := Value; end;
-function TANDMR_CEdit.GetBorderStyle: TPenStyle; begin Result := FBorderSettings.Style; end;
-procedure TANDMR_CEdit.SetBorderStyle(const Value: TPenStyle); begin FBorderSettings.Style := Value; end; *)
-
 procedure TANDMR_CEdit.SettingsChanged(Sender: TObject);
 begin
   Invalidate;
@@ -498,73 +400,11 @@ begin
   Invalidate; // Or call ImageSettingsChanged if more logic is needed
 end;
 
-(* function TANDMR_CEdit.GetImage: TPicture;
-begin
-  Result := FImageSettings.Picture;
-end;
-
-procedure TANDMR_CEdit.SetImage(const Value: TPicture);
-begin
-  FImageSettings.Picture.Assign(Value);
-end;
-
-function TANDMR_CEdit.GetImageVisible: Boolean;
-begin
-  Result := FImageSettings.Visible;
-end;
-
-procedure TANDMR_CEdit.SetImageVisible(const Value: Boolean);
-begin
-  FImageSettings.Visible := Value;
-end;
-
-function TANDMR_CEdit.GetImageMargins: TANDMR_Margins;
-begin
-  Result := FImageSettings.Margins;
-end;
-
-procedure TANDMR_CEdit.SetImageMargins(const Value: TANDMR_Margins);
-begin
-  FImageSettings.Margins.Assign(Value);
-end;
-
-function TANDMR_CEdit.GetImageDrawMode: TImageDrawMode;
-begin
-  Result := FImageSettings.DrawMode;
-end;
-
-procedure TANDMR_CEdit.SetImageDrawMode(const Value: TImageDrawMode);
-begin
-  FImageSettings.DrawMode := Value;
-end;
-
-// Getters and Setters for Image Properties (delegating to FImageSettings)
-function TANDMR_CEdit.GetImagePosition: TImagePositionSide; begin Result := FImageSettings.Position; end;
-procedure TANDMR_CEdit.SetImagePosition(const Value: TImagePositionSide); begin FImageSettings.Position := Value; end;
-function TANDMR_CEdit.GetImageAlignment: TImageAlignmentVertical; begin Result := FImageSettings.AlignmentVertical; end;
-procedure TANDMR_CEdit.SetImageAlignment(const Value: TImageAlignmentVertical); begin FImageSettings.AlignmentVertical := Value; end;
-function TANDMR_CEdit.GetImagePlacement: TImagePlacement; begin Result := FImageSettings.Placement; end;
-procedure TANDMR_CEdit.SetImagePlacement(const Value: TImagePlacement); begin FImageSettings.Placement := Value; end; *)
-
 procedure TANDMR_CEdit.SetSeparatorSettings(const Value: TSeparatorSettings);
 begin
   FSeparatorSettings.Assign(Value);
   Invalidate;
 end;
-
-// Getters and Setters for Separator Properties - To be removed
-(* function TANDMR_CEdit.GetSeparatorVisible: Boolean; begin Result := FSeparatorSettings.Visible; end;
-procedure TANDMR_CEdit.SetSeparatorVisible(const Value: Boolean); begin FSeparatorSettings.Visible := Value; end;
-function TANDMR_CEdit.GetSeparatorColor: TColor; begin Result := FSeparatorSettings.Color; end;
-procedure TANDMR_CEdit.SetSeparatorColor(const Value: TColor); begin FSeparatorSettings.Color := Value; end;
-function TANDMR_CEdit.GetSeparatorThickness: Integer; begin Result := FSeparatorSettings.Thickness; end;
-procedure TANDMR_CEdit.SetSeparatorThickness(const Value: Integer); begin FSeparatorSettings.Thickness := Value; end;
-function TANDMR_CEdit.GetSeparatorPadding: Integer; begin Result := FSeparatorSettings.Padding; end;
-procedure TANDMR_CEdit.SetSeparatorPadding(const Value: Integer); begin FSeparatorSettings.Padding := Value; end;
-function TANDMR_CEdit.GetSeparatorHeightMode: TSeparatorHeightMode; begin Result := FSeparatorSettings.HeightMode; end;
-procedure TANDMR_CEdit.SetSeparatorHeightMode(const Value: TSeparatorHeightMode); begin FSeparatorSettings.HeightMode := Value; end;
-function TANDMR_CEdit.GetSeparatorCustomHeight: Integer; begin Result := FSeparatorSettings.CustomHeight; end;
-procedure TANDMR_CEdit.SetSeparatorCustomHeight(const Value: Integer); begin FSeparatorSettings.CustomHeight := Value; end; *)
 
 procedure TANDMR_CEdit.CaretTimerTick(Sender: TObject); begin if Focused then begin FCaretVisible := not FCaretVisible; Invalidate; end else begin FCaretVisible := False; FCaretTimer.Enabled := False; Invalidate; end; end;
 
@@ -574,23 +414,6 @@ begin
   Invalidate;
 end;
 
-// Getters and Setters for Focus Properties - To be removed
-(* function TANDMR_CEdit.GetFocusBorderColor: TColor; begin Result := FFocusSettings.BorderColor; end;
-procedure TANDMR_CEdit.SetFocusBorderColor(const Value: TColor); begin FFocusSettings.BorderColor := Value; end;
-function TANDMR_CEdit.GetFocusBorderColorVisible: Boolean; begin Result := FFocusSettings.BorderColorVisible; end;
-procedure TANDMR_CEdit.SetFocusBorderColorVisible(const Value: Boolean); begin FFocusSettings.BorderColorVisible := Value; end;
-function TANDMR_CEdit.GetFocusBackgroundColor: TColor; begin Result := FFocusSettings.BackgroundColor; end;
-procedure TANDMR_CEdit.SetFocusBackgroundColor(const Value: TColor); begin FFocusSettings.BackgroundColor := Value; end;
-function TANDMR_CEdit.GetFocusBackgroundColorVisible: Boolean; begin Result := FFocusSettings.BackgroundColorVisible; end;
-procedure TANDMR_CEdit.SetFocusBackgroundColorVisible(const Value: Boolean); begin FFocusSettings.BackgroundColorVisible := Value; end;
-function TANDMR_CEdit.GetFocusUnderlineColor: TColor; begin Result := FFocusSettings.UnderlineColor; end;
-procedure TANDMR_CEdit.SetFocusUnderlineColor(const Value: TColor); begin FFocusSettings.UnderlineColor := Value; end;
-function TANDMR_CEdit.GetFocusUnderlineVisible: Boolean; begin Result := FFocusSettings.UnderlineVisible; end;
-procedure TANDMR_CEdit.SetFocusUnderlineVisible(const Value: Boolean); begin FFocusSettings.UnderlineVisible := Value; end;
-function TANDMR_CEdit.GetFocusUnderlineThickness: Integer; begin Result := FFocusSettings.UnderlineThickness; end;
-procedure TANDMR_CEdit.SetFocusUnderlineThickness(const Value: Integer); begin FFocusSettings.UnderlineThickness := Value; end;
-function TANDMR_CEdit.GetFocusUnderlineStyle: TPenStyle; begin Result := FFocusSettings.UnderlineStyle; end;
-procedure TANDMR_CEdit.SetFocusUnderlineStyle(const Value: TPenStyle); begin FFocusSettings.UnderlineStyle := Value; end; *)
 procedure TANDMR_CEdit.SetOpacity(const Value: Byte); begin if FOpacity <> Value then begin FOpacity := Value; if FOpacity < 255 then begin ControlStyle := ControlStyle - [csOpaque]; if Parent <> nil then Parent.Invalidate; end else begin ControlStyle := ControlStyle + [csOpaque]; end; Invalidate; end; end;
 procedure TANDMR_CEdit.SetCurrentCursor(const Value: TCursor); begin if FCurrentCursor <> Value then begin FCurrentCursor := Value; Self.Cursor := FCurrentCursor; end; end;
 procedure TANDMR_CEdit.SetInputType(const Value: TInputType); begin if FInputType <> Value then begin FInputType := Value; end; end;
@@ -604,13 +427,13 @@ procedure TANDMR_CEdit.TextMarginsChanged(Sender: TObject); begin Invalidate; en
 procedure TANDMR_CEdit.SetTextMargins(const Value: TANDMR_Margins); begin FTextMargins.Assign(Value); end;
 procedure TANDMR_CEdit.SetPredefinedMask(const Value: TPredefinedMaskType); var NewMaskValue: string; OldRawText: string; begin if FPredefinedMask <> Value then begin OldRawText := FRawText; FPredefinedMask := Value; case FPredefinedMask of pmtCPF: NewMaskValue := '000.000.000-00'; pmtCNPJ: NewMaskValue := '00.000.000/0000-00'; pmtCEP: NewMaskValue := '00000-000'; pmtPhoneBR: NewMaskValue := '(00) 90000-0000'; pmtDateDMY: NewMaskValue := '00/00/0000'; pmtCustom: Exit; pmtNone: NewMaskValue := ''; else NewMaskValue := ''; end; if FInputMask <> NewMaskValue then begin FInputMask := NewMaskValue; SetText(OldRawText); end; Invalidate; end; end;
 
-procedure TANDMR_CEdit.SetPredefinedStyle(const Value: TCEditPredefinedStyle);
+procedure TANDMR_CEdit.SetStatus(const Value: TCEditStatus);
 begin
-  if FPredefinedStyle <> Value then
+  if FStatus <> Value then
   begin
-    FPredefinedStyle := Value;
+    FStatus := Value;
 
-    case FPredefinedStyle of
+    case FStatus of
       cepsNormal:
         begin
           FBorderSettings.Color := clBlack;

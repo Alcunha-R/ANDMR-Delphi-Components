@@ -41,6 +41,7 @@ type
     FOnExit: TNotifyEvent;
     FOnChange: TNotifyEvent;
     FOnEnter: TNotifyEvent;
+    FPredefinedStyle: TCEditPredefinedStyle; // New field
 
     procedure SetText(const Value: string);
     procedure SetMaxLength(const Value: Integer);
@@ -120,6 +121,7 @@ type
     procedure TextMarginsChanged(Sender: TObject);
     procedure SetTextMargins(const Value: TANDMR_Margins);
     procedure SetPredefinedMask(const Value: TPredefinedMaskType);
+    procedure SetPredefinedStyle(const Value: TCEditPredefinedStyle); // New setter declaration
 
     procedure SettingsChanged(Sender: TObject); // Generic handler for Border, Focus, Separator settings
     procedure ImageSettingsChanged(Sender: TObject);
@@ -213,6 +215,7 @@ type
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
     property PredefinedMask: TPredefinedMaskType read FPredefinedMask write SetPredefinedMask default pmtNone;
+    property PredefinedStyle: TCEditPredefinedStyle read FPredefinedStyle write SetPredefinedStyle; // New published property
   end;
 
 procedure Register;
@@ -220,7 +223,8 @@ procedure Register;
 implementation
 
 uses
-  System.Character;
+  System.Character,
+  ANDMR_ComponentUtils; // Added for DarkerColor and TCEditPredefinedStyle
 
 procedure Register;
 begin
@@ -302,6 +306,7 @@ begin
   FTextMargins := TANDMR_Margins.Create;
   FTextMargins.OnChange := TextMarginsChanged;
   FPredefinedMask := pmtNone;
+  FPredefinedStyle := cepsNormal; // Initialize new field
 end;
 
 destructor TANDMR_CEdit.Destroy;
@@ -598,6 +603,55 @@ procedure TANDMR_CEdit.HoverSettingsChanged(Sender: TObject); begin if FHovered 
 procedure TANDMR_CEdit.TextMarginsChanged(Sender: TObject); begin Invalidate; end;
 procedure TANDMR_CEdit.SetTextMargins(const Value: TANDMR_Margins); begin FTextMargins.Assign(Value); end;
 procedure TANDMR_CEdit.SetPredefinedMask(const Value: TPredefinedMaskType); var NewMaskValue: string; OldRawText: string; begin if FPredefinedMask <> Value then begin OldRawText := FRawText; FPredefinedMask := Value; case FPredefinedMask of pmtCPF: NewMaskValue := '000.000.000-00'; pmtCNPJ: NewMaskValue := '00.000.000/0000-00'; pmtCEP: NewMaskValue := '00000-000'; pmtPhoneBR: NewMaskValue := '(00) 90000-0000'; pmtDateDMY: NewMaskValue := '00/00/0000'; pmtCustom: Exit; pmtNone: NewMaskValue := ''; else NewMaskValue := ''; end; if FInputMask <> NewMaskValue then begin FInputMask := NewMaskValue; SetText(OldRawText); end; Invalidate; end; end;
+
+procedure TANDMR_CEdit.SetPredefinedStyle(const Value: TCEditPredefinedStyle);
+begin
+  if FPredefinedStyle <> Value then
+  begin
+    FPredefinedStyle := Value;
+
+    case FPredefinedStyle of
+      cepsNormal:
+        begin
+          FBorderSettings.Color := clBlack;
+          FFocusSettings.BorderColor := clHighlight;
+          Self.Font.Color := clWindowText;
+          // Assuming FBorderSettings.BackgroundColor and FFocusSettings.BackgroundColor
+          // are not changed by other styles or should revert to their own defaults.
+          // If they need explicit reset, it would be:
+          // FBorderSettings.BackgroundColor := clBtnFace; // or its original default
+          // FFocusSettings.BackgroundColor := clWindow; // or its original default
+        end;
+      cepsError:
+        begin
+          FBorderSettings.Color := clRed;
+          FFocusSettings.BorderColor := DarkerColor(clRed, 30);
+          Self.Font.Color := clRed;
+        end;
+      cepsWarning:
+        begin
+          FBorderSettings.Color := TColor($004C92FF); // Orange
+          FFocusSettings.BorderColor := DarkerColor(TColor($004C92FF), 30);
+          Self.Font.Color := TColor($004C92FF); // Orange
+        end;
+      cepsSuccess:
+        begin
+          FBorderSettings.Color := TColor($00993300); // Green
+          FFocusSettings.BorderColor := DarkerColor(TColor($00993300), 30);
+          Self.Font.Color := TColor($00993300); // Green
+        end;
+    end;
+
+    // Notify settings objects if they have dependent logic on their OnChange,
+    // though Invalidate() below will cause a repaint that uses these values.
+    // If FBorderSettings.Changed or FFocusSettings.Changed do more than just Invalidate,
+    // they might be needed. For now, Paint reads these directly.
+    // FBorderSettings.Changed;
+    // FFocusSettings.Changed;
+
+    Invalidate;
+  end;
+end;
 
 procedure TANDMR_CEdit.CMMouseEnter(var Message: TMessage); begin inherited; if not FHovered then begin FHovered := True; end; FHoverSettings.StartAnimation(True); end;
 procedure TANDMR_CEdit.CMMouseLeave(var Message: TMessage); begin inherited; if FHovered then begin FHovered := False; end; FHoverSettings.StartAnimation(False); end;

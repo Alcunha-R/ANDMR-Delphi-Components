@@ -5,14 +5,12 @@ interface
 uses
   System.SysUtils, System.Classes, Vcl.Graphics, Vcl.Themes, Vcl.Controls, Vcl.StdCtrls, Winapi.Windows,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Vcl.Imaging.pngimage,
-  System.UITypes, Vcl.ExtCtrls; // Ensure GDIP units are here, Added Vcl.ExtCtrls for TTimer
+  System.UITypes, Vcl.ExtCtrls, System.Types; // Ensure GDIP units are here, Added Vcl.ExtCtrls for TTimer, Added System.Types for TPoint
 
 type
-  // Delphi type definitions (TRoundCornerType, etc. are already here)
+  THoverEffect = (heNone, heFade, heScale);
 
-  THoverEffect = (heNone, heFade, heScale); // Moved from ANDMR_CButton.pas
-
-  TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom); // Added here
+  TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom);
 
   TImagePositionSide = (ipsLeft, ipsRight);
   TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
@@ -68,18 +66,23 @@ type
     FAlignment: TAlignment; // Vcl.Themes.TAlignment
     FFont: TFont;
     FColor: TColor;
-    FOffset: Integer;
     FWordWrap: Boolean;
     FOnChange: TNotifyEvent;
     FOwnerControl: TWinControl;
+    FVerticalAlignment: TCaptionVerticalAlignment;
+    FOffset: TPoint; // Changed from FOffsetX, FOffsetY
+    FDisabledColor: TColor;
+
     procedure SetVisible(const Value: Boolean);
     procedure SetText(const Value: string);
     procedure SetPosition(const Value: TCaptionPosition);
     procedure SetAlignment(const Value: TAlignment);
     procedure SetFont(const Value: TFont);
     procedure SetColor(const Value: TColor);
-    procedure SetOffset(const Value: Integer);
     procedure SetWordWrap(const Value: Boolean);
+    procedure SetVerticalAlignment(const Value: TCaptionVerticalAlignment);
+    procedure SetOffset(const Value: TPoint); // Changed from SetOffsetX, SetOffsetY
+    procedure SetDisabledColor(const Value: TColor);
     procedure FontChanged(Sender: TObject);
   protected
     procedure Changed; virtual;
@@ -91,10 +94,12 @@ type
     property Visible: Boolean read FVisible write SetVisible default True;
     property Text: string read FText write SetText;
     property Position: TCaptionPosition read FPosition write SetPosition default cpAbove;
-    property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify;
+    property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify; // Horizontal Alignment
+    property VerticalAlignment: TCaptionVerticalAlignment read FVerticalAlignment write SetVerticalAlignment default cvaCenter;
     property Font: TFont read FFont write SetFont;
     property Color: TColor read FColor write SetColor default clWindowText;
-    property Offset: Integer read FOffset write SetOffset default 2;
+    property DisabledColor: TColor read FDisabledColor write SetDisabledColor default clGrayText;
+    property Offset: TPoint read FOffset write SetOffset; // Changed from OffsetX, OffsetY. Default for TPoint is (0,0)
     property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
@@ -108,49 +113,43 @@ type
     FEnabled: Boolean;
     FOnChange: TNotifyEvent;
 
-    // New fields for animation
     FHoverEffect: THoverEffect;
     FAnimationTimerInterval: Integer;
     FAnimationStep: Integer;
     FAnimationTimer: TTimer;
     FCurrentAnimationValue: Integer;
-    FAnimationDirection: Integer; // 1 for entering, -1 for leaving
+    FAnimationDirection: Integer;
     FOwnerControl: TWinControl;
-    FOnAnimationProgress: TNotifyEvent; // Event to notify owner to repaint
+    FOnAnimationProgress: TNotifyEvent;
 
     procedure SetBackgroundColor(const Value: TColor);
     procedure SetBorderColor(const Value: TColor);
     procedure SetFontColor(const Value: TColor);
     procedure SetCaptionFontColor(const Value: TColor);
     procedure SetEnabled(const Value: Boolean);
-
-    // New setters for animation properties
     procedure SetHoverEffect(const Value: THoverEffect);
     procedure SetAnimationTimerInterval(const Value: Integer);
     procedure SetAnimationStep(const Value: Integer);
-
-    // Animation methods
     procedure DoAnimate(Sender: TObject);
   protected
     procedure Changed; virtual;
   public
-    constructor Create(AOwnerControl: TWinControl); // Modified constructor
-    destructor Destroy; override; // Added destructor
+    constructor Create(AOwnerControl: TWinControl);
+    destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
-    procedure StartAnimation(IsHovering: Boolean); // New method to start animation
+    procedure StartAnimation(IsHovering: Boolean);
   published
-    property Enabled: Boolean read FEnabled write SetEnabled default True; // Default changed in previous task
-    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clSkyBlue; // Default changed
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clSkyBlue; // Default changed
-    property FontColor: TColor read FFontColor write SetFontColor default clBlack; // Default changed
-    property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clBlack; // Default changed
+    property Enabled: Boolean read FEnabled write SetEnabled default True;
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clSkyBlue;
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clHighlight;
+    property FontColor: TColor read FFontColor write SetFontColor default clBlack;
+    property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clBlack;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
 
-    // New published properties for animation
     property HoverEffect: THoverEffect read FHoverEffect write SetHoverEffect default heFade;
     property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 15;
     property AnimationStep: Integer read FAnimationStep write SetAnimationStep default 20;
-    property CurrentAnimationValue: Integer read FCurrentAnimationValue; // Read-only for external access
+    property CurrentAnimationValue: Integer read FCurrentAnimationValue;
     property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
   end;
 
@@ -158,21 +157,25 @@ type
   private
     FPicture: TPicture;
     FVisible: Boolean;
-    FDrawMode: TImageDrawMode; // Como o conteúdo da imagem deve ser dimensionado/ajustado
-    FMargins: TANDMR_Margins;  // Margens ao redor do conteúdo da imagem
-
+    FDrawMode: TImageDrawMode;
+    FMargins: TANDMR_Margins;
     FOnChange: TNotifyEvent;
-    FOwnerControl: TWinControl; // Componente proprietário para invalidação, etc.
+    FOwnerControl: TWinControl;
+    FPosition: TImagePositionSide;
+    FAlignmentVertical: TImageAlignmentVertical;
+    FPlacement: TImagePlacement;
 
     procedure SetPicture(const Value: TPicture);
     procedure SetVisible(const Value: Boolean);
     procedure SetDrawMode(const Value: TImageDrawMode);
     procedure SetMargins(const Value: TANDMR_Margins);
-
+    procedure SetPosition(const Value: TImagePositionSide);
+    procedure SetAlignmentVertical(const Value: TImageAlignmentVertical);
+    procedure SetPlacement(const Value: TImagePlacement);
     procedure InternalPictureChanged(Sender: TObject);
     procedure InternalMarginsChanged(Sender: TObject);
   protected
-    procedure DoChange; virtual; // Renomeado de Changed para evitar conflito com TControl.Changed
+    procedure DoChange; virtual;
   public
     constructor Create(AOwnerControl: TWinControl);
     destructor Destroy; override;
@@ -182,6 +185,129 @@ type
     property Visible: Boolean read FVisible write SetVisible default True;
     property DrawMode: TImageDrawMode read FDrawMode write SetDrawMode default idmProportional;
     property Margins: TANDMR_Margins read FMargins write SetMargins;
+    property Position: TImagePositionSide read FPosition write SetPosition default ipsLeft;
+    property AlignmentVertical: TImageAlignmentVertical read FAlignmentVertical write SetAlignmentVertical default iavCenter;
+    property Placement: TImagePlacement read FPlacement write SetPlacement default iplInsideBounds;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  TBorderSettings = class(TPersistent)
+  private
+    FColor: TColor;
+    FThickness: Integer;
+    FStyle: TPenStyle;
+    FCornerRadius: Integer;
+    FRoundCornerType: TRoundCornerType;
+    FBackgroundColor: TColor;
+    FOnChange: TNotifyEvent;
+    procedure SetColor(const Value: TColor);
+    procedure SetThickness(const Value: Integer);
+    procedure SetStyle(const Value: TPenStyle);
+    procedure SetCornerRadius(const Value: Integer);
+    procedure SetRoundCornerType(const Value: TRoundCornerType);
+    procedure SetBackgroundColor(const Value: TColor);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Color: TColor read FColor write SetColor default clBlack;
+    property Thickness: Integer read FThickness write SetThickness default 1;
+    property Style: TPenStyle read FStyle write SetStyle default psSolid;
+    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 0;
+    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctNone;
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clNone;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  TFocusSettings = class(TPersistent)
+  private
+    FBorderColor: TColor;
+    FBorderColorVisible: Boolean;
+    FBackgroundColor: TColor;
+    FBackgroundColorVisible: Boolean;
+    FUnderlineColor: TColor;
+    FUnderlineVisible: Boolean;
+    FUnderlineThickness: Integer;
+    FUnderlineStyle: TPenStyle;
+    FOnChange: TNotifyEvent;
+    procedure SetBorderColor(const Value: TColor);
+    procedure SetBorderColorVisible(const Value: Boolean);
+    procedure SetBackgroundColor(const Value: TColor);
+    procedure SetBackgroundColorVisible(const Value: Boolean);
+    procedure SetUnderlineColor(const Value: TColor);
+    procedure SetUnderlineVisible(const Value: Boolean);
+    procedure SetUnderlineThickness(const Value: Integer);
+    procedure SetUnderlineStyle(const Value: TPenStyle);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
+    property BorderColorVisible: Boolean read FBorderColorVisible write SetBorderColorVisible default False;
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clNone;
+    property BackgroundColorVisible: Boolean read FBackgroundColorVisible write SetBackgroundColorVisible default False;
+    property UnderlineColor: TColor read FUnderlineColor write SetUnderlineColor default clBlack;
+    property UnderlineVisible: Boolean read FUnderlineVisible write SetUnderlineVisible default False;
+    property UnderlineThickness: Integer read FUnderlineThickness write SetUnderlineThickness default 1;
+    property UnderlineStyle: TPenStyle read FUnderlineStyle write SetUnderlineStyle default psSolid;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  TSeparatorSettings = class(TPersistent)
+  private
+    FVisible: Boolean;
+    FColor: TColor;
+    FThickness: Integer;
+    FPadding: Integer;
+    FHeightMode: TSeparatorHeightMode;
+    FCustomHeight: Integer;
+    FOnChange: TNotifyEvent;
+    procedure SetVisible(const Value: Boolean);
+    procedure SetColor(const Value: TColor);
+    procedure SetThickness(const Value: Integer);
+    procedure SetPadding(const Value: Integer);
+    procedure SetHeightMode(const Value: TSeparatorHeightMode);
+    procedure SetCustomHeight(const Value: Integer);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Visible: Boolean read FVisible write SetVisible default False;
+    property Color: TColor read FColor write SetColor default clGray;
+    property Thickness: Integer read FThickness write SetThickness default 1;
+    property Padding: Integer read FPadding write SetPadding default 2;
+    property HeightMode: TSeparatorHeightMode read FHeightMode write SetHeightMode default shmFull;
+    property CustomHeight: Integer read FCustomHeight write SetCustomHeight default 0;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  TDropShadowSettings = class(TPersistent)
+  private
+    FEnabled: Boolean;
+    FColor: TColor;
+    FOffset: TPoint;
+    FBlurRadius: Integer;
+    FOnChange: TNotifyEvent;
+    procedure SetEnabled(const Value: Boolean);
+    procedure SetColor(const Value: TColor);
+    procedure SetOffset(const Value: TPoint);
+    procedure SetBlurRadius(const Value: Integer);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Enabled: Boolean read FEnabled write SetEnabled default False;
+    property Color: TColor read FColor write SetColor default clBlack;
+    property Offset: TPoint read FOffset write SetOffset; // Default for TPoint is (0,0)
+    property BlurRadius: Integer read FBlurRadius write SetBlurRadius default 3;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
@@ -214,8 +340,8 @@ function ResolveStateColor(
   AIsHovering: Boolean;
   AIsFocused: Boolean;
   ABaseColor: TColor;
-  AHoverColor: TColor;    // Specific color for hover state
-  AFocusColor: TColor;    // Specific color for focus state
+  AHoverColor: TColor;     // Specific color for hover state
+  AFocusColor: TColor;     // Specific color for focus state
   ADisabledColor: TColor; // Specific color for disabled state
   AAllowHoverEffect: Boolean = True;
   AAllowFocusEffect: Boolean = True;
@@ -226,8 +352,365 @@ function ResolveStateColor(
 implementation
 
 uses
-  System.Math,     // For Min, Max
-  Winapi.ActiveX;  // For IStream, TStreamAdapter
+  System.Math,       // For Min, Max
+  Winapi.ActiveX;    // For IStream, TStreamAdapter
+
+{ TBorderSettings }
+
+constructor TBorderSettings.Create;
+begin
+  inherited Create;
+  FColor := clBlack;
+  FThickness := 1;
+  FStyle := psSolid;
+  FCornerRadius := 0;
+  FRoundCornerType := rctNone;
+  FBackgroundColor := clNone;
+end;
+
+procedure TBorderSettings.Assign(Source: TPersistent);
+begin
+  if Source is TBorderSettings then
+  begin
+    FColor := TBorderSettings(Source).FColor;
+    FThickness := TBorderSettings(Source).FThickness;
+    FStyle := TBorderSettings(Source).FStyle;
+    FCornerRadius := TBorderSettings(Source).FCornerRadius;
+    FRoundCornerType := TBorderSettings(Source).FRoundCornerType;
+    FBackgroundColor := TBorderSettings(Source).FBackgroundColor;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TBorderSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TBorderSettings.SetColor(const Value: TColor);
+begin
+  if FColor <> Value then
+  begin
+    FColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetThickness(const Value: Integer);
+begin
+  if FThickness <> Value then
+  begin
+    FThickness := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetStyle(const Value: TPenStyle);
+begin
+  if FStyle <> Value then
+  begin
+    FStyle := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetCornerRadius(const Value: Integer);
+begin
+  if FCornerRadius <> Value then
+  begin
+    FCornerRadius := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetRoundCornerType(const Value: TRoundCornerType);
+begin
+  if FRoundCornerType <> Value then
+  begin
+    FRoundCornerType := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetBackgroundColor(const Value: TColor);
+begin
+  if FBackgroundColor <> Value then
+  begin
+    FBackgroundColor := Value;
+    Changed;
+  end;
+end;
+
+{ TFocusSettings }
+
+constructor TFocusSettings.Create;
+begin
+  inherited Create;
+  FBorderColor := clBlack;
+  FBorderColorVisible := False;
+  FBackgroundColor := clNone;
+  FBackgroundColorVisible := False;
+  FUnderlineColor := clBlack;
+  FUnderlineVisible := False;
+  FUnderlineThickness := 1;
+  FUnderlineStyle := psSolid;
+end;
+
+procedure TFocusSettings.Assign(Source: TPersistent);
+begin
+  if Source is TFocusSettings then
+  begin
+    FBorderColor := TFocusSettings(Source).FBorderColor;
+    FBorderColorVisible := TFocusSettings(Source).FBorderColorVisible;
+    FBackgroundColor := TFocusSettings(Source).FBackgroundColor;
+    FBackgroundColorVisible := TFocusSettings(Source).FBackgroundColorVisible;
+    FUnderlineColor := TFocusSettings(Source).FUnderlineColor;
+    FUnderlineVisible := TFocusSettings(Source).FUnderlineVisible;
+    FUnderlineThickness := TFocusSettings(Source).FUnderlineThickness;
+    FUnderlineStyle := TFocusSettings(Source).FUnderlineStyle;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TFocusSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TFocusSettings.SetBorderColor(const Value: TColor);
+begin
+  if FBorderColor <> Value then
+  begin
+    FBorderColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TFocusSettings.SetBorderColorVisible(const Value: Boolean);
+begin
+  if FBorderColorVisible <> Value then
+  begin
+    FBorderColorVisible := Value;
+    Changed;
+  end;
+end;
+
+procedure TFocusSettings.SetBackgroundColor(const Value: TColor);
+begin
+  if FBackgroundColor <> Value then
+  begin
+    FBackgroundColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TFocusSettings.SetBackgroundColorVisible(const Value: Boolean);
+begin
+  if FBackgroundColorVisible <> Value then
+  begin
+    FBackgroundColorVisible := Value;
+    Changed;
+  end;
+end;
+
+procedure TFocusSettings.SetUnderlineColor(const Value: TColor);
+begin
+  if FUnderlineColor <> Value then
+  begin
+    FUnderlineColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TFocusSettings.SetUnderlineVisible(const Value: Boolean);
+begin
+  if FUnderlineVisible <> Value then
+  begin
+    FUnderlineVisible := Value;
+    Changed;
+  end;
+end;
+
+procedure TFocusSettings.SetUnderlineThickness(const Value: Integer);
+begin
+  if FUnderlineThickness <> Value then
+  begin
+    FUnderlineThickness := Value;
+    Changed;
+  end;
+end;
+
+procedure TFocusSettings.SetUnderlineStyle(const Value: TPenStyle);
+begin
+  if FUnderlineStyle <> Value then
+  begin
+    FUnderlineStyle := Value;
+    Changed;
+  end;
+end;
+
+{ TSeparatorSettings }
+
+constructor TSeparatorSettings.Create;
+begin
+  inherited Create;
+  FVisible := False;
+  FColor := clGray;
+  FThickness := 1;
+  FPadding := 2;
+  FHeightMode := shmFull;
+  FCustomHeight := 0;
+end;
+
+procedure TSeparatorSettings.Assign(Source: TPersistent);
+begin
+  if Source is TSeparatorSettings then
+  begin
+    FVisible := TSeparatorSettings(Source).FVisible;
+    FColor := TSeparatorSettings(Source).FColor;
+    FThickness := TSeparatorSettings(Source).FThickness;
+    FPadding := TSeparatorSettings(Source).FPadding;
+    FHeightMode := TSeparatorSettings(Source).FHeightMode;
+    FCustomHeight := TSeparatorSettings(Source).FCustomHeight;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TSeparatorSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TSeparatorSettings.SetVisible(const Value: Boolean);
+begin
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
+    Changed;
+  end;
+end;
+
+procedure TSeparatorSettings.SetColor(const Value: TColor);
+begin
+  if FColor <> Value then
+  begin
+    FColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TSeparatorSettings.SetThickness(const Value: Integer);
+begin
+  if FThickness <> Value then
+  begin
+    FThickness := Value;
+    Changed;
+  end;
+end;
+
+procedure TSeparatorSettings.SetPadding(const Value: Integer);
+begin
+  if FPadding <> Value then
+  begin
+    FPadding := Value;
+    Changed;
+  end;
+end;
+
+procedure TSeparatorSettings.SetHeightMode(const Value: TSeparatorHeightMode);
+begin
+  if FHeightMode <> Value then
+  begin
+    FHeightMode := Value;
+    Changed;
+  end;
+end;
+
+procedure TSeparatorSettings.SetCustomHeight(const Value: Integer);
+begin
+  if FCustomHeight <> Value then
+  begin
+    FCustomHeight := Value;
+    Changed;
+  end;
+end;
+
+{ TDropShadowSettings }
+
+constructor TDropShadowSettings.Create;
+begin
+  inherited Create;
+  FEnabled := False;
+  FColor := clBlack;
+  FOffset.X := 0;
+  FOffset.Y := 0;
+  FBlurRadius := 3;
+end;
+
+procedure TDropShadowSettings.Assign(Source: TPersistent);
+begin
+  if Source is TDropShadowSettings then
+  begin
+    FEnabled := TDropShadowSettings(Source).FEnabled;
+    FColor := TDropShadowSettings(Source).FColor;
+    FOffset := TDropShadowSettings(Source).FOffset;
+    FBlurRadius := TDropShadowSettings(Source).FBlurRadius;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TDropShadowSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TDropShadowSettings.SetEnabled(const Value: Boolean);
+begin
+  if FEnabled <> Value then
+  begin
+    FEnabled := Value;
+    Changed;
+  end;
+end;
+
+procedure TDropShadowSettings.SetColor(const Value: TColor);
+begin
+  if FColor <> Value then
+  begin
+    FColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TDropShadowSettings.SetOffset(const Value: TPoint);
+begin
+  if (FOffset.X <> Value.X) or (FOffset.Y <> Value.Y) then
+  begin
+    FOffset := Value;
+    Changed;
+  end;
+end;
+
+procedure TDropShadowSettings.SetBlurRadius(const Value: Integer);
+begin
+  if FBlurRadius <> Value then
+  begin
+    FBlurRadius := Value;
+    Changed;
+  end;
+end;
 
 { TANDMR_Margins }
 constructor TANDMR_Margins.Create;
@@ -306,19 +789,14 @@ begin
   FAlignment := taLeftJustify;
   FFont := TFont.Create;
   FFont.OnChange := FontChanged;
-
-  // --- Modification Start ---
-  // Always use a hardcoded default font to avoid the E2362 error.
-  // The attempt to inherit font via FOwnerControl.Font has proven problematic.
   FFont.Name := 'Segoe UI';
   FFont.Size := 9;
-  // Optionally, set other FFont properties like FFont.Color if a specific default is needed.
-  // FFont.Color := clWindowText; // This is already the default for TFont.
-  // --- Modification End ---
-
-  FColor := clWindowText; // This is TCaptionSettings.FColor, the text color of the caption
-  FOffset := 2;
+  FColor := clWindowText;
   FWordWrap := False;
+  FVerticalAlignment := cvaCenter;
+  FOffset.X := 0; // Default for TPoint
+  FOffset.Y := 0; // Default for TPoint
+  FDisabledColor := clGrayText;
 end;
 
 destructor TCaptionSettings.Destroy;
@@ -338,8 +816,10 @@ begin
     FAlignment := TCaptionSettings(Source).FAlignment;
     FFont.Assign(TCaptionSettings(Source).FFont);
     FColor := TCaptionSettings(Source).FColor;
-    FOffset := TCaptionSettings(Source).FOffset;
     FWordWrap := TCaptionSettings(Source).FWordWrap;
+    FVerticalAlignment := TCaptionSettings(Source).FVerticalAlignment;
+    FOffset := TCaptionSettings(Source).FOffset; // Assign TPoint
+    FDisabledColor := TCaptionSettings(Source).FDisabledColor;
     Changed;
   end
   else
@@ -359,34 +839,55 @@ end;
 
 procedure TCaptionSettings.SetAlignment(const Value: TAlignment); begin if FAlignment <> Value then begin FAlignment := Value; Changed; end; end;
 procedure TCaptionSettings.SetColor(const Value: TColor); begin if FColor <> Value then begin FColor := Value; Changed; end; end;
-procedure TCaptionSettings.SetFont(const Value: TFont); begin FFont.Assign(Value); Changed; end;
-procedure TCaptionSettings.SetOffset(const Value: Integer); begin if FOffset <> Value then begin FOffset := Value; Changed; end; end;
+procedure TCaptionSettings.SetFont(const Value: TFont); begin FFont.Assign(Value); Changed; end; // FontChanged will call Changed
 procedure TCaptionSettings.SetPosition(const Value: TCaptionPosition); begin if FPosition <> Value then begin FPosition := Value; Changed; end; end;
 procedure TCaptionSettings.SetText(const Value: string); begin if FText <> Value then begin FText := Value; Changed; end; end;
 procedure TCaptionSettings.SetVisible(const Value: Boolean); begin if FVisible <> Value then begin FVisible := Value; Changed; end; end;
 procedure TCaptionSettings.SetWordWrap(const Value: Boolean); begin if FWordWrap <> Value then begin FWordWrap := Value; Changed; end; end;
+
+procedure TCaptionSettings.SetVerticalAlignment(const Value: TCaptionVerticalAlignment);
+begin
+  if FVerticalAlignment <> Value then
+  begin
+    FVerticalAlignment := Value;
+    Changed;
+  end;
+end;
+
+procedure TCaptionSettings.SetOffset(const Value: TPoint); // Changed
+begin
+  if (FOffset.X <> Value.X) or (FOffset.Y <> Value.Y) then
+  begin
+    FOffset := Value;
+    Changed;
+  end;
+end;
+
+procedure TCaptionSettings.SetDisabledColor(const Value: TColor);
+begin
+  if FDisabledColor <> Value then
+  begin
+    FDisabledColor := Value;
+    Changed;
+  end;
+end;
 
 { THoverSettings }
 constructor THoverSettings.Create(AOwnerControl: TWinControl);
 begin
   inherited Create;
   FOwnerControl := AOwnerControl;
-
-  // Initialize existing properties (defaults from previous task)
   FEnabled := True;
   FBackgroundColor := clSkyBlue;
-  FBorderColor := clHighlight; // Changed from clSystemHighlight
+  FBorderColor := clHighlight;
   FFontColor := clBlack;
   FCaptionFontColor := clBlack;
-
-  // Initialize new animation fields
   FHoverEffect := heFade;
   FAnimationTimerInterval := 15;
   FAnimationStep := 20;
   FCurrentAnimationValue := 0;
   FAnimationDirection := 0;
-
-  FAnimationTimer := TTimer.Create(nil); // Owner is nil, THoverSettings manages its lifetime
+  FAnimationTimer := TTimer.Create(nil);
   FAnimationTimer.Interval := FAnimationTimerInterval;
   FAnimationTimer.OnTimer := DoAnimate;
   FAnimationTimer.Enabled := False;
@@ -407,17 +908,10 @@ begin
     FBorderColor := THoverSettings(Source).FBorderColor;
     FFontColor := THoverSettings(Source).FFontColor;
     FCaptionFontColor := THoverSettings(Source).FCaptionFontColor;
-
-    // Assign new animation fields
     FHoverEffect := THoverSettings(Source).FHoverEffect;
-    FAnimationTimerInterval := THoverSettings(Source).FAnimationTimerInterval;
-    FAnimationTimer.Interval := FAnimationTimerInterval; // Update timer's interval too
+    AnimationTimerInterval := THoverSettings(Source).AnimationTimerInterval; // Use property to update timer
     FAnimationStep := THoverSettings(Source).FAnimationStep;
     FCurrentAnimationValue := THoverSettings(Source).FCurrentAnimationValue;
-    // FAnimationDirection is runtime state, not typically assigned
-    // FOwnerControl is set at creation, not assigned
-    // FOnAnimationProgress event is not typically assigned this way, let user re-assign if needed
-
     Changed;
   end
   else
@@ -433,7 +927,7 @@ end;
 procedure THoverSettings.SetBackgroundColor(const Value: TColor); begin if FBackgroundColor <> Value then begin FBackgroundColor := Value; Changed; end; end;
 procedure THoverSettings.SetBorderColor(const Value: TColor); begin if FBorderColor <> Value then begin FBorderColor := Value; Changed; end; end;
 procedure THoverSettings.SetCaptionFontColor(const Value: TColor); begin if FCaptionFontColor <> Value then begin FCaptionFontColor := Value; Changed; end; end;
-procedure THoverSettings.SetEnabled(const Value: Boolean); begin if FEnabled <> Value then begin FEnabled := Value; Changed; FCurrentAnimationValue := IfThen(Value, FCurrentAnimationValue, 0); end; end; // Reset animation if disabled
+procedure THoverSettings.SetEnabled(const Value: Boolean); begin if FEnabled <> Value then begin FEnabled := Value; Changed; if not FEnabled then FCurrentAnimationValue := 0; end; end;
 procedure THoverSettings.SetFontColor(const Value: TColor); begin if FFontColor <> Value then begin FFontColor := Value; Changed; end; end;
 
 procedure THoverSettings.SetHoverEffect(const Value: THoverEffect);
@@ -441,9 +935,9 @@ begin
   if FHoverEffect <> Value then
   begin
     FHoverEffect := Value;
-    FCurrentAnimationValue := 0; // Reset animation progress when effect changes
+    FCurrentAnimationValue := 0;
     FAnimationTimer.Enabled := False;
-    Changed; // Notify owner of change
+    Changed;
   end;
 end;
 
@@ -451,7 +945,7 @@ procedure THoverSettings.SetAnimationTimerInterval(const Value: Integer);
 begin
   if FAnimationTimerInterval <> Value then
   begin
-    FAnimationTimerInterval := Max(1, Value); // Ensure interval is at least 1
+    FAnimationTimerInterval := Max(1, Value);
     FAnimationTimer.Interval := FAnimationTimerInterval;
     Changed;
   end;
@@ -461,7 +955,7 @@ procedure THoverSettings.SetAnimationStep(const Value: Integer);
 begin
   if FAnimationStep <> Value then
   begin
-    FAnimationStep := Max(1, Value); // Ensure step is at least 1
+    FAnimationStep := Max(1, Value);
     Changed;
   end;
 end;
@@ -470,11 +964,11 @@ procedure THoverSettings.DoAnimate(Sender: TObject);
 var
   TargetValue: Integer;
 begin
-  if FAnimationDirection = 1 then // Hovering
+  if FAnimationDirection = 1 then
     TargetValue := 255
-  else if FAnimationDirection = -1 then // Leaving
+  else if FAnimationDirection = -1 then
     TargetValue := 0
-  else // No direction
+  else
   begin
     FAnimationTimer.Enabled := False;
     Exit;
@@ -487,7 +981,7 @@ begin
     begin
       FCurrentAnimationValue := TargetValue;
       FAnimationTimer.Enabled := False;
-      FAnimationDirection := 0; // Stop direction
+      FAnimationDirection := 0;
     end;
   end
   else if FAnimationDirection = -1 then
@@ -497,23 +991,22 @@ begin
     begin
       FCurrentAnimationValue := TargetValue;
       FAnimationTimer.Enabled := False;
-      FAnimationDirection := 0; // Stop direction
+      FAnimationDirection := 0;
     end;
   end;
 
   if Assigned(FOnAnimationProgress) then
     FOnAnimationProgress(Self);
 
-  // Request repaint from owner control
   if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then
-    FOwnerControl.Invalidate; // Or Repaint, Invalidate is often preferred for components
+    FOwnerControl.Invalidate;
 end;
 
 procedure THoverSettings.StartAnimation(IsHovering: Boolean);
 begin
   if (FHoverEffect = heNone) or not Self.Enabled then
   begin
-    if IsHovering and Self.Enabled then // Only set to full if enabled
+    if IsHovering and Self.Enabled then
       FCurrentAnimationValue := 255
     else
       FCurrentAnimationValue := 0;
@@ -529,7 +1022,7 @@ begin
     Exit;
   end;
 
-  FAnimationTimer.Interval := FAnimationTimerInterval; // Ensure interval is current
+  FAnimationTimer.Interval := FAnimationTimerInterval;
 
   if IsHovering then
   begin
@@ -537,7 +1030,7 @@ begin
     if FCurrentAnimationValue < 255 then
       FAnimationTimer.Enabled := True;
   end
-  else // Not Hovering
+  else
   begin
     FAnimationDirection := -1;
     if FCurrentAnimationValue > 0 then
@@ -551,18 +1044,15 @@ constructor TImageSettings.Create(AOwnerControl: TWinControl);
 begin
   inherited Create;
   FOwnerControl := AOwnerControl;
-
   FPicture := TPicture.Create;
   FPicture.OnChange := InternalPictureChanged;
-
   FMargins := TANDMR_Margins.Create;
   FMargins.OnChange := InternalMarginsChanged;
-  // Defina os padrões para as margens aqui, se diferente do construtor de TANDMR_Margins
-  // FMargins.Left := 0; FMargins.Top := 0; FMargins.Right := 0; FMargins.Bottom := 0;
-
-
   FVisible := True;
   FDrawMode := idmProportional;
+  FPosition := ipsLeft;
+  FAlignmentVertical := iavCenter;
+  FPlacement := iplInsideBounds;
 end;
 
 destructor TImageSettings.Destroy;
@@ -586,10 +1076,12 @@ begin
   begin
     Visible := TImageSettings(Source).Visible;
     DrawMode := TImageSettings(Source).DrawMode;
-    Picture.Assign(TImageSettings(Source).Picture); // Atribui o conteúdo da imagem
-    Margins.Assign(TImageSettings(Source).Margins); // Atribui as margens
-    // O OnChange não é copiado por Assign de TPersistent
-    DoChange; // Notifica após a atribuição em massa
+    Picture.Assign(TImageSettings(Source).Picture);
+    Margins.Assign(TImageSettings(Source).Margins);
+    FPosition := TImageSettings(Source).FPosition;
+    FAlignmentVertical := TImageSettings(Source).FAlignmentVertical;
+    FPlacement := TImageSettings(Source).FPlacement;
+    DoChange;
   end
   else
     inherited Assign(Source);
@@ -599,9 +1091,6 @@ procedure TImageSettings.DoChange;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
-  // Opcionalmente, invalidar o FOwnerControl se ele estiver atribuído e precisar ser redesenhado
-  // if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then
-  //   FOwnerControl.Invalidate;
 end;
 
 procedure TImageSettings.InternalMarginsChanged(Sender: TObject);
@@ -625,12 +1114,12 @@ end;
 
 procedure TImageSettings.SetMargins(const Value: TANDMR_Margins);
 begin
-  FMargins.Assign(Value); // Isso chamará FMargins.OnChange se houver mudança, que chama DoChange
+  FMargins.Assign(Value);
 end;
 
 procedure TImageSettings.SetPicture(const Value: TPicture);
 begin
-  FPicture.Assign(Value); // Isso chamará FPicture.OnChange se houver mudança, que chama DoChange
+  FPicture.Assign(Value);
 end;
 
 procedure TImageSettings.SetVisible(const Value: Boolean);
@@ -638,6 +1127,33 @@ begin
   if FVisible <> Value then
   begin
     FVisible := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetPosition(const Value: TImagePositionSide);
+begin
+  if FPosition <> Value then
+  begin
+    FPosition := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetAlignmentVertical(const Value: TImageAlignmentVertical);
+begin
+  if FAlignmentVertical <> Value then
+  begin
+    FAlignmentVertical := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetPlacement(const Value: TImagePlacement);
+begin
+  if FPlacement <> Value then
+  begin
+    FPlacement := Value;
     DoChange;
   end;
 end;
@@ -655,9 +1171,9 @@ begin
   end;
   ColorRef := ColorToRGB(AColor); // BGR format from VCL
   Result := (UInt32(EffectiveAlpha) shl 24) or
-            ((ColorRef and $000000FF) shl 16) or
-            (ColorRef and $0000FF00) or
-            ((ColorRef and $00FF0000) shr 16);
+            ((ColorRef and $000000FF) shl 16) or // Blue to Red
+            (ColorRef and $0000FF00) or          // Green to Green
+            ((ColorRef and $00FF0000) shr 16);   // Red to Blue
 end;
 
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
@@ -676,6 +1192,12 @@ begin
 
   if (Rect.Width = 0) or (Rect.Height = 0) then
   begin
+    // Only add rectangle if it has positive dimensions, otherwise, it's an empty path.
+    // A zero-width or zero-height rectangle is valid for AddRectangle but might not be intended for drawing.
+    // However, for path creation, it's okay to add it if dimensions are non-negative.
+    // The check (Rect.Width > 0) and (Rect.Height > 0) was a bit too restrictive.
+    // APath.AddRectangle(Rect) will handle zero width/height correctly (adds nothing or a line).
+    // For consistency, let's ensure it's only added if it can form an area.
     if (Rect.Width > 0) and (Rect.Height > 0) then
        APath.AddRectangle(Rect);
     Exit;
@@ -703,31 +1225,31 @@ begin
 
   if RoundTL then
     APath.AddArc(Rect.X, Rect.Y, LDiameter, LDiameter, 180, 90)
-  else
-    APath.AddLine(Rect.X, Rect.Y, Rect.X, Rect.Y);
+  else // Point for non-rounded corner
+    APath.AddLine(Rect.X, Rect.Y, Rect.X, Rect.Y); // Effectively starts at top-left
 
-  APath.AddLine(Rect.X + LRadius, Rect.Y, Rect.X + Rect.Width - LRadius, Rect.Y);
+  APath.AddLine(Rect.X + LRadius, Rect.Y, Rect.X + Rect.Width - LRadius, Rect.Y); // Top edge
 
   if RoundTR then
     APath.AddArc(Rect.X + Rect.Width - LDiameter, Rect.Y, LDiameter, LDiameter, 270, 90)
   else
-    APath.AddLine(Rect.X + Rect.Width, Rect.Y, Rect.X + Rect.Width, Rect.Y);
+    APath.AddLine(Rect.X + Rect.Width, Rect.Y, Rect.X + Rect.Width, Rect.Y); // Top-right point
 
-  APath.AddLine(Rect.X + Rect.Width, Rect.Y + LRadius, Rect.X + Rect.Width, Rect.Y + Rect.Height - LRadius);
+  APath.AddLine(Rect.X + Rect.Width, Rect.Y + LRadius, Rect.X + Rect.Width, Rect.Y + Rect.Height - LRadius); // Right edge
 
   if RoundBR then
     APath.AddArc(Rect.X + Rect.Width - LDiameter, Rect.Y + Rect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
   else
-    APath.AddLine(Rect.X + Rect.Width, Rect.Y + Rect.Height, Rect.X + Rect.Width, Rect.Y + Rect.Height);
+    APath.AddLine(Rect.X + Rect.Width, Rect.Y + Rect.Height, Rect.X + Rect.Width, Rect.Y + Rect.Height); // Bottom-right point
 
-  APath.AddLine(Rect.X + Rect.Width - LRadius, Rect.Y + Rect.Height, Rect.X + LRadius, Rect.Y + Rect.Height);
+  APath.AddLine(Rect.X + Rect.Width - LRadius, Rect.Y + Rect.Height, Rect.X + LRadius, Rect.Y + Rect.Height); // Bottom edge
 
   if RoundBL then
     APath.AddArc(Rect.X, Rect.Y + Rect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
   else
-    APath.AddLine(Rect.X, Rect.Y + Rect.Height, Rect.X, Rect.Y + Rect.Height);
+    APath.AddLine(Rect.X, Rect.Y + Rect.Height, Rect.X, Rect.Y + Rect.Height); // Bottom-left point
 
-  APath.CloseFigure;
+  APath.CloseFigure; // Connects to start (Rect.X, Rect.Y + LRadius)
 end;
 
 procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
@@ -737,16 +1259,13 @@ var
   LPen: TGPPen;
   LRectF: TGPRectF;
   LRadiusValue: Single;
-  LBorderThicknessValue: Single; // Use a Single for GDI+ operations
+  LBorderThicknessValue: Single;
 begin
-  if (AGraphics = nil) or (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) then // Basic check
+  if (AGraphics = nil) or (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) then
     Exit;
 
-  LBorderThicknessValue := ABorderThickness; // Use parameter
+  LBorderThicknessValue := ABorderThickness;
 
-  // Define the rectangle for path creation.
-  // If there's a border, the path should trace the centerline of the border stroke.
-  // This means the rectangle for the path is inset by half the border thickness.
   if LBorderThicknessValue > 0 then
   begin
     LRectF.X      := ADrawArea.Left + LBorderThicknessValue / 2.0;
@@ -754,7 +1273,7 @@ begin
     LRectF.Width  := ADrawArea.Width - LBorderThicknessValue;
     LRectF.Height := ADrawArea.Height - LBorderThicknessValue;
   end
-  else // No border, path is the ADrawArea itself
+  else
   begin
     LRectF.X      := ADrawArea.Left;
     LRectF.Y      := ADrawArea.Top;
@@ -762,30 +1281,26 @@ begin
     LRectF.Height := ADrawArea.Height;
   end;
 
-  // Ensure dimensions are not negative for path creation.
   LRectF.Width  := Max(0.0, LRectF.Width);
   LRectF.Height := Max(0.0, LRectF.Height);
 
-  if (LRectF.Width = 0) or (LRectF.Height = 0) then // Cannot draw if path rect is empty
+  if (LRectF.Width = 0) or (LRectF.Height = 0) then
     Exit;
 
-  // Calculate effective radius for rounding, cannot exceed half of the smallest dimension of LRectF.
-  LRadiusValue := ACornerRadius; // Use parameter
+  LRadiusValue := ACornerRadius;
   LRadiusValue := Min(LRadiusValue, LRectF.Width / 2.0);
   LRadiusValue := Min(LRadiusValue, LRectF.Height / 2.0);
-  LRadiusValue := Max(0.0, LRadiusValue); // Ensure non-negative radius
+  LRadiusValue := Max(0.0, LRadiusValue);
 
   LPath := TGPGraphicsPath.Create;
   try
-    CreateGPRoundedPath(LPath, LRectF, LRadiusValue, ARoundCornerType); // Use parameter
+    CreateGPRoundedPath(LPath, LRectF, LRadiusValue, ARoundCornerType);
 
-    if LPath.GetPointCount > 0 then // Check if path creation was successful
+    if LPath.GetPointCount > 0 then
     begin
-      // Fill Background
       if ABackgroundColor <> clNone then
       begin
-        // Use AOpacity for the alpha component of the background color
-        LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor, AOpacity)); // Use parameter
+        LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor, AOpacity));
         try
           AGraphics.FillPath(LBrush, LPath);
         finally
@@ -793,13 +1308,11 @@ begin
         end;
       end;
 
-      // Draw Border
-      if (LBorderThicknessValue > 0) and (ABorderColor <> clNone) and (ABorderStyle <> psClear) then // Use parameters
+      if (LBorderThicknessValue > 0) and (ABorderColor <> clNone) and (ABorderStyle <> psClear) then
       begin
-        // Use AOpacity for the alpha component of the border color
-        LPen := TGPPen.Create(ColorToARGB(ABorderColor, AOpacity), LBorderThicknessValue); // Use parameters
+        LPen := TGPPen.Create(ColorToARGB(ABorderColor, AOpacity), LBorderThicknessValue);
         try
-          case ABorderStyle of // Use parameter
+          case ABorderStyle of
             psSolid:      LPen.SetDashStyle(DashStyleSolid);
             psDash:       LPen.SetDashStyle(DashStyleDash);
             psDot:        LPen.SetDashStyle(DashStyleDot);
@@ -823,11 +1336,11 @@ var
   DrawImageRect: TRect;
   GraphicW, GraphicH: Integer;
   rRatio, rRectRatio: Double;
-  tempCalculatedW, tempCalculatedH: Double; // For checking pre-rounding values
+  tempCalculatedW, tempCalculatedH: Double;
   PngStream: TMemoryStream;
   GpSourceBitmap: TGPBitmap;
   Adapter: IStream;
-  E: Exception; // For the exception handler
+  E: Exception;
 begin
   if (AGraphics = nil) or (APNG = nil) then Exit;
   if (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
@@ -853,7 +1366,6 @@ begin
     idmProportional:
       begin
         rRatio := GraphicW / GraphicH;
-
         if ADestRect.Height > 0 then
           rRectRatio := ADestRect.Width / ADestRect.Height
         else
@@ -903,16 +1415,14 @@ begin
     Exit;
 
   PngStream := TMemoryStream.Create;
-  try // Outer try-finally for PngStream
+  try
     APNG.SaveToStream(PngStream);
     PngStream.Position := 0;
     Adapter := TStreamAdapter.Create(PngStream, soReference);
-    GpSourceBitmap := TGPBitmap.Create(Adapter); // This can raise an exception
-    try // Inner try-finally for GpSourceBitmap
+    GpSourceBitmap := TGPBitmap.Create(Adapter);
+    try
       if (GpSourceBitmap = nil) or (GpSourceBitmap.GetLastStatus <> Ok) then
       begin
-        // If GpSourceBitmap creation failed, exit without trying to use it
-        // GpSourceBitmap.Free will be called in the finally block
         Exit;
       end;
 
@@ -923,24 +1433,23 @@ begin
 
       AGraphics.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height);
     finally
-      GpSourceBitmap.Free; // Free GpSourceBitmap in all cases (success or exception during DrawImage)
+      GpSourceBitmap.Free;
     end;
-  except // Exception handler for the outer try (e.g., issues with PngStream, Adapter, GpSourceBitmap.Create)
+  except
     on E: Exception do
     begin
       // Optional: Log or handle exception E
-      // For example: System.Diagnostics.OutputDebugString(PChar('Error creating/processing PNG: ' + E.Message));
     end;
-  end; // End of outer try-except
-    PngStream.Free; // Free PngStream in all cases
-end; // End of procedure
+  end;
+    PngStream.Free;
+end;
 
 procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 var
   DrawImageRect: TRect;
   GraphicW, GraphicH: Integer;
   rRatio, rRectRatio: Double;
-  tempCalculatedW, tempCalculatedH: Double; // For checking pre-rounding values
+  tempCalculatedW, tempCalculatedH: Double;
   E: Exception;
 begin
   if (ACanvas = nil) or (AGraphic = nil) or (AGraphic.Empty) then Exit;
@@ -966,10 +1475,7 @@ begin
       DrawImageRect := ADestRect;
     idmProportional:
       begin
-        // This case assumes GraphicW > 0 and GraphicH > 0 due to the check above for idmProportional
-
         rRatio := GraphicW / GraphicH;
-
         if ADestRect.Height > 0 then
           rRectRatio := ADestRect.Width / ADestRect.Height
         else
@@ -1012,7 +1518,7 @@ begin
         DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
       end;
   else
-    DrawImageRect := ADestRect; // Should not happen
+    DrawImageRect := ADestRect;
   end;
 
   if ((DrawImageRect.Right <= DrawImageRect.Left) or (DrawImageRect.Bottom <= DrawImageRect.Top) or (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0)) then
@@ -1114,7 +1620,7 @@ begin
     Exit;
 
   ACanvas.Font.Assign(AFont);
-  ACanvas.Font.Color := AFontColor; // AOpacity is not directly used for TCanvas text alpha blending here
+  ACanvas.Font.Color := AFontColor;
   ACanvas.Brush.Style := bsClear;
 
   DrawTextFlags := DT_NOPREFIX;
@@ -1136,15 +1642,10 @@ begin
     cvaBottom: DrawTextFlags := DrawTextFlags or DT_BOTTOM;
   end;
 
-  // DT_VCENTER for single line text requires DT_SINGLELINE.
-  // If DT_WORDBREAK is used, DT_VCENTER might not work as expected across multiple lines.
-  // For multi-line text, vertical centering is more complex and usually done manually or with DT_CALCRECT.
-  // The current combination should work reasonably for typical scenarios.
   if (DrawTextFlags and DT_WORDBREAK = 0) and (DrawTextFlags and DT_VCENTER = DT_VCENTER) then
-     DrawTextFlags := DrawTextFlags or DT_SINGLELINE;
+      DrawTextFlags := DrawTextFlags or DT_SINGLELINE;
 
-
-  TempRect := ARect; // Use a temporary rect for DrawText
+  TempRect := ARect;
   DrawText(ACanvas.Handle, PChar(ACaption), Length(ACaption), TempRect, DrawTextFlags);
 end;
 
@@ -1164,47 +1665,41 @@ function ResolveStateColor(
 var
   LResultColor: TColor;
 begin
-  LResultColor := ABaseColor; // Start with base
+  LResultColor := ABaseColor;
 
   if not AIsEnabled then
   begin
     if ADisabledColor <> clNone then Result := ADisabledColor
-    else Result := ABaseColor; // Or a dimmed base, for now, just base or specific disabled
+    else Result := ABaseColor;
     Exit;
   end;
 
-  // Focused state
   if AIsFocused and AAllowFocusEffect and (AFocusColor <> clNone) then
   begin
     LResultColor := AFocusColor;
   end;
 
-  // Hover state (can potentially override focused color if AHoverEffectOverridesFocus is true)
   if AIsHovering and AAllowHoverEffect and (AHoverColor <> clNone) then
   begin
-    // Override if:
-    // 1. HoverEffectOverridesFocus is true OR
-    // 2. Focus is not active/allowed OR focus color is clNone (meaning focus didn't set a color)
     if AHoverEffectOverridesFocus or not (AIsFocused and AAllowFocusEffect and (AFocusColor <> clNone)) then
     begin
       LResultColor := AHoverColor;
     end;
   end;
 
-  // Final decision based on LResultColor and AFallbackToTransparent
   if (LResultColor = ABaseColor) and AFallbackToTransparent and (ABaseColor = clNone) then
-  begin
-    Result := clNone; // Base was clNone, and no other state applied, and fallback is true
-  end
-  else if LResultColor <> clNone then // A specific state (Hover, Focus, or initial Base if not clNone) was chosen
-  begin
-    Result := LResultColor;
-  end
-  else if AFallbackToTransparent then // LResultColor is clNone (either from Base or a state didn't apply/had clNone)
   begin
     Result := clNone;
   end
-  else // LResultColor is clNone, but not falling back to transparent, so use original ABaseColor
+  else if LResultColor <> clNone then
+  begin
+    Result := LResultColor;
+  end
+  else if AFallbackToTransparent then
+  begin
+    Result := clNone;
+  end
+  else
   begin
     Result := ABaseColor;
   end;

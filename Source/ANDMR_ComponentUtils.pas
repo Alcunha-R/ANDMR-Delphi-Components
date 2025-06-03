@@ -18,6 +18,8 @@ type
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
 
+  TGradientType = (gtLinearVertical, gtLinearHorizontal);
+
   TRoundCornerType = (
     rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight,
     rctTop, rctBottom, rctLeft, rctRight,
@@ -386,6 +388,30 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+  TGradientSettings = class(TPersistent)
+  private
+    FEnabled: Boolean;
+    FGradientType: TGradientType;
+    FStartColor: TColor;
+    FEndColor: TColor;
+    FOnChange: TNotifyEvent;
+    procedure SetEnabled(const Value: Boolean);
+    procedure SetGradientType(const Value: TGradientType);
+    procedure SetStartColor(const Value: TColor);
+    procedure SetEndColor(const Value: TColor);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property Enabled: Boolean read FEnabled write SetEnabled default False;
+    property GradientType: TGradientType read FGradientType write SetGradientType default gtLinearVertical;
+    property StartColor: TColor read FStartColor write SetStartColor default clNone;
+    property EndColor: TColor read FEndColor write SetEndColor default clNone;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
 // Helper function declarations
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
@@ -659,6 +685,75 @@ procedure TDropShadowSettings.SetColor(const Value: TColor); begin if FColor <> 
 procedure TDropShadowSettings.SetOffset(const Value: TPoint); begin if FOffset <> Value then begin FOffset := Value; Changed; end; end; // TPoint comparison is fine
 procedure TDropShadowSettings.SetBlurRadius(const Value: Integer); begin if FBlurRadius <> Max(0, Value) then begin FBlurRadius := Max(0, Value); Changed; end; end; // Blur radius non-negative
 
+{ TGradientSettings }
+
+constructor TGradientSettings.Create;
+begin
+  inherited Create;
+  FEnabled := False;
+  FGradientType := gtLinearVertical;
+  FStartColor := clNone;
+  FEndColor := clNone;
+end;
+
+procedure TGradientSettings.Assign(Source: TPersistent);
+var
+  LSource: TGradientSettings;
+begin
+  if Source is TGradientSettings then
+  begin
+    LSource := TGradientSettings(Source);
+    FEnabled := LSource.FEnabled;
+    FGradientType := LSource.FGradientType;
+    FStartColor := LSource.FStartColor;
+    FEndColor := LSource.FEndColor;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TGradientSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TGradientSettings.SetEnabled(const Value: Boolean);
+begin
+  if FEnabled <> Value then
+  begin
+    FEnabled := Value;
+    Changed;
+  end;
+end;
+
+procedure TGradientSettings.SetGradientType(const Value: TGradientType);
+begin
+  if FGradientType <> Value then
+  begin
+    FGradientType := Value;
+    Changed;
+  end;
+end;
+
+procedure TGradientSettings.SetStartColor(const Value: TColor);
+begin
+  if FStartColor <> Value then
+  begin
+    FStartColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TGradientSettings.SetEndColor(const Value: TColor);
+begin
+  if FEndColor <> Value then
+  begin
+    FEndColor := Value;
+    Changed;
+  end;
+end;
 
 { TANDMR_Tag }
 

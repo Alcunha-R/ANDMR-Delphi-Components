@@ -12,7 +12,6 @@ uses
 
 type
   TImagePosition = (ipLeft, ipRight, ipAbove, ipBelow, ipBehind);
-  TGradientType = (gtLinearVertical, gtLinearHorizontal);
   TImageStretchMode = (ismProportional, ismFlat);
   TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient, bsDark, bsMaterial, bsModern, bsWindows, bsMacOS);
   TPresetType = (
@@ -35,16 +34,13 @@ type
     FCaption: string;
     FCaptionSettings: TCaptionSettings; // Added
     FImageSettings: TImageSettings;   // Added
-    FGradientEnabled: Boolean;
-    FGradientType: TGradientType;
-    FGradientStartColor: TColor;
-    FGradientEndColor: TColor;
+    FGradientSettings: TGradientSettings;
     FImagePosition: TImagePosition;
     FTextMargins: TANDMR_Margins; // FImageMargins removed
     FTag: Integer;
-    FTagString: string;
-    FTagExtended: Extended;
-    FTagObject: TObject;
+    FInternalTagString: TANDMR_TagString;
+    FInternalTagExtended: TANDMR_TagExtended;
+    FInternalTagObject: TANDMR_TagObject;
     FDisabledCursor: TCursor;
     FTransparent: Boolean;
 
@@ -93,15 +89,22 @@ type
     procedure SetImage(const Value: TPicture);
     function GetTextAlign: TAlignment; // Changed
     procedure SetTextAlign(const Value: TAlignment);
+    function GetGradientEnabled: Boolean;
     procedure SetGradientEnabled(const Value: Boolean);
+    function GetGradientType: TGradientType;
     procedure SetGradientType(const Value: TGradientType);
+    function GetGradientStartColor: TColor;
     procedure SetGradientStartColor(const Value: TColor);
+    function GetGradientEndColor: TColor;
     procedure SetGradientEndColor(const Value: TColor);
     procedure SetImagePosition(const Value: TImagePosition);
     function GetImageStretchMode: TImageStretchMode; // Changed
     procedure SetImageStretchMode(const Value: TImageStretchMode);
     procedure SetTag(const Value: Integer);
+    function GetTagString: string;
     procedure SetTagString(const Value: string);
+    function GetTagExtended: Extended;
+    function GetTagObject: TObject;
     procedure SetTagObject(const Value: TObject);
     procedure SetHoverEffect(const Value: THoverEffect);
     procedure SetDisabledCursor(const Value: TCursor);
@@ -161,10 +164,10 @@ type
     property Image: TPicture read GetImage write SetImage; // Changed
     property TextAlign: TAlignment read GetTextAlign write SetTextAlign default taCenter; // Changed
 
-    property GradientEnabled: Boolean read FGradientEnabled write SetGradientEnabled default False;
-    property GradientType: TGradientType read FGradientType write SetGradientType default gtLinearVertical;
-    property GradientStartColor: TColor read FGradientStartColor write SetGradientStartColor;
-    property GradientEndColor: TColor read FGradientEndColor write SetGradientEndColor;
+    property GradientEnabled: Boolean read GetGradientEnabled write SetGradientEnabled default False;
+    property GradientType: TGradientType read GetGradientType write SetGradientType default gtLinearVertical;
+    property GradientStartColor: TColor read GetGradientStartColor write SetGradientStartColor; // Default clNone is handled by TGradientSettings
+    property GradientEndColor: TColor read GetGradientEndColor write SetGradientEndColor; // Default clNone is handled by TGradientSettings
 
     property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
     property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
@@ -187,9 +190,9 @@ type
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
 
     property Transparent: Boolean read FTransparent write SetTransparent default False;
-    property TagString: string read FTagString write SetTagString;
-    property TagExtended: Extended read FTagExtended write SetTagExtended;
-    property TagObject: TObject read FTagObject write SetTagObject;
+    property TagString: string read GetTagString write SetTagString;
+    property TagExtended: Extended read GetTagExtended write SetTagExtended;
+    property TagObject: TObject read GetTagObject write SetTagObject;
 
     property PresetType: TPresetType read FPresetType write SetPresetType default cptNone;
 
@@ -259,10 +262,8 @@ begin
 
   FImagePosition := ipLeft;
 
-  FGradientEnabled := False;
-  FGradientType := gtLinearVertical;
-  FGradientStartColor := clNone;
-  FGradientEndColor := clNone;
+  FGradientSettings := TGradientSettings.Create;
+  FGradientSettings.OnChange := SettingsChanged;
 
   FDisabledCursor := crNo;
   Cursor := crHandPoint;
@@ -331,6 +332,10 @@ begin
 
   // Initial FImageStretchMode was ismProportional
   FImageSettings.DrawMode := idmProportional;
+
+  FInternalTagString := TANDMR_TagString.Create;
+  FInternalTagExtended := TANDMR_TagExtended.Create;
+  FInternalTagObject := TANDMR_TagObject.Create;
 end;
 
 destructor TANDMR_CButton.Destroy;
@@ -351,6 +356,14 @@ begin
 
   FTextMargins.Free;
   FClickEffectTimer.Free;
+
+  FInternalTagString.Free;
+  FInternalTagExtended.Free;
+  FInternalTagObject.Free;
+
+  FGradientSettings.OnChange := nil;
+  FGradientSettings.Free;
+
   inherited;
 end;
 
@@ -379,10 +392,10 @@ end;
 procedure TANDMR_CButton.Loaded;
 begin
   inherited Loaded;
-  if FGradientStartColor = clNone then
-    FGradientStartColor := FBorderSettings.BackgroundColor;
-  if FGradientEndColor = clNone then
-    FGradientEndColor := DarkerColor(FBorderSettings.BackgroundColor, 30);
+  if FGradientSettings.StartColor = clNone then
+    FGradientSettings.StartColor := FBorderSettings.BackgroundColor;
+  if FGradientSettings.EndColor = clNone then
+    FGradientSettings.EndColor := DarkerColor(FBorderSettings.BackgroundColor, 30);
   if FTransparent then
     ControlStyle := ControlStyle - [csOpaque] + [csParentBackground]
   else
@@ -526,15 +539,16 @@ begin
   if FBorderSettings.BackgroundColor <> Value then
   begin
     OldActiveColor := FBorderSettings.BackgroundColor;
-    FBorderSettings.BackgroundColor := Value;
+    FBorderSettings.BackgroundColor := Value; // This will trigger FBorderSettings.OnChange -> BorderSettingsChanged -> Invalidate
 
-    if (FGradientStartColor = OldActiveColor) or (FGradientStartColor = clNone) then
-      SetGradientStartColor(FBorderSettings.BackgroundColor);
+    // Use the property access to ensure OnChange is triggered for gradient settings
+    if (FGradientSettings.StartColor = OldActiveColor) or (FGradientSettings.StartColor = clNone) then
+      FGradientSettings.StartColor := FBorderSettings.BackgroundColor;
 
     OldDerivedEndColor := DarkerColor(OldActiveColor, 30);
-    if (FGradientEndColor = OldDerivedEndColor) or (FGradientEndColor = clNone) then
-      SetGradientEndColor(DarkerColor(FBorderSettings.BackgroundColor, 30));
-    // FBorderSettings.OnChange will trigger repaint
+    if (FGradientSettings.EndColor = OldDerivedEndColor) or (FGradientSettings.EndColor = clNone) then
+      FGradientSettings.EndColor := DarkerColor(FBorderSettings.BackgroundColor, 30);
+    // FGradientSettings.OnChange will trigger repaint if its properties were changed
   end;
 end;
 
@@ -654,40 +668,44 @@ begin
   Repaint;
 end;
 
+function TANDMR_CButton.GetGradientEnabled: Boolean;
+begin
+  Result := FGradientSettings.Enabled;
+end;
+
 procedure TANDMR_CButton.SetGradientEnabled(const Value: Boolean);
 begin
-  if FGradientEnabled <> Value then
-  begin
-    FGradientEnabled := Value;
-    Repaint;
-  end;
+  FGradientSettings.Enabled := Value; // OnChange will trigger repaint
+end;
+
+function TANDMR_CButton.GetGradientType: TGradientType;
+begin
+  Result := FGradientSettings.GradientType;
 end;
 
 procedure TANDMR_CButton.SetGradientType(const Value: TGradientType);
 begin
-  if FGradientType <> Value then
-  begin
-    FGradientType := Value;
-    Repaint;
-  end;
+  FGradientSettings.GradientType := Value; // OnChange will trigger repaint
+end;
+
+function TANDMR_CButton.GetGradientStartColor: TColor;
+begin
+  Result := FGradientSettings.StartColor;
 end;
 
 procedure TANDMR_CButton.SetGradientStartColor(const Value: TColor);
 begin
-  if FGradientStartColor <> Value then
-  begin
-    FGradientStartColor := Value;
-    Repaint;
-  end;
+  FGradientSettings.StartColor := Value; // OnChange will trigger repaint
+end;
+
+function TANDMR_CButton.GetGradientEndColor: TColor;
+begin
+  Result := FGradientSettings.EndColor;
 end;
 
 procedure TANDMR_CButton.SetGradientEndColor(const Value: TColor);
 begin
-  if FGradientEndColor <> Value then
-  begin
-    FGradientEndColor := Value;
-    Repaint;
-  end;
+  FGradientSettings.EndColor := Value; // OnChange will trigger repaint
 end;
 
 procedure TANDMR_CButton.SetImagePosition(const Value: TImagePosition);
@@ -737,9 +755,53 @@ begin
 end;
 
 procedure TANDMR_CButton.SetTag(const Value: Integer); begin FTag := Value; end;
-procedure TANDMR_CButton.SetTagString(const Value: string); begin FTagString := Value; end;
-procedure TANDMR_CButton.SetTagExtended(const Value: Extended); begin FTagExtended := Value; end;
-procedure TANDMR_CButton.SetTagObject(const Value: TObject); begin FTagObject := Value; end;
+
+function TANDMR_CButton.GetTagString: string;
+begin
+  Result := FInternalTagString.AsString;
+end;
+
+procedure TANDMR_CButton.SetTagString(const Value: string);
+begin
+  FInternalTagString.AsString := Value;
+  // Tags usually don't trigger repaint, but if an OnChange mechanism is needed later,
+  // FInternalTagString.OnChange could be assigned here or in Create.
+end;
+
+function TANDMR_CButton.GetTagExtended: Extended;
+begin
+  // TANDMR_TagExtended stores a TStringList. The original FTagExtended was an Extended type.
+  // This indicates a mismatch in the plan or understanding.
+  // For now, let's assume TagExtended should map to the first item in TANDMR_TagExtended.Items if it's a valid float,
+  // or handle it as string if that's more appropriate.
+  // Given the original was 'Extended', we'll try to convert.
+  if FInternalTagExtended.Items.Count > 0 then
+  begin
+    try
+      Result := StrToFloatDef(FInternalTagExtended.Items[0], 0.0);
+    except
+      Result := 0.0; // Default on conversion error
+    end;
+  end
+  else
+    Result := 0.0;
+end;
+
+procedure TANDMR_CButton.SetTagExtended(const Value: Extended);
+begin
+  FInternalTagExtended.Items.Clear;
+  FInternalTagExtended.Items.Add(FloatToStr(Value));
+end;
+
+function TANDMR_CButton.GetTagObject: TObject;
+begin
+  Result := FInternalTagObject.ObjectValue;
+end;
+
+procedure TANDMR_CButton.SetTagObject(const Value: TObject);
+begin
+  FInternalTagObject.ObjectValue := Value;
+end;
 
 procedure TANDMR_CButton.SetHoverEffect(const Value: THoverEffect);
 begin
@@ -1014,7 +1076,7 @@ begin
 
     LActualFillColor := LInitialFillColor;
     LActualBorderColor := LInitialBorderColor;
-    LCurrentGradientEnabled := FGradientEnabled;
+    LCurrentGradientEnabled := FGradientSettings.Enabled;
     LDrawFill := True;
     LDrawBorder := LActualBorderThickness > 0;
 
@@ -1363,7 +1425,7 @@ begin
     if LDrawFill and not FTransparent then
     begin
       if LCurrentGradientEnabled then
-        BgColorToUse := IfThen(FGradientStartColor = clNone, LActualFillColor, FGradientStartColor)
+        BgColorToUse := IfThen(FGradientSettings.StartColor = clNone, LActualFillColor, FGradientSettings.StartColor)
       else
         BgColorToUse := LActualFillColor;
     end

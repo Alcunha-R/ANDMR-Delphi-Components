@@ -18,103 +18,106 @@ uses
 type
   TANDMR_CPanel = class(TCustomControl)
   private
-    // Private fields for properties
-    FColor: TColor;
-    FBorderColor: TColor;
-    FBorderThickness: Integer;
-    FBorderStyle: TPenStyle;
-    FCornerRadius: Integer;
-    FRoundCornerType: TRoundCornerType;
-    FCaption: TCaption; // VCL's TCaption type
-    FFont: TFont;
-    FDropShadowEnabled: Boolean;
-    FDropShadowColor: TColor;
-    FDropShadowOffset: TPoint; // Or separate X/Y offsets
-    FDropShadowBlurRadius: Integer; // For a softer shadow effect
-    FOpacity: Byte; // Added for opacity control
-    FCaptionAlignment: System.Classes.TAlignment; // Added for caption alignment
-    FCaptionVerticalAlignment: TCaptionVerticalAlignment; // New field for vertical alignment
-    FCaptionWordWrap: Boolean; // New field for WordWrap
-    FCaptionOffsetX: Integer; // New field for Caption X Offset
-    FCaptionOffsetY: Integer; // New field for Caption Y Offset
-    FDisabledFontColor: TColor; // New field for Disabled Font Color
-    FTransparentChildren: Boolean; // New field for TransparentChildren
-    FWindowRegion: HRGN; // Field to store the handle to the window region
-    FHoverSettings: THoverSettings; // Field for Hover Settings
-    FIsHovering: Boolean; // Tracks if the mouse is currently over the panel
+    // New Settings Objects
+    FBorderSettings: TBorderSettings;
+    FDropShadowSettings: TDropShadowSettings;
+    FCaptionSettings: TCaptionSettings;
+    FHoverSettings: THoverSettings;
 
-    // Property Setters
+    // Private fields for properties
+    FOpacity: Byte;
+    FTransparentChildren: Boolean;
+    FWindowRegion: HRGN;
+    FIsHovering: Boolean;
+
+    // Property Getters/Setters
+    function GetColor: TColor;
     procedure SetColor(const Value: TColor);
+    function GetBorderColor: TColor;
     procedure SetBorderColor(const Value: TColor);
+    function GetBorderThickness: Integer;
     procedure SetBorderThickness(const Value: Integer);
+    function GetBorderStyle: TPenStyle;
     procedure SetBorderStyle(const Value: TPenStyle);
+    function GetCornerRadius: Integer;
     procedure SetCornerRadius(const Value: Integer);
+    function GetRoundCornerType: TRoundCornerType;
     procedure SetRoundCornerType(const Value: TRoundCornerType);
-    procedure SetCaption(const Value: TCaption);
-    procedure SetComponentFont(const Value: TFont); // Renamed to avoid conflict with inherited Font
+    function GetCaption: string;
+    procedure SetCaption(const Value: string);
+    // GetFont and SetFont are now in protected
+    function GetDropShadowEnabled: Boolean;
     procedure SetDropShadowEnabled(const Value: Boolean);
+    function GetDropShadowColor: TColor;
     procedure SetDropShadowColor(const Value: TColor);
+    function GetDropShadowOffset: TPoint;
     procedure SetDropShadowOffset(const Value: TPoint);
+    function GetDropShadowBlurRadius: Integer;
     procedure SetDropShadowBlurRadius(const Value: Integer);
-    procedure SetOpacity(const Value: Byte); // Added for opacity control
-    procedure SetCaptionAlignment(const Value: System.Classes.TAlignment); // Added for caption alignment
-    procedure SetCaptionVerticalAlignment(const Value: TCaptionVerticalAlignment); // New setter
-    procedure SetCaptionWordWrap(const Value: Boolean); // New setter for WordWrap
-    procedure SetCaptionOffsetX(const Value: Integer); // New setter for X Offset
-    procedure SetCaptionOffsetY(const Value: Integer); // New setter for Y Offset
-    procedure SetDisabledFontColor(const Value: TColor); // New setter for Disabled Font Color
-    procedure SetTransparentChildren(const Value: Boolean); // New setter for TransparentChildren
-    procedure SetHoverSettings(const Value: THoverSettings); // Setter for Hover Settings
+    procedure SetOpacity(const Value: Byte);
+    function GetCaptionAlignment: System.Classes.TAlignment;
+    procedure SetCaptionAlignment(const Value: System.Classes.TAlignment);
+    function GetCaptionVerticalAlignment: TCaptionVerticalAlignment;
+    procedure SetCaptionVerticalAlignment(const Value: TCaptionVerticalAlignment);
+    function GetCaptionWordWrap: Boolean;
+    procedure SetCaptionWordWrap(const Value: Boolean);
+    function GetCaptionOffsetX: Integer;
+    procedure SetCaptionOffsetX(const Value: Integer);
+    function GetCaptionOffsetY: Integer;
+    procedure SetCaptionOffsetY(const Value: Integer);
+    function GetDisabledFontColor: TColor;
+    procedure SetDisabledFontColor(const Value: TColor);
+    procedure SetTransparentChildren(const Value: Boolean);
+    procedure SetHoverSettings(const Value: THoverSettings);
 
     // Internal methods
-    procedure FontChanged(Sender: TObject);
-    procedure HoverSettingsChanged(Sender: TObject); // Event handler for Hover Settings changes
-    procedure UpdateRegion; // Method to update the window region
-    procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER; // Message handler for mouse enter
-    procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE; // Message handler for mouse leave
+    procedure HoverSettingsChanged(Sender: TObject);
+    procedure SettingsChanged(Sender: TObject);
+    procedure UpdateRegion;
+    procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
+    procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
 
   protected
     // Method overrides
     procedure Paint; override;
-    procedure Loaded; override; // For initial setup after properties are loaded
-    // procedure WndProc(var Message: TMessage); override; // If specific message handling is needed
+    procedure Loaded; override;
     procedure Resize; override;
-    procedure CreateWnd; override; // Added for UpdateRegion call on handle creation
+    procedure CreateWnd; override;
+    function GetFont: TFont; // Getter for published Font property
+    procedure SetFont(Value: TFont);   // Removed 'override'
 
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
   published
-    // Publish properties that will be visually configurable
-    property Color: TColor read FColor write SetColor default clBtnFace;
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
-    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 0;
-    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctNone;
-    property Caption: TCaption read FCaption write SetCaption;
-    property CaptionAlignment: System.Classes.TAlignment read FCaptionAlignment write SetCaptionAlignment default taCenter;
-    property CaptionVerticalAlignment: TCaptionVerticalAlignment read FCaptionVerticalAlignment write SetCaptionVerticalAlignment default cvaCenter;
-    property CaptionWordWrap: Boolean read FCaptionWordWrap write SetCaptionWordWrap default False;
-    property CaptionOffsetX: Integer read FCaptionOffsetX write SetCaptionOffsetX default 0;
-    property CaptionOffsetY: Integer read FCaptionOffsetY write SetCaptionOffsetY default 0;
-    property DisabledFontColor: TColor read FDisabledFontColor write SetDisabledFontColor default clGrayText;
-    property Font: TFont read FFont write SetComponentFont;
+    property Color: TColor read GetColor write SetColor default clBtnFace;
+    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
+    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
+    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
+    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 0;
+    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctNone;
+    property Caption: string read GetCaption write SetCaption;
+    property CaptionAlignment: System.Classes.TAlignment read GetCaptionAlignment write SetCaptionAlignment default taCenter;
+    property CaptionVerticalAlignment: TCaptionVerticalAlignment read GetCaptionVerticalAlignment write SetCaptionVerticalAlignment default cvaCenter;
+    property CaptionWordWrap: Boolean read GetCaptionWordWrap write SetCaptionWordWrap default False;
+    property CaptionOffsetX: Integer read GetCaptionOffsetX write SetCaptionOffsetX default 0;
+    property CaptionOffsetY: Integer read GetCaptionOffsetY write SetCaptionOffsetY default 0;
+    property DisabledFontColor: TColor read GetDisabledFontColor write SetDisabledFontColor default clGrayText;
+    property Font: TFont read GetFont write SetFont;
     property TransparentChildren: Boolean read FTransparentChildren write SetTransparentChildren default False;
-    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // Published Hover Settings
+    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
 
-    property DropShadowEnabled: Boolean read FDropShadowEnabled write SetDropShadowEnabled default False;
-    property DropShadowColor: TColor read FDropShadowColor write SetDropShadowColor default clBlack;
-    property DropShadowOffset: TPoint read FDropShadowOffset write SetDropShadowOffset;
-    property DropShadowBlurRadius: Integer read FDropShadowBlurRadius write SetDropShadowBlurRadius default 3;
-    property Opacity: Byte read FOpacity write SetOpacity default 255; // Added for opacity control
+    property DropShadowEnabled: Boolean read GetDropShadowEnabled write SetDropShadowEnabled default False;
+    property DropShadowColor: TColor read GetDropShadowColor write SetDropShadowColor default clBlack;
+    property DropShadowOffset: TPoint read GetDropShadowOffset write SetDropShadowOffset;
+    property DropShadowBlurRadius: Integer read GetDropShadowBlurRadius write SetDropShadowBlurRadius default 3;
+    property Opacity: Byte read FOpacity write SetOpacity default 255;
 
-    // Standard published properties (many inherited from TCustomControl)
     property Align;
     property Anchors;
     property Constraints;
-    property DockSite; // Important for a panel-like control
+    property DockSite;
     property DoubleBuffered;
     property DragCursor;
     property DragKind;
@@ -128,7 +131,6 @@ type
     property TabStop;
     property Visible;
 
-    // Standard events
     property OnClick;
     property OnDblClick;
     property OnMouseDown;
@@ -137,7 +139,6 @@ type
     property OnMouseEnter;
     property OnMouseLeave;
     property OnResize;
-    // Add more events as needed (e.g., OnCanResize, OnConstrainedResize)
   end;
 
 procedure Register;
@@ -152,45 +153,51 @@ end;
 constructor TANDMR_CPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FColor := clBtnFace;
-  FBorderColor := clBlack;
-  FBorderThickness := 1;
-  FBorderStyle := psSolid;
-  FCornerRadius := 0;
-  FRoundCornerType := rctNone;
-  FCaption := '';
-  FFont := TFont.Create;
-  FFont.Name := 'Segoe UI'; // Added for consistency
-  FFont.Size := 9;         // Added for consistency
-  FFont.OnChange := FontChanged;
-  FCaptionAlignment := taCenter; // Initialize caption alignment
-  FCaptionVerticalAlignment := cvaCenter; // Initialize vertical caption alignment
-  FCaptionWordWrap := False; // Initialize WordWrap
-  FCaptionOffsetX := 0; // Initialize X Offset
-  FCaptionOffsetY := 0; // Initialize Y Offset
-  FDisabledFontColor := clGrayText; // Initialize Disabled Font Color
-  FTransparentChildren := False; // Initialize TransparentChildren
-  FWindowRegion := 0; // Initialize window region handle
-  FHoverSettings := THoverSettings.Create(Self); // Create HoverSettings instance, pass Self as Owner
-  FHoverSettings.OnChange := HoverSettingsChanged; // Assign OnChange event
-  FIsHovering := False; // Initialize hover state
-  FDropShadowEnabled := False;
-  FDropShadowColor := clBlack;
-  FDropShadowOffset := Point(2, 2);
-  FDropShadowBlurRadius := 3;
-  // FOpacity will be set and applied below
+
+  FWindowRegion := 0;
+  FTransparentChildren := False;
+  FIsHovering := False;
+
+  // Instantiate new settings objects and set their defaults
+  FBorderSettings := TBorderSettings.Create;
+  FBorderSettings.OnChange := SettingsChanged;
+  FBorderSettings.BackgroundColor := clBtnFace;
+  FBorderSettings.Color := clBlack;
+  FBorderSettings.Thickness := 1;
+  FBorderSettings.Style := psSolid;
+  FBorderSettings.CornerRadius := 0;
+  FBorderSettings.RoundCornerType := rctNone;
+
+  FDropShadowSettings := TDropShadowSettings.Create;
+  FDropShadowSettings.OnChange := SettingsChanged;
+  FDropShadowSettings.Enabled := False;
+  FDropShadowSettings.Color := clBlack;
+  FDropShadowSettings.Offset := Point(2, 2);
+  FDropShadowSettings.BlurRadius := 3;
+
+  FCaptionSettings := TCaptionSettings.Create(Self); // Owner is Self
+  FCaptionSettings.OnChange := SettingsChanged;
+  FCaptionSettings.Text := '';
+  FCaptionSettings.Font.Name := 'Segoe UI';
+  FCaptionSettings.Font.Size := 9;
+  FCaptionSettings.Font.Color := clWindowText;
+  FCaptionSettings.Alignment := taCenter;
+  FCaptionSettings.VerticalAlignment := cvaCenter;
+  FCaptionSettings.WordWrap := False;
+  FCaptionSettings.Offset := Point(0,0); // Initialize TPoint offset
+  FCaptionSettings.DisabledColor := clGrayText;
+
+  FHoverSettings := THoverSettings.Create(Self);
+  FHoverSettings.OnChange := HoverSettingsChanged;
+  // Defaults for FHoverSettings are set within THoverSettings.Create
 
   Width := 185;
   Height := 85;
-  // Initialize ControlStyle without csOpaque initially, SetOpacity will handle it.
-  // csClipChildren removed to avoid compilation error on older VCLs.
   ControlStyle := ControlStyle + [csAcceptsControls, csReplicatable, csDoubleClicks];
   DoubleBuffered := True;
 
-  FOpacity := 255; // Default to fully opaque
-  SetOpacity(FOpacity); // Apply initial opacity and set ControlStyle flags accordingly
-
-  // UpdateRegion; // Removed: Called too early, before handle and parent are set.
+  FOpacity := 255;
+  SetOpacity(FOpacity); // Apply initial opacity and set ControlStyle flags
 end;
 
 destructor TANDMR_CPanel.Destroy;
@@ -200,134 +207,91 @@ begin
     DeleteObject(FWindowRegion);
     FWindowRegion := 0;
   end;
-  FHoverSettings.OnChange := nil; // Clear OnChange before freeing
+
+  FHoverSettings.OnChange := nil;
   FHoverSettings.Free;
-  FFont.Free;
+
+  FBorderSettings.OnChange := nil;
+  FBorderSettings.Free;
+  FDropShadowSettings.OnChange := nil;
+  FDropShadowSettings.Free;
+  FCaptionSettings.OnChange := nil;
+  FCaptionSettings.Free;
+
   inherited Destroy;
 end;
 
-procedure TANDMR_CPanel.SetColor(const Value: TColor);
+procedure TANDMR_CPanel.SettingsChanged(Sender: TObject);
 begin
-  if FColor <> Value then
-  begin
-    FColor := Value;
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetBorderColor(const Value: TColor);
-begin
-  if FBorderColor <> Value then
-  begin
-    FBorderColor := Value;
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetBorderThickness(const Value: Integer);
-var
-  CorrectedValue: Integer;
-begin
-  CorrectedValue := Max(0, Value);
-  if FBorderThickness <> CorrectedValue then
-  begin
-    FBorderThickness := CorrectedValue;
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetBorderStyle(const Value: TPenStyle);
-begin
-  if FBorderStyle <> Value then
-  begin
-    FBorderStyle := Value;
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetCornerRadius(const Value: Integer);
-var
-  CorrectedValue: Integer;
-begin
-  CorrectedValue := Max(0, Value);
-  if FCornerRadius <> CorrectedValue then
-  begin
-    FCornerRadius := CorrectedValue;
-    UpdateRegion; // Update region when corner radius changes
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetRoundCornerType(const Value: TRoundCornerType);
-begin
-  if FRoundCornerType <> Value then
-  begin
-    FRoundCornerType := Value;
-    UpdateRegion; // Update region when corner type changes
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetCaption(const Value: TCaption);
-begin
-  if FCaption <> Value then
-  begin
-    FCaption := Value;
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetComponentFont(const Value: TFont);
-begin
-  FFont.Assign(Value);
-end;
-
-procedure TANDMR_CPanel.SetDropShadowEnabled(const Value: Boolean);
-begin
-  if FDropShadowEnabled <> Value then
-  begin
-    FDropShadowEnabled := Value;
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetDropShadowColor(const Value: TColor);
-begin
-  if FDropShadowColor <> Value then
-  begin
-    FDropShadowColor := Value;
-    if FDropShadowEnabled then // Only repaint if shadow is active
-      Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetDropShadowOffset(const Value: TPoint);
-begin
-  if (FDropShadowOffset.X <> Value.X) or (FDropShadowOffset.Y <> Value.Y) then
-  begin
-    FDropShadowOffset := Value;
-    if FDropShadowEnabled then
-      Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetDropShadowBlurRadius(const Value: Integer);
-var
-  CorrectedValue: Integer;
-begin
-  CorrectedValue := Max(0, Value);
-  if FDropShadowBlurRadius <> CorrectedValue then
-  begin
-    FDropShadowBlurRadius := CorrectedValue;
-    if FDropShadowEnabled then // Only repaint if shadow is active
-      Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.FontChanged(Sender: TObject);
-begin
+  UpdateRegion;
   Invalidate;
 end;
+
+function TANDMR_CPanel.GetColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
+procedure TANDMR_CPanel.SetColor(const Value: TColor); begin FBorderSettings.BackgroundColor := Value; end;
+
+function TANDMR_CPanel.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
+procedure TANDMR_CPanel.SetBorderColor(const Value: TColor); begin FBorderSettings.Color := Value; end;
+
+function TANDMR_CPanel.GetBorderThickness: Integer; begin Result := FBorderSettings.Thickness; end;
+procedure TANDMR_CPanel.SetBorderThickness(const Value: Integer); begin FBorderSettings.Thickness := Max(0,Value); end;
+
+function TANDMR_CPanel.GetBorderStyle: TPenStyle; begin Result := FBorderSettings.Style; end;
+procedure TANDMR_CPanel.SetBorderStyle(const Value: TPenStyle); begin FBorderSettings.Style := Value; end;
+
+function TANDMR_CPanel.GetCornerRadius: Integer; begin Result := FBorderSettings.CornerRadius; end;
+procedure TANDMR_CPanel.SetCornerRadius(const Value: Integer);
+begin
+  if FBorderSettings.CornerRadius <> Max(0,Value) then
+  begin
+    FBorderSettings.CornerRadius := Max(0,Value);
+  end;
+end;
+
+function TANDMR_CPanel.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
+procedure TANDMR_CPanel.SetRoundCornerType(const Value: TRoundCornerType);
+begin
+  if FBorderSettings.RoundCornerType <> Value then
+  begin
+    FBorderSettings.RoundCornerType := Value;
+  end;
+end;
+
+function TANDMR_CPanel.GetCaption: string; begin Result := FCaptionSettings.Text; end;
+procedure TANDMR_CPanel.SetCaption(const Value: string); begin FCaptionSettings.Text := Value; end;
+
+function TANDMR_CPanel.GetFont: TFont;
+begin
+  Result := FCaptionSettings.Font;
+end;
+
+procedure TANDMR_CPanel.SetFont(Value: TFont); // Removed 'override'
+begin
+  // Directly assign to the component's Font property.
+  // This will use the VCL's property setter for TCustomControl.Font.
+  Self.Font.Assign(Value); // This calls the inherited property setter
+
+  // FCaptionSettings.Font.OnChange will trigger FCaptionSettings.Changed,
+  // which in turn calls Self.SettingsChanged, leading to Invalidate.
+  // So, an explicit Invalidate here might be redundant if FCaptionSettings.Font.Assign
+  // correctly triggers its OnChange. However, to be safe and ensure propagation:
+  if Assigned(FCaptionSettings) and Assigned(FCaptionSettings.Font) then
+     FCaptionSettings.Font.Assign(Self.Font); // Ensure caption font is also updated
+
+  Invalidate; // Ensure repaint after font change
+end;
+
+function TANDMR_CPanel.GetDropShadowEnabled: Boolean; begin Result := FDropShadowSettings.Enabled; end;
+procedure TANDMR_CPanel.SetDropShadowEnabled(const Value: Boolean); begin FDropShadowSettings.Enabled := Value; end;
+
+function TANDMR_CPanel.GetDropShadowColor: TColor; begin Result := FDropShadowSettings.Color; end;
+procedure TANDMR_CPanel.SetDropShadowColor(const Value: TColor); begin FDropShadowSettings.Color := Value; end;
+
+function TANDMR_CPanel.GetDropShadowOffset: TPoint; begin Result := FDropShadowSettings.Offset; end;
+procedure TANDMR_CPanel.SetDropShadowOffset(const Value: TPoint); begin FDropShadowSettings.Offset := Value; end;
+
+function TANDMR_CPanel.GetDropShadowBlurRadius: Integer; begin Result := FDropShadowSettings.BlurRadius; end;
+procedure TANDMR_CPanel.SetDropShadowBlurRadius(const Value: Integer); begin FDropShadowSettings.BlurRadius := Max(0,Value); end;
 
 procedure TANDMR_CPanel.SetOpacity(const Value: Byte);
 begin
@@ -337,27 +301,64 @@ begin
     if FOpacity < 255 then
     begin
       ControlStyle := ControlStyle - [csOpaque] + [csParentBackground];
-      if Parent <> nil then Parent.Invalidate; // Parent needs to redraw area behind
+      if Parent <> nil then Parent.Invalidate;
     end
     else
     begin
       ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
     end;
-    UpdateRegion; // Update region as opacity can affect if it's needed (indirectly, via UpdateRegion's own logic)
+    UpdateRegion;
     Invalidate;
   end;
+end;
+
+function TANDMR_CPanel.GetCaptionAlignment: System.Classes.TAlignment; begin Result := FCaptionSettings.Alignment; end;
+procedure TANDMR_CPanel.SetCaptionAlignment(const Value: System.Classes.TAlignment); begin FCaptionSettings.Alignment := Value; end;
+
+function TANDMR_CPanel.GetCaptionVerticalAlignment: TCaptionVerticalAlignment; begin Result := FCaptionSettings.VerticalAlignment; end;
+procedure TANDMR_CPanel.SetCaptionVerticalAlignment(const Value: TCaptionVerticalAlignment); begin FCaptionSettings.VerticalAlignment := Value; end;
+
+function TANDMR_CPanel.GetCaptionWordWrap: Boolean; begin Result := FCaptionSettings.WordWrap; end;
+procedure TANDMR_CPanel.SetCaptionWordWrap(const Value: Boolean); begin FCaptionSettings.WordWrap := Value; end;
+
+function TANDMR_CPanel.GetCaptionOffsetX: Integer; begin Result := FCaptionSettings.Offset.X; end;
+procedure TANDMR_CPanel.SetCaptionOffsetX(const Value: Integer); begin FCaptionSettings.Offset := Point(Value, FCaptionSettings.Offset.Y); end;
+
+function TANDMR_CPanel.GetCaptionOffsetY: Integer; begin Result := FCaptionSettings.Offset.Y; end;
+procedure TANDMR_CPanel.SetCaptionOffsetY(const Value: Integer); begin FCaptionSettings.Offset := Point(FCaptionSettings.Offset.X, Value); end;
+
+function TANDMR_CPanel.GetDisabledFontColor: TColor; begin Result := FCaptionSettings.DisabledColor; end;
+procedure TANDMR_CPanel.SetDisabledFontColor(const Value: TColor); begin FCaptionSettings.DisabledColor := Value; end;
+
+procedure TANDMR_CPanel.SetTransparentChildren(const Value: Boolean);
+begin
+  if FTransparentChildren <> Value then
+  begin
+    FTransparentChildren := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CPanel.SetHoverSettings(const Value: THoverSettings);
+begin
+  FHoverSettings.Assign(Value);
+end;
+
+procedure TANDMR_CPanel.HoverSettingsChanged(Sender: TObject);
+begin
+  Invalidate;
 end;
 
 procedure TANDMR_CPanel.Paint;
 var
   LG: TGPGraphics;
   LClientRect: TRect;
-  LShadowRect: TGPRectF; // For shadow calculations
-  LShadowPath: TGPGraphicsPath; // For shadow path
-  LTextRect: TRect; // For caption drawing area
-  LShadowBrush: TGPSolidBrush; // For shadow fill
-  LShadowColorAlpha: ARGB; // For shadow color with alpha
-  CurrentColor, CurrentBorderColor, CurrentCaptionColor: TColor; // Effective colors
+  LShadowRect: TGPRectF;
+  LShadowPath: TGPGraphicsPath;
+  LTextRect: TRect;
+  LShadowBrush: TGPSolidBrush;
+  LShadowColorAlpha: ARGB;
+  CurrentColor, CurrentBorderColor, CurrentCaptionColor: TColor;
 begin
   inherited Paint;
 
@@ -371,13 +372,12 @@ begin
 
     var LHoverProgress: Single := FHoverSettings.CurrentAnimationValue / 255.0;
 
-    // --- Determine effective colors based on state (normal, hover, disabled) ---
     var TrueBasePanelBG, TargetHoverPanelBG, DisabledPanelBG: TColor;
     var NonHoveredPanelBG, TargetStatePanelBG: TColor;
 
-    TrueBasePanelBG := FColor;
+    TrueBasePanelBG := FBorderSettings.BackgroundColor;
     TargetHoverPanelBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
-    DisabledPanelBG := FColor; // Or a dimmed FColor
+    DisabledPanelBG := BlendColors(FBorderSettings.BackgroundColor, clGray, 0.65);
 
     NonHoveredPanelBG := ResolveStateColor(Self.Enabled, False, False, TrueBasePanelBG, clNone, clNone, DisabledPanelBG, False, False);
     TargetStatePanelBG := ResolveStateColor(Self.Enabled, FIsHovering, False, TrueBasePanelBG, TargetHoverPanelBG, clNone, DisabledPanelBG, FHoverSettings.Enabled, False);
@@ -390,9 +390,9 @@ begin
     var TrueBasePanelBorder, TargetHoverPanelBorder, DisabledPanelBorder: TColor;
     var NonHoveredPanelBorder, TargetStatePanelBorder: TColor;
 
-    TrueBasePanelBorder := FBorderColor;
+    TrueBasePanelBorder := FBorderSettings.Color;
     TargetHoverPanelBorder := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
-    DisabledPanelBorder := FBorderColor; // Or a dimmed/grayed border
+    DisabledPanelBorder := BlendColors(FBorderSettings.Color, clGray, 0.7);
 
     NonHoveredPanelBorder := ResolveStateColor(Self.Enabled, False, False, TrueBasePanelBorder, clNone, clNone, DisabledPanelBorder, False, False);
     TargetStatePanelBorder := ResolveStateColor(Self.Enabled, FIsHovering, False, TrueBasePanelBorder, TargetHoverPanelBorder, clNone, DisabledPanelBorder, FHoverSettings.Enabled, False);
@@ -402,12 +402,11 @@ begin
     else
       CurrentBorderColor := TargetStatePanelBorder;
 
-    // --- 1. Draw Drop Shadow ---
-    if FDropShadowEnabled and (FDropShadowBlurRadius > 0) then
+    if FDropShadowSettings.Enabled and (FDropShadowSettings.BlurRadius > 0) then
     begin
-      var ShadowPathInset: Single := FBorderThickness / 2.0;
-      LShadowRect.X := LClientRect.Left + ShadowPathInset + FDropShadowOffset.X;
-      LShadowRect.Y := LClientRect.Top + ShadowPathInset + FDropShadowOffset.Y;
+      var ShadowPathInset: Single := FBorderSettings.Thickness / 2.0;
+      LShadowRect.X := LClientRect.Left + ShadowPathInset + FDropShadowSettings.Offset.X;
+      LShadowRect.Y := LClientRect.Top + ShadowPathInset + FDropShadowSettings.Offset.Y;
       LShadowRect.Width := LClientRect.Width - (2 * ShadowPathInset);
       LShadowRect.Height := LClientRect.Height - (2 * ShadowPathInset);
       if LShadowRect.Width <=0 then LShadowRect.Width := 1;
@@ -415,8 +414,8 @@ begin
 
       LShadowPath := TGPGraphicsPath.Create;
       try
-        CreateGPRoundedPath(LShadowPath, LShadowRect, Single(FCornerRadius), FRoundCornerType);
-        LShadowColorAlpha := ColorToARGB(FDropShadowColor, Max(0, Min(255, FOpacity div 3)));
+        CreateGPRoundedPath(LShadowPath, LShadowRect, Single(FBorderSettings.CornerRadius), FBorderSettings.RoundCornerType);
+        LShadowColorAlpha := ColorToARGB(FDropShadowSettings.Color, Max(0, Min(255, FOpacity div 3)));
         LShadowBrush := TGPSolidBrush.Create(LShadowColorAlpha);
         try
           LG.FillPath(LShadowBrush, LShadowPath);
@@ -428,25 +427,23 @@ begin
       end;
     end;
 
-    // --- 2. Draw Panel Body and Border using DrawEditBox ---
-    DrawEditBox(LG, LClientRect, CurrentColor, CurrentBorderColor, FBorderThickness, FBorderStyle, FCornerRadius, FRoundCornerType, FOpacity);
+    DrawEditBox(LG, LClientRect, CurrentColor, CurrentBorderColor, FBorderSettings.Thickness, FBorderSettings.Style, FBorderSettings.CornerRadius, FBorderSettings.RoundCornerType, FOpacity);
 
-    // --- 3. Draw Caption ---
-    if (FCaption <> '') and (FFont <> nil) then
+    if (FCaptionSettings.Text <> '') and (FCaptionSettings.Font <> nil) then
     begin
       LTextRect := Self.ClientRect;
-      if FBorderThickness > 0 then
-          InflateRect(LTextRect, -FBorderThickness -2, -FBorderThickness -2)
+      if FBorderSettings.Thickness > 0 then
+          InflateRect(LTextRect, -FBorderSettings.Thickness -2, -FBorderSettings.Thickness -2)
       else
           InflateRect(LTextRect, -2, -2);
-      OffsetRect(LTextRect, FCaptionOffsetX, FCaptionOffsetY);
+      OffsetRect(LTextRect, FCaptionSettings.Offset.X, FCaptionSettings.Offset.Y);
 
       var TrueBasePanelCaptionColor, TargetHoverPanelCaptionColor, DisabledPanelCaptionColor: TColor;
       var NonHoveredPanelCaptionColor, TargetStatePanelCaptionColor: TColor;
 
-      TrueBasePanelCaptionColor := FFont.Color;
-      TargetHoverPanelCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone); // Uses FontColor for caption hover
-      DisabledPanelCaptionColor := FDisabledFontColor;
+      TrueBasePanelCaptionColor := FCaptionSettings.Color;
+      TargetHoverPanelCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
+      DisabledPanelCaptionColor := FCaptionSettings.DisabledColor;
 
       NonHoveredPanelCaptionColor := ResolveStateColor(Self.Enabled, False, False, TrueBasePanelCaptionColor, clNone, clNone, DisabledPanelCaptionColor, False, False);
       TargetStatePanelCaptionColor := ResolveStateColor(Self.Enabled, FIsHovering, False, TrueBasePanelCaptionColor, TargetHoverPanelCaptionColor, clNone, DisabledPanelCaptionColor, FHoverSettings.Enabled, False);
@@ -456,17 +453,17 @@ begin
       else
         CurrentCaptionColor := TargetStatePanelCaptionColor;
 
-      if (LTextRect.Width > 0) and (LTextRect.Height > 0) and (Length(Trim(FCaption)) > 0) then
+      if (LTextRect.Width > 0) and (LTextRect.Height > 0) and (Length(Trim(FCaptionSettings.Text)) > 0) then
       begin
         DrawComponentCaption(
           Self.Canvas,
           LTextRect,
-          FCaption,
-          FFont,
+          FCaptionSettings.Text,
+          FCaptionSettings.Font,
           CurrentCaptionColor,
-          FCaptionAlignment,
-          FCaptionVerticalAlignment,
-          FCaptionWordWrap,
+          FCaptionSettings.Alignment,
+          FCaptionSettings.VerticalAlignment,
+          FCaptionSettings.WordWrap,
           FOpacity
         );
       end;
@@ -479,8 +476,6 @@ end;
 procedure TANDMR_CPanel.Loaded;
 begin
   inherited Loaded;
-  // Re-apply opacity to ensure ControlStyle is correct after DFM loading
-  // This ensures that csOpaque/csParentBackground are set correctly based on initial FOpacity
   if FOpacity < 255 then
   begin
     ControlStyle := ControlStyle - [csOpaque] + [csParentBackground];
@@ -489,93 +484,8 @@ begin
   begin
     ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
   end;
-  // No need to call SetOpacity(FOpacity) directly as that would be a redundant check.
-  // We've already loaded FOpacity and now we're just ensuring ControlStyle matches.
-  UpdateRegion; // Ensure region is set after DFM properties are loaded
-  Invalidate; // Ensure a repaint after loading and ControlStyle adjustment
-end;
-
-procedure TANDMR_CPanel.SetCaptionAlignment(const Value: System.Classes.TAlignment);
-begin
-  if FCaptionAlignment <> Value then
-  begin
-    FCaptionAlignment := Value;
-    Invalidate; // Caption alignment change requires repaint
-  end;
-end;
-
-procedure TANDMR_CPanel.SetCaptionVerticalAlignment(const Value: TCaptionVerticalAlignment);
-begin
-  if FCaptionVerticalAlignment <> Value then
-  begin
-    FCaptionVerticalAlignment := Value;
-    Invalidate; // Caption alignment change requires repaint
-  end;
-end;
-
-procedure TANDMR_CPanel.SetCaptionWordWrap(const Value: Boolean);
-begin
-  if FCaptionWordWrap <> Value then
-  begin
-    FCaptionWordWrap := Value;
-    Invalidate; // Caption wrapping change requires repaint
-  end;
-end;
-
-procedure TANDMR_CPanel.SetCaptionOffsetX(const Value: Integer);
-begin
-  if FCaptionOffsetX <> Value then
-  begin
-    FCaptionOffsetX := Value;
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetCaptionOffsetY(const Value: Integer);
-begin
-  if FCaptionOffsetY <> Value then
-  begin
-    FCaptionOffsetY := Value;
-    Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetDisabledFontColor(const Value: TColor);
-begin
-  if FDisabledFontColor <> Value then
-  begin
-    FDisabledFontColor := Value;
-    if not Enabled then // Only repaint if currently disabled
-      Invalidate;
-  end;
-end;
-
-procedure TANDMR_CPanel.SetTransparentChildren(const Value: Boolean);
-begin
-  if FTransparentChildren <> Value then
-  begin
-    FTransparentChildren := Value;
-    // This property is declarative in its basic form.
-    // Its visual effect relies on Opacity < 255 (which sets csParentBackground).
-    // If Opacity is already < 255, csParentBackground is active, making the panel's
-    // own background transparent and thus child controls appear over the parent's background.
-    // If Opacity is 255, this flag alone won't make children transparent over controls *behind* the panel.
-    // A more advanced implementation might iterate child controls or use other techniques.
-    Invalidate; // Repaint to reflect any conceptual change or if visual cues were added.
-  end;
-end;
-
-procedure TANDMR_CPanel.SetHoverSettings(const Value: THoverSettings);
-begin
-  FHoverSettings.Assign(Value);
-  // Repaint if hover is enabled, as changes might affect appearance even if not currently hovering.
-  if FHoverSettings.Enabled then
-    Invalidate;
-end;
-
-procedure TANDMR_CPanel.HoverSettingsChanged(Sender: TObject);
-begin
-  Invalidate; // Always repaint if hover settings change
+  UpdateRegion;
+  Invalidate;
 end;
 
 procedure TANDMR_CPanel.Resize;
@@ -587,7 +497,7 @@ end;
 procedure TANDMR_CPanel.CreateWnd;
 begin
   inherited CreateWnd;
-  UpdateRegion; // Ensure region is set when window handle is created
+  UpdateRegion;
 end;
 
 procedure TANDMR_CPanel.UpdateRegion;
@@ -597,64 +507,53 @@ var
   LG: TGPGraphics;
   LClientRect: TRect;
   LPathRect: TGPRectF;
-  NewRegion: HRGN; // Store the newly created region
-  OldRegion: HRGN; // Store the current FWindowRegion before changing it
+  NewRegion: HRGN;
+  OldRegion: HRGN;
 begin
-  if not HandleAllocated then // Safeguard: Exit if handle is not allocated
+  if not HandleAllocated then
     Exit;
 
-  OldRegion := FWindowRegion; // Keep track of the current region
-  NewRegion := 0;             // Initialize new region to null
+  OldRegion := FWindowRegion;
+  NewRegion := 0;
 
   LClientRect := Self.ClientRect;
 
-  // Only create a custom region if corners are rounded and dimensions are valid
-  if (FCornerRadius > 0) and (LClientRect.Width > 0) and (LClientRect.Height > 0) then
+  if (FBorderSettings.CornerRadius > 0) and (LClientRect.Width > 0) and (LClientRect.Height > 0) then
   begin
     LPath := TGPGraphicsPath.Create;
     try
-      LPathRect.X := 0; // Region coordinates are relative to the window's client area
+      LPathRect.X := 0;
       LPathRect.Y := 0;
       LPathRect.Width := LClientRect.Width;
       LPathRect.Height := LClientRect.Height;
 
-      // Ensure width and height are not negative (already checked for LClientRect but good practice for LPathRect if modified)
       if LPathRect.Width < 0 then LPathRect.Width := 0;
       if LPathRect.Height < 0 then LPathRect.Height := 0;
 
-      if (LPathRect.Width > 0) and (LPathRect.Height > 0) then // Double check after potential adjustments
+      if (LPathRect.Width > 0) and (LPathRect.Height > 0) then
       begin
-        ANDMR_ComponentUtils.CreateGPRoundedPath(LPath, LPathRect, Single(FCornerRadius), FRoundCornerType);
-
-        // Create a GDI+ region from this path
-        // A temporary TGPGraphics object is needed for TGPRegion.GetHRGN
+        ANDMR_ComponentUtils.CreateGPRoundedPath(LPath, LPathRect, Single(FBorderSettings.CornerRadius), FBorderSettings.RoundCornerType);
         LG := TGPGraphics.Create(Self.Handle);
         try
           LGDIRgn := TGPRegion.Create(LPath);
           try
-            NewRegion := LGDIRgn.GetHRGN(LG); // This is the new region handle
+            NewRegion := LGDIRgn.GetHRGN(LG);
           finally
             LGDIRgn.Free;
           end;
         finally
           LG.Free;
         end;
-      end; // else NewRegion remains 0
+      end;
     finally
       LPath.Free;
     end;
-  end; // Else, NewRegion remains 0, effectively clearing or not setting a custom region.
+  end;
 
-  // Apply the new region (or clear if NewRegion is 0 and OldRegion was not 0)
-  // Only call SetWindowRgn if the new region is different from the old one,
-  // or if we are explicitly trying to clear a region when one was previously set.
   if (HandleAllocated) and ((NewRegion <> OldRegion) or ((NewRegion = 0) And (OldRegion <> 0) )) then
   begin
-    SetWindowRgn(Self.Handle, NewRegion, True); // True to force repaint
-    FWindowRegion := NewRegion; // Update the stored region handle
-
-    // If there was an old region, and it's different from the new one, delete the old one.
-    // The system takes ownership of NewRegion if NewRegion is not 0 and SetWindowRgn is successful.
+    SetWindowRgn(Self.Handle, NewRegion, True);
+    FWindowRegion := NewRegion;
     if (OldRegion <> 0) and (OldRegion <> NewRegion) then
     begin
       DeleteObject(OldRegion);
@@ -662,43 +561,33 @@ begin
   end
   else if (NewRegion <> 0) And (NewRegion <> OldRegion) then
   begin
-    // If SetWindowRgn was not called (e.g. Handle not allocated yet) but we created a new region
-    // that's different from OldRegion, we need to delete this new region as it won't be owned by the system.
-    // And also delete OldRegion if it exists.
     DeleteObject(NewRegion);
     if OldRegion <> 0 then DeleteObject(OldRegion);
-    FWindowRegion := 0; // No region is currently set
+    FWindowRegion := 0;
   end
   else if (NewRegion = 0) And (OldRegion <> 0) And not HandleAllocated then
   begin
-    // If we intended to clear the region (NewRegion is 0) but couldn't call SetWindowRgn,
-    // we still need to delete the OldRegion.
-     DeleteObject(OldRegion);
-     FWindowRegion := 0;
+    DeleteObject(OldRegion);
+    FWindowRegion := 0;
   end;
-  // If NewRegion is 0 and OldRegion is 0, nothing to do.
-  // If NewRegion is same as OldRegion (and not 0), nothing to do regarding SetWindowRgn or deletion.
-
 end;
 
 procedure TANDMR_CPanel.CMMouseEnter(var Message: TMessage);
 begin
-  inherited; // Call inherited handler first
+  inherited;
   if not FIsHovering then
   begin
     FIsHovering := True;
-    // if FHoverSettings.Enabled then Invalidate; // Old logic
   end;
   FHoverSettings.StartAnimation(True);
 end;
 
 procedure TANDMR_CPanel.CMMouseLeave(var Message: TMessage);
 begin
-  inherited; // Call inherited handler first
+  inherited;
   if FIsHovering then
   begin
     FIsHovering := False;
-    // if FHoverSettings.Enabled then Invalidate; // Old logic
   end;
   FHoverSettings.StartAnimation(False);
 end;

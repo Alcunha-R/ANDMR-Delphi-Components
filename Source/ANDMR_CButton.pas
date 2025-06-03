@@ -63,16 +63,12 @@ type
     FProcessing: Boolean;
     FProgressTimer: TTimer;
     FProgressStep: Integer;
-    FShowProgress: Boolean; // This will be a published property, but the field is private
-    FProgressColor: TColor; // This will be a published property, but the field is private
+    FProgressSettings: TProgressSettings; // Added
     FOriginalCaption: string;
-    FHideCaptionWhileProcessing: Boolean; // This will be a published property, but the field is private
     FOriginalEnabledState: Boolean; // New field
     // End of new fields
 
-    procedure SetShowProgress(const Value: Boolean); // New Setter
-    procedure SetProgressColor(const Value: TColor); // New Setter
-    procedure SetHideCaptionWhileProcessing(const Value: Boolean); // New Setter
+    procedure SetProgressSettings(const Value: TProgressSettings); // Added
 
     procedure ProgressTimerHandler(Sender: TObject); // Added
     procedure SetInternalHoverSettings(const Value: THoverSettings);
@@ -214,10 +210,7 @@ type
 
     property PresetType: TPresetType read FPresetType write SetPresetType default cptNone;
 
-    // New properties for progress animation
-    property ShowProgress: Boolean read FShowProgress write SetShowProgress default True;
-    property ProgressColor: TColor read FProgressColor write SetProgressColor default clGray;
-    property HideCaptionWhileProcessing: Boolean read FHideCaptionWhileProcessing write SetHideCaptionWhileProcessing default True;
+    property ProgressSettings: TProgressSettings read FProgressSettings write SetProgressSettings;
 
     property Anchors;
     property Constraints;
@@ -360,14 +353,14 @@ begin
   FInternalTagExtended := TANDMR_TagExtended.Create;
   FInternalTagObject := TANDMR_TagObject.Create;
 
+  FProgressSettings := TProgressSettings.Create(Self);
+  FProgressSettings.OnChange := SettingsChanged;
+
   // Initializations for progress animation
   FProcessing := False;
-  FShowProgress := True;
-  FProgressColor := clGray;
-  FHideCaptionWhileProcessing := True;
   FProgressTimer := TTimer.Create(Self);
   FProgressTimer.Enabled := False;
-  FProgressTimer.Interval := 100;
+  FProgressTimer.Interval := FProgressSettings.AnimationTimerInterval;
   FProgressTimer.OnTimer := ProgressTimerHandler;
   FOriginalEnabledState := True;
 end;
@@ -390,6 +383,13 @@ begin
 
   FTextMargins.Free;
   FClickEffectTimer.Free;
+
+  if Assigned(FProgressSettings) then
+  begin
+    FProgressSettings.OnChange := nil;
+    FProgressSettings.Free;
+    FProgressSettings := nil;
+  end;
   FProgressTimer.Free; // Added
 
   FInternalTagString.Free;
@@ -404,13 +404,13 @@ end;
 
 procedure TANDMR_CButton.StartProcessing;
 begin
-  if FShowProgress and not FProcessing then
+  if FProgressSettings.ShowProgress and not FProcessing then
   begin
     FProcessing := True;
     FOriginalCaption := Self.Caption;
     FOriginalEnabledState := Self.Enabled;
 
-    if FHideCaptionWhileProcessing then
+    if FProgressSettings.HideCaptionWhileProcessing then
       Self.Caption := '';
 
     if Self.Enabled then // Only change if it was enabled
@@ -439,31 +439,9 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetShowProgress(const Value: Boolean);
+procedure TANDMR_CButton.SetProgressSettings(const Value: TProgressSettings);
 begin
-  if FShowProgress <> Value then
-  begin
-    FShowProgress := Value;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButton.SetProgressColor(const Value: TColor);
-begin
-  if FProgressColor <> Value then
-  begin
-    FProgressColor := Value;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButton.SetHideCaptionWhileProcessing(const Value: Boolean);
-begin
-  if FHideCaptionWhileProcessing <> Value then
-  begin
-    FHideCaptionWhileProcessing := Value;
-    Repaint;
-  end;
+  FProgressSettings.Assign(Value);
 end;
 
 procedure TANDMR_CButton.ProgressTimerHandler(Sender: TObject);
@@ -1131,6 +1109,10 @@ var
   LPresetDefaultCaption: string;
   LFinalCaptionToDraw: string;
   ButtonRectEffectiveF: TGPRectF;
+  LAnimationStyle: TProgressAnimationStyle;
+  LProgressText: string;
+  LShowProgressText: Boolean;
+  DotYOffset: array[0..2] of Integer; // For DotCount = 3
 
 const
   SHADOW_ALPHA = 50;
@@ -1163,6 +1145,10 @@ begin
 
   LG := TGPGraphics.Create(Canvas.Handle);
   try
+    LAnimationStyle := FProgressSettings.AnimationStyle;
+    LProgressText := FProgressSettings.ProgressText;
+    LShowProgressText := FProgressSettings.ShowProgressText;
+
     LG.SetSmoothingMode(SmoothingModeAntiAlias);
     LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
@@ -1563,69 +1549,243 @@ begin
         InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
 
     // >>> START NEW PROGRESS ANIMATION LOGIC <<<
-    if FProcessing and FShowProgress then
+    if FProcessing and FProgressSettings.ShowProgress then
     begin
-      var  LProgressRect: TRect;
-      var  LArcThickness: Integer;
-      var  LStartAngle, LSweepAngle: Single;
-      var  LProgressBarPen: TGPPen;
-      var  LProgressPath: TGPGraphicsPath;
-      var  ArcRectF: TGPRectF;
+      var LProgressRect: TRect;
+      var LArcThickness: Integer;
+      var LStartAngle, LSweepAngle: Single;
+      var LProgressBarPen: TGPPen;
+      var LProgressPath: TGPGraphicsPath;
+      var ArcRectF: TGPRectF;
+      var OriginalProgressRect: TRect; // To store the initial calculation
 
       LProgressRect := ClientRect; // Start with full client rect
-      // Potentially deflate by border thickness if the animation should be inside the border
       if FBorderSettings.Thickness > 0 then
-          InflateRect(LProgressRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
+        InflateRect(LProgressRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
 
-      // Make it a square in the center for a circular animation
-      if LProgressRect.Width > LProgressRect.Height then
+      OriginalProgressRect := LProgressRect; // Save this before potential adjustments for text
+
+      // If text is shown, adjust LProgressRect to make space for the animation.
+      // This example assumes animation on the left, text on the right.
+      // A more sophisticated layout might be needed for other text positions.
+      if LShowProgressText and (LProgressText <> '') then
       begin
-        LProgressRect.Left := LProgressRect.Left + (LProgressRect.Width - LProgressRect.Height) div 2;
-        LProgressRect.Width := LProgressRect.Height;
-      end
-      else
-      begin
-        LProgressRect.Top := LProgressRect.Top + (LProgressRect.Height - LProgressRect.Width) div 2;
-        LProgressRect.Height := LProgressRect.Width;
+        // Attempt to reserve about 40% for animation, 60% for text, if wide enough
+        if LProgressRect.Width > 100 then // Only if button is reasonably wide
+        begin
+          OriginalProgressRect.Right := LProgressRect.Left + Round(LProgressRect.Width * 0.4); // Animation takes left 40%
+          LProgressRect := OriginalProgressRect; // Animation will be drawn in this potentially smaller rect
+        end
+        else // Button too narrow, text might go below or animation shrinks a lot
+        begin
+           // For narrow buttons, perhaps animation shrinks more, or text is prioritized differently
+           InflateRect(LProgressRect, -Round(LProgressRect.Width * 0.1), -Round(LProgressRect.Height * 0.1)); // General shrink
+        end;
       end;
 
-      // Reduce size slightly to give some padding
-      InflateRect(LProgressRect, -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)), -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)));
-
-      if (LProgressRect.Width > 4) and (LProgressRect.Height > 4) then // Only draw if there's enough space
+      // Make the animation area square-ish for circular/dot animations
+      if LAnimationStyle in [pasRotatingSemiCircle, pasFullCircularSpinner, pasBouncingDots] then
       begin
-        LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8); // Dynamic thickness
+        if LProgressRect.Width > LProgressRect.Height then
+        begin
+            LProgressRect.Left := LProgressRect.Left + (LProgressRect.Width - LProgressRect.Height) div 2;
+            LProgressRect.Width := LProgressRect.Height;
+        end
+        else
+        begin
+            LProgressRect.Top := LProgressRect.Top + (LProgressRect.Height - LProgressRect.Width) div 2;
+            LProgressRect.Height := LProgressRect.Width;
+        end;
+        // Reduce size slightly to give some padding for circular/dot animations
+        InflateRect(LProgressRect, -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)), -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)));
+      end;
 
-        // Define the arc parameters
-        LStartAngle := (FProgressStep * 10) mod 360; // Degrees
-        LSweepAngle := 270; // Draw a 270 degree arc
 
-        LProgressPath := TGPGraphicsPath.Create;
-        try
-          ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness);
-
-          if (ArcRectF.Width > 0) and (ArcRectF.Height > 0) then
+      case LAnimationStyle of
+        pasRotatingSemiCircle:
+        begin
+          if (LProgressRect.Width > 4) and (LProgressRect.Height > 4) then
           begin
-            LProgressPath.AddArc(ArcRectF, LStartAngle, LSweepAngle);
-
-            LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressColor, 255), LArcThickness);
-            LProgressBarPen.SetStartCap(LineCapRound);
-            LProgressBarPen.SetEndCap(LineCapRound);
+            LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8);
+            LStartAngle := (FProgressStep * 10) mod 360;
+            LSweepAngle := 270;
+            LProgressPath := TGPGraphicsPath.Create;
             try
-              LG.DrawPath(LProgressBarPen, LProgressPath);
+              ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness);
+              if (ArcRectF.Width > 0) and (ArcRectF.Height > 0) then
+              begin
+                LProgressPath.AddArc(ArcRectF, LStartAngle, LSweepAngle);
+                LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressSettings.ProgressColor, 255), LArcThickness);
+                LProgressBarPen.SetStartCap(LineCapRound);
+                LProgressBarPen.SetEndCap(LineCapRound);
+                try
+                  LG.DrawPath(LProgressBarPen, LProgressPath);
+                finally
+                  LProgressBarPen.Free;
+                end;
+              end;
             finally
-              LProgressBarPen.Free;
+              LProgressPath.Free;
             end;
           end;
-        finally
-          LProgressPath.Free;
+        end;
+        pasFullCircularSpinner:
+        begin
+          if (LProgressRect.Width > 4) and (LProgressRect.Height > 4) then
+          begin
+            LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8);
+            LStartAngle := (FProgressStep * 12) mod 360;
+            LSweepAngle := 90;
+            LProgressPath := TGPGraphicsPath.Create;
+            try
+              ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness);
+              if (ArcRectF.Width > 0) and (ArcRectF.Height > 0) then
+              begin
+                LProgressPath.AddArc(ArcRectF, LStartAngle, LSweepAngle);
+                LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressSettings.ProgressColor, 255), LArcThickness);
+                LProgressBarPen.SetStartCap(LineCapRound);
+                LProgressBarPen.SetEndCap(LineCapRound);
+                try
+                  LG.DrawPath(LProgressBarPen, LProgressPath);
+                finally
+                  LProgressBarPen.Free;
+                end;
+              end;
+            finally
+              LProgressPath.Free;
+            end;
+          end;
+        end;
+        pasHorizontalBar:
+        begin
+          var BarRect: TRect;
+          var InnerBarWidth, InnerBarX: Integer;
+          // Use OriginalProgressRect for horizontal bar as it might span more width if text is also present
+          BarRect := OriginalProgressRect;
+          if LShowProgressText and (LProgressText <> '') and (OriginalProgressRect.Width > 100) then
+          begin
+            // If text is shown, the animation area (OriginalProgressRect) was already adjusted
+            // The horizontal bar should fit within this adjusted OriginalProgressRect (which is LProgressRect here)
+             BarRect := LProgressRect; // Use the already adjusted rect for animation
+          end;
+
+          InflateRect(BarRect, 0, -BarRect.Height div 3);
+          if BarRect.Height < 4 then BarRect.Height := Max(2, Min(LProgressRect.Height, 4)); // Ensure min height but not exceeding LProgressRect
+          if BarRect.Width > 10 then
+          begin
+            LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 100));
+            try
+              LG.FillRectangle(LGPBrush, BarRect.Left, BarRect.Top, BarRect.Width, BarRect.Height);
+            finally
+              LGPBrush.Free;
+            end;
+            InnerBarWidth := BarRect.Width div 3;
+            if BarRect.Width - InnerBarWidth > 0 then // Ensure InnerBarX calculation is valid
+                InnerBarX := (FProgressStep * 5) mod (BarRect.Width - InnerBarWidth)
+            else
+                InnerBarX := 0;
+
+            LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 255));
+            try
+              LG.FillRectangle(LGPBrush, BarRect.Left + InnerBarX, BarRect.Top, InnerBarWidth, BarRect.Height);
+            finally
+              LGPBrush.Free;
+            end;
+          end;
+        end;
+        pasBouncingDots:
+        begin
+          const DotCount = 3;
+          var DotSize, DotSpacing, TotalDotWidth, StartX, BaseY: Integer;
+          // var DotYOffset: array[0..DotCount-1] of Integer; // Moved to main var block
+          var i: Integer;
+
+          if (LProgressRect.Width > 0) and (LProgressRect.Height > 0) then // Ensure LProgressRect is valid
+          begin
+            DotSize := Max(4, Min(LProgressRect.Width div Max(1, (DotCount * 2)), LProgressRect.Height div 2)); // Adjusted DotSize
+            DotSpacing := DotSize div 2;
+            TotalDotWidth := (DotCount * DotSize) + ((DotCount - 1) * DotSpacing);
+
+            if TotalDotWidth > LProgressRect.Width then // If dots are too wide, shrink them
+            begin
+                DotSize := Max(2, LProgressRect.Width div (DotCount * 2));
+                DotSpacing := DotSize div 3;
+                TotalDotWidth := (DotCount * DotSize) + ((DotCount - 1) * DotSpacing);
+            end;
+
+            StartX := LProgressRect.Left + (LProgressRect.Width - TotalDotWidth) div 2;
+            BaseY := LProgressRect.Top + (LProgressRect.Height - DotSize) div 2;
+
+            for i := 0 to DotCount - 1 do
+            begin
+              DotYOffset[i] := Round( (DotSize / 2) * Sin( (FProgressStep * 0.2 + i * (PI/DotCount))) );
+            end;
+
+            LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 255));
+            try
+              for i := 0 to DotCount - 1 do
+              begin
+                LG.FillEllipse(LGPBrush, StartX + i * (DotSize + DotSpacing),
+                                         BaseY + DotYOffset[i],
+                                         DotSize, DotSize);
+              end;
+            finally
+              LGPBrush.Free;
+            end;
+          end;
+        end;
+      end; // case LAnimationStyle
+
+      // Draw Progress Text
+      if LShowProgressText and (LProgressText <> '') then
+      begin
+        var TextRect: TRect;
+        var ProgressCaptionFont: TFont;
+        var AnimationAreaRightBound: Integer;
+
+        // Calculate TextRect based on where the animation was drawn (LProgressRect)
+        // and the original full progress area (OriginalProgressRect)
+        if OriginalProgressRect.Width > 100 and LAnimationStyle <> pasHorizontalBar then // If wide and not full-width bar
+        begin
+            AnimationAreaRightBound := LProgressRect.Left + LProgressRect.Width; // Right edge of (possibly shrunk) animation area
+            TextRect.Left := AnimationAreaRightBound + Self.FTextMargins.Left;
+            TextRect.Top  := OriginalProgressRect.Top; // Align with top of original progress area
+            TextRect.Right := OriginalProgressRect.Left + OriginalProgressRect.Width - Self.FTextMargins.Right; // Use full original width for text
+            TextRect.Bottom := OriginalProgressRect.Bottom; // Align with bottom of original progress area
+        end
+        else if LAnimationStyle = pasHorizontalBar and OriginalProgressRect.Width > 100 then // Horizontal bar might be full width
+        begin
+            // For horizontal bar, text might go below, or overlay if very short. This example: below.
+            TextRect.Left := OriginalProgressRect.Left + Self.FTextMargins.Left;
+            TextRect.Top := LProgressRect.Bottom + Self.FTextMargins.Top; // Text below the bar
+            TextRect.Right := OriginalProgressRect.Right - Self.FTextMargins.Right;
+            TextRect.Bottom := OriginalProgressRect.Bottom; // Extend to bottom of original progress area
+        end
+        else // Narrow button or other cases: Text centered below animation area
+        begin
+            TextRect.Left := ClientRect.Left + Self.FTextMargins.Left;
+            TextRect.Top := LProgressRect.Bottom + Self.FTextMargins.Top;
+            TextRect.Right := ClientRect.Right - Self.FTextMargins.Right;
+            TextRect.Bottom := ClientRect.Bottom - Self.FTextMargins.Bottom;
+        end;
+
+        if TextRect.Width > 0 and TextRect.Height > 0 then
+        begin
+          ProgressCaptionFont := TFont.Create;
+          try
+            ProgressCaptionFont.Assign(Self.FCaptionSettings.Font);
+            // ProgressCaptionFont.Color := ...; // Optional: Different color for progress text
+            DrawComponentCaption(Self.Canvas, TextRect, LProgressText, ProgressCaptionFont, ProgressCaptionFont.Color, taCenter, cvaCenter, False, 255);
+          finally
+            ProgressCaptionFont.Free;
+          end;
         end;
       end;
     end;
     // >>> END NEW PROGRESS ANIMATION LOGIC <<<
 
     // Conditionally draw image and caption
-    if not (FProcessing and FShowProgress and FHideCaptionWhileProcessing) then
+    if not (FProcessing and FProgressSettings.ShowProgress and FProgressSettings.HideCaptionWhileProcessing) then
     begin
       if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then // Use FImageSettings.Picture
       begin

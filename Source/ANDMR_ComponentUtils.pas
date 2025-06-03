@@ -49,6 +49,8 @@ type
 
   TTagType = (ttDefault, ttString, ttExtended, ttObject);
 
+  TProgressAnimationStyle = (pasRotatingSemiCircle, pasFullCircularSpinner, pasHorizontalBar, pasBouncingDots);
+
   TANDMR_Tag = class(TPersistent)
   private
     FValue: Variant;
@@ -424,6 +426,42 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+  TProgressSettings = class(TPersistent)
+  private
+    FShowProgress: Boolean;
+    FProgressColor: TColor;
+    FHideCaptionWhileProcessing: Boolean;
+    FAnimationTimerInterval: Integer;
+    FOwnerControl: TWinControl; // Used to invalidate the control when a setting changes
+    FOnChange: TNotifyEvent;
+    FAnimationStyle: TProgressAnimationStyle;
+    FProgressText: string;
+    FShowProgressText: Boolean;
+
+    procedure SetShowProgress(const Value: Boolean);
+    procedure SetProgressColor(const Value: TColor);
+    procedure SetHideCaptionWhileProcessing(const Value: Boolean);
+    procedure SetAnimationTimerInterval(const Value: Integer);
+    procedure SetAnimationStyle(const Value: TProgressAnimationStyle);
+    procedure SetProgressText(const Value: string);
+    procedure SetShowProgressText(const Value: Boolean);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create(AOwnerControl: TWinControl);
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property ShowProgress: Boolean read FShowProgress write SetShowProgress default True;
+    property ProgressColor: TColor read FProgressColor write SetProgressColor default clGray;
+    property HideCaptionWhileProcessing: Boolean read FHideCaptionWhileProcessing write SetHideCaptionWhileProcessing default True;
+    property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 100;
+    property AnimationStyle: TProgressAnimationStyle read FAnimationStyle write SetAnimationStyle default pasRotatingSemiCircle;
+    property ProgressText: string read FProgressText write SetProgressText;
+    property ShowProgressText: Boolean read FShowProgressText write SetShowProgressText default False;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
 // Helper function declarations
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
@@ -465,7 +503,7 @@ function ResolveStateColor(
 implementation
 
 uses
-  System.Math,        // For Min, Max
+  System.Math,        // For Min, Max, Max
   Winapi.ActiveX;     // For IStream, TStreamAdapter // Make sure this is needed if only TStreamAdapter is used directly.
 
 { TBorderSettings }
@@ -774,6 +812,118 @@ begin
   if FEndColor <> Value then
   begin
     FEndColor := Value;
+    Changed;
+  end;
+end;
+
+{ TProgressSettings }
+
+constructor TProgressSettings.Create(AOwnerControl: TWinControl);
+begin
+  inherited Create;
+  FOwnerControl := AOwnerControl; // Store the owner control
+  FShowProgress := True;
+  FProgressColor := clGray;
+  FHideCaptionWhileProcessing := True;
+  FAnimationTimerInterval := 100;
+  FAnimationStyle := pasRotatingSemiCircle;
+  FProgressText := '';
+  FShowProgressText := False;
+end;
+
+destructor TProgressSettings.Destroy;
+begin
+  inherited Destroy;
+end;
+
+procedure TProgressSettings.Assign(Source: TPersistent);
+var
+  LSource: TProgressSettings;
+begin
+  if Source is TProgressSettings then
+  begin
+    LSource := TProgressSettings(Source);
+    SetShowProgress(LSource.ShowProgress);
+    SetProgressColor(LSource.ProgressColor);
+    SetHideCaptionWhileProcessing(LSource.HideCaptionWhileProcessing);
+    SetAnimationTimerInterval(LSource.AnimationTimerInterval);
+    SetAnimationStyle(LSource.AnimationStyle);
+    SetProgressText(LSource.ProgressText);
+    SetShowProgressText(LSource.ShowProgressText);
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TProgressSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+  if Assigned(FOwnerControl) and (FOwnerControl.HandleAllocated) and (csDesigning in FOwnerControl.ComponentState) then
+    FOwnerControl.Invalidate
+  else if Assigned(FOwnerControl) and (FOwnerControl.HandleAllocated) and not (csDesigning in FOwnerControl.ComponentState) then
+     FOwnerControl.Repaint;
+end;
+
+procedure TProgressSettings.SetShowProgress(const Value: Boolean);
+begin
+  if FShowProgress <> Value then
+  begin
+    FShowProgress := Value;
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetProgressColor(const Value: TColor);
+begin
+  if FProgressColor <> Value then
+  begin
+    FProgressColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetHideCaptionWhileProcessing(const Value: Boolean);
+begin
+  if FHideCaptionWhileProcessing <> Value then
+  begin
+    FHideCaptionWhileProcessing := Value;
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetAnimationTimerInterval(const Value: Integer);
+begin
+  if FAnimationTimerInterval <> Max(10, Value) then
+  begin
+    FAnimationTimerInterval := Max(10, Value);
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetAnimationStyle(const Value: TProgressAnimationStyle);
+begin
+  if FAnimationStyle <> Value then
+  begin
+    FAnimationStyle := Value;
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetProgressText(const Value: string);
+begin
+  if FProgressText <> Value then
+  begin
+    FProgressText := Value;
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetShowProgressText(const Value: Boolean);
+begin
+  if FShowProgressText <> Value then
+  begin
+    FShowProgressText := Value;
     Changed;
   end;
 end;

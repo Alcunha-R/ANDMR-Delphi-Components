@@ -198,7 +198,7 @@ begin
   FInternalMemo.WordWrap := True;
   FInternalMemo.ScrollBars := ssVertical;
   FInternalMemo.Font.Assign(Self.Font);
-  FInternalMemo.Color := clWindow;
+  FInternalMemo.Color := FBorderSettings.BackgroundColor;
 
   FInternalMemo.OnChange := InternalMemoChange;
   FInternalMemo.OnEnter := InternalMemoEnter;
@@ -787,14 +787,14 @@ begin
       var BaseFrameBG, BaseBorderColor, BaseMemoBG, BaseMemoFontColor, BaseCaptionColor: TColor;
       BaseFrameBG := FBorderSettings.BackgroundColor;
       BaseBorderColor := FBorderSettings.Color;
-      BaseMemoBG := clWindow;
+      BaseMemoBG := FBorderSettings.BackgroundColor;
       BaseMemoFontColor := Self.Font.Color;
       BaseCaptionColor := IfThen(FCaptionSettings.Color = clDefault, Self.Font.Color, FCaptionSettings.Color);
 
       var HoverFrameBG, HoverBorderColor, HoverMemoBG, HoverMemoFontColor, HoverCaptionColor: TColor;
       HoverFrameBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
       HoverBorderColor := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
-      HoverMemoBG := clNone;
+      HoverMemoBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
       HoverMemoFontColor := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone);
       HoverCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
 

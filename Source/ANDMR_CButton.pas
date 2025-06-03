@@ -16,27 +16,24 @@ type
   TImageStretchMode = (ismProportional, ismFlat);
   TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient);
   TPresetType = (
-    cptNone,       // Sem predefinicao, usa as cores do componente
-    cptAccept,     // Aceitar, Confirmar (Verde)
-    cptDecline,    // Recusar, Cancelar (Vermelho/Cinza)
-    cptSave,       // Salvar (Azul)
-    cptEdit,       // Editar (Laranja/Amarelo)
-    cptDelete,     // Excluir (Vermelho)
-    cptNext,       // Proximo, Continuar (Azul/Verde)
-    cptPrevious,   // Anterior, Voltar (Cinza/Azul)
-    cptInfo,       // Informacao (Azul claro)
-    cptWarning,    // Aviso (Amarelo/Laranja)
-    cptHelp        // Ajuda (Azul claro)
+    cptNone,      // Sem predefinicao, usa as cores do componente
+    cptAccept,    // Aceitar, Confirmar (Verde)
+    cptDecline,   // Recusar, Cancelar (Vermelho/Cinza)
+    cptSave,      // Salvar (Azul)
+    cptEdit,      // Editar (Laranja/Amarelo)
+    cptDelete,    // Excluir (Vermelho)
+    cptNext,      // Proximo, Continuar (Azul/Verde)
+    cptPrevious,  // Anterior, Voltar (Cinza/Azul)
+    cptInfo,      // Informacao (Azul claro)
+    cptWarning,   // Aviso (Amarelo/Laranja)
+    cptHelp       // Ajuda (Azul claro)
   );
 
   TANDMR_CButton = class(TCustomControl)
   private
+    FBorderSettings: TBorderSettings;
     FCaption: string;
-    FCornerRadius: Integer;
-    FRoundCornerType: TRoundCornerType;
-    FActiveColor, FInactiveColor: TColor;
     FTitleFont: TFont;
-    // FIsHovering: Boolean; // Removed: Hover state managed by FInternalHoverSettings
     FImage: TPicture;
     FTextAlign: TAlignment;
     FGradientEnabled: Boolean;
@@ -58,10 +55,6 @@ type
     FClickEffectDuration: Integer;
     FClickEffectActive: Boolean;
 
-    FBorderColor: TColor;
-    FBorderThickness: Integer;
-    FBorderStyle: TPenStyle;
-
     FOnClick: TNotifyEvent;
     FStyle: TButtonStyle;
     FClickColor: TColor;
@@ -74,11 +67,11 @@ type
 
     procedure SetInternalHoverSettings(const Value: THoverSettings);
     procedure InternalHoverSettingsChanged(Sender: TObject);
+    procedure BorderSettingsChanged(Sender: TObject); // New handler for FBorderSettings
 
     procedure SetStyle(const Value: TButtonStyle);
     function GetAlign: TAlign;
     procedure SetAlign(const Value: TAlign);
-    procedure ResizeMe;
 
     procedure ClickEffectTimerHandler(Sender: TObject);
     procedure StartClickEffect;
@@ -87,10 +80,12 @@ type
     function GetEnabled: Boolean;
     procedure SetEnabled(Value: Boolean);
     procedure SetCaption(const Value: string);
-    procedure SetCornerRadius(const Value: Integer);
-    procedure SetRoundCornerType(const Value: TRoundCornerType);
-    procedure SetActiveColor(const Value: TColor);
-    procedure SetInactiveColor(const Value: TColor);
+    function GetCornerRadius: Integer; // Getter
+    procedure SetCornerRadius(const Value: Integer); // Setter
+    function GetRoundCornerType: TRoundCornerType; // Getter
+    procedure SetRoundCornerType(const Value: TRoundCornerType); // Setter
+    function GetActiveColor: TColor; // Getter for FBorderSettings.BackgroundColor
+    procedure SetActiveColor(const Value: TColor); // Setter for FBorderSettings.BackgroundColor
     procedure SetHoverColor(const Value: TColor);
     procedure SetTitleFont(const Value: TFont);
     procedure FontChanged(Sender: TObject);
@@ -109,9 +104,12 @@ type
     procedure SetDisabledCursor(const Value: TCursor);
     procedure SetImageMargins(const Value: TANDMR_Margins);
     procedure SetTextMargins(const Value: TANDMR_Margins);
-    procedure SetBorderColor(const Value: TColor);
-    procedure SetBorderThickness(const Value: Integer);
-    procedure SetBorderStyle(const Value: TPenStyle);
+    function GetBorderColor: TColor; // Getter
+    procedure SetBorderColor(const Value: TColor); // Setter
+    function GetBorderThickness: Integer; // Getter
+    procedure SetBorderThickness(const Value: Integer); // Setter
+    function GetBorderStyle: TPenStyle; // Getter
+    procedure SetBorderStyle(const Value: TPenStyle); // Setter
     procedure SetClickColor(const Value: TColor);
     procedure SetHoverBorderColor(const Value: TColor);
     procedure SetClickBorderColor(const Value: TColor);
@@ -149,10 +147,9 @@ type
     property Align;
     property Enabled read GetEnabled write SetEnabled stored IsEnabledStored;
     property Caption: string read FCaption write SetCaption;
-    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 12;
-    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read FActiveColor write SetActiveColor default clTeal;
-    property InactiveColor: TColor read FInactiveColor write SetInactiveColor default clGray;
+    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 12;
+    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
+    property ActiveColor: TColor read GetActiveColor write SetActiveColor default clTeal;
     property HoverColor: TColor read GetHoverColor write SetHoverColor;
     property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
     property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
@@ -170,9 +167,9 @@ type
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
     property ImageStretchMode: TImageStretchMode read FImageStretchMode write SetImageStretchMode default ismProportional;
 
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read FBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read FBorderStyle write SetBorderStyle default psSolid;
+    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
+    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
+    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
     property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor;
     property ClickColor: TColor read FClickColor write SetClickColor default clNone;
     property ClickBorderColor: TColor read FClickBorderColor write SetClickBorderColor default clNone;
@@ -244,11 +241,6 @@ begin
   Height := 45;
   TabStop := True;
   FTransparent := False;
-
-  FCornerRadius := 12;
-  FRoundCornerType := rctAll;
-  FActiveColor := clTeal;
-  FInactiveColor := clGray;
   FClickTitleColor := clNone;
 
   FTitleFont := TFont.Create;
@@ -286,9 +278,6 @@ begin
   FClickEffectTimer.OnTimer := ClickEffectTimerHandler;
   UpdateClickEffectTimerInterval;
 
-  FBorderColor := clBlack;
-  FBorderThickness := 1;
-  FBorderStyle := psSolid;
   FClickColor := clNone;
   FClickBorderColor := clNone;
 
@@ -298,10 +287,22 @@ begin
 
   FInternalHoverSettings := THoverSettings.Create(Self);
   FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
+
+  FBorderSettings := TBorderSettings.Create;
+  FBorderSettings.OnChange := BorderSettingsChanged;
+  FBorderSettings.CornerRadius := 12; // Default FCornerRadius
+  FBorderSettings.RoundCornerType := rctAll; // Default FRoundCornerType
+  FBorderSettings.BackgroundColor := clTeal; // Default FActiveColor
+  FBorderSettings.Color := clBlack; // Default FBorderColor
+  FBorderSettings.Thickness := 1; // Default FBorderThickness
+  FBorderSettings.Style := psSolid; // Default FBorderStyle
 end;
 
 destructor TANDMR_CButton.Destroy;
 begin
+  FBorderSettings.OnChange := nil;
+  FBorderSettings.Free;
+
   FInternalHoverSettings.OnChange := nil;
   FInternalHoverSettings.Free;
 
@@ -325,13 +326,18 @@ begin
   Repaint;
 end;
 
+procedure TANDMR_CButton.BorderSettingsChanged(Sender: TObject);
+begin
+  Invalidate; // Or Repaint if more direct control is needed
+end;
+
 procedure TANDMR_CButton.Loaded;
 begin
   inherited Loaded;
   if FGradientStartColor = clNone then
-    FGradientStartColor := FActiveColor;
+    FGradientStartColor := FBorderSettings.BackgroundColor;
   if FGradientEndColor = clNone then
-    FGradientEndColor := DarkerColor(FActiveColor, 30);
+    FGradientEndColor := DarkerColor(FBorderSettings.BackgroundColor, 30);
   if FTransparent then
     ControlStyle := ControlStyle - [csOpaque] + [csParentBackground]
   else
@@ -366,11 +372,6 @@ begin
     FStyle := Value;
     Repaint;
   end;
-end;
-
-procedure TANDMR_CButton.ResizeMe;
-begin
-  SetCornerRadius(FCornerRadius);
 end;
 
 procedure TANDMR_CButton.Click;
@@ -457,58 +458,38 @@ begin
   end;
 end;
 
+// Getters and Setters for Border Properties
+function TANDMR_CButton.GetCornerRadius: Integer; begin Result := FBorderSettings.CornerRadius; end;
 procedure TANDMR_CButton.SetCornerRadius(const Value: Integer);
-var
-  MaxRadius: Integer;
+var MaxRadius: Integer;
 begin
-  if FCornerRadius <> Value then
-  begin
-    if (Width > 0) and (Height > 0) then
-      MaxRadius := Min(Width, Height) div 2
-    else
-      MaxRadius := Value;
-
-    FCornerRadius := EnsureRange(Value, 0, MaxRadius);
-    Repaint;
-  end;
+  if (Width > 0) and (Height > 0) then MaxRadius := Min(Width, Height) div 2
+  else MaxRadius := Value;
+  FBorderSettings.CornerRadius := EnsureRange(Value, 0, MaxRadius);
+  // FBorderSettings.OnChange will trigger repaint
 end;
 
-procedure TANDMR_CButton.SetRoundCornerType(const Value: TRoundCornerType);
-begin
-  if FRoundCornerType <> Value then
-  begin
-    FRoundCornerType := Value;
-    Repaint;
-  end;
-end;
+function TANDMR_CButton.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
+procedure TANDMR_CButton.SetRoundCornerType(const Value: TRoundCornerType); begin FBorderSettings.RoundCornerType := Value; end;
 
+function TANDMR_CButton.GetActiveColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
 procedure TANDMR_CButton.SetActiveColor(const Value: TColor);
 var
   OldActiveColor: TColor;
   OldDerivedEndColor: TColor;
 begin
-  if FActiveColor <> Value then
+  if FBorderSettings.BackgroundColor <> Value then
   begin
-    OldActiveColor := FActiveColor;
-    FActiveColor := Value;
+    OldActiveColor := FBorderSettings.BackgroundColor;
+    FBorderSettings.BackgroundColor := Value;
 
     if (FGradientStartColor = OldActiveColor) or (FGradientStartColor = clNone) then
-      SetGradientStartColor(FActiveColor);
+      SetGradientStartColor(FBorderSettings.BackgroundColor);
 
     OldDerivedEndColor := DarkerColor(OldActiveColor, 30);
     if (FGradientEndColor = OldDerivedEndColor) or (FGradientEndColor = clNone) then
-      SetGradientEndColor(DarkerColor(FActiveColor, 30));
-
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButton.SetInactiveColor(const Value: TColor);
-begin
-  if FInactiveColor <> Value then
-  begin
-    FInactiveColor := Value;
-    Repaint;
+      SetGradientEndColor(DarkerColor(FBorderSettings.BackgroundColor, 30));
+    // FBorderSettings.OnChange will trigger repaint
   end;
 end;
 
@@ -525,7 +506,7 @@ begin
     NewTitleColor := clWhite;
 
     case FPresetType of
-      cptNone: begin BaseColor := FActiveColor; Exit; end;
+      cptNone: begin BaseColor := FBorderSettings.BackgroundColor; Exit; end; // Use FBorderSettings.BackgroundColor
       cptAccept:   begin BaseColor := TColor($0050AF4C); PresetCaption := 'Confirmar'; NewTitleColor := clWhite; end;
       cptDecline:  begin BaseColor := TColor($00757575); PresetCaption := 'Cancelar';  NewTitleColor := clWhite; end;
       cptSave:     begin BaseColor := TColor($00F39621); PresetCaption := 'Salvar';    NewTitleColor := clWhite; end;
@@ -537,11 +518,11 @@ begin
       cptWarning:  begin BaseColor := TColor($003BEBFF); PresetCaption := 'Aviso';     NewTitleColor := clBlack; end;
       cptHelp:     begin BaseColor := TColor($008B7D60); PresetCaption := 'Ajuda';     NewTitleColor := clWhite; end;
     else
-      BaseColor := FActiveColor;
+      BaseColor := FBorderSettings.BackgroundColor; // Use FBorderSettings.BackgroundColor
     end;
 
-    Self.ActiveColor := BaseColor;
-    Self.BorderColor := DarkerColor(BaseColor, 30);
+    FBorderSettings.BackgroundColor := BaseColor; // Set ActiveColor via FBorderSettings
+    FBorderSettings.Color := DarkerColor(BaseColor, 30); // Set BorderColor via FBorderSettings
     Self.HoverColor := LighterColor(BaseColor, 25);
     Self.HoverBorderColor := BaseColor;
     Self.ClickColor := DarkerColor(BaseColor, 25);
@@ -560,9 +541,9 @@ begin
 
     if (Trim(Self.FCaption) = '') or (Self.FCaption <> PresetCaption) then
     begin
-      Self.FCaption := PresetCaption;
+      Self.FCaption := PresetCaption; // FCaption setter calls Repaint
     end
-    else
+    else if FPresetType <> cptNone then // Repaint if a preset was applied, even if caption didn't change
     begin
       Repaint;
     end;
@@ -696,32 +677,14 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetBorderColor(const Value: TColor);
-begin
-  if FBorderColor <> Value then
-  begin
-    FBorderColor := Value;
-    Repaint;
-  end;
-end;
+function TANDMR_CButton.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
+procedure TANDMR_CButton.SetBorderColor(const Value: TColor); begin FBorderSettings.Color := Value; end;
 
-procedure TANDMR_CButton.SetBorderThickness(const Value: Integer);
-begin
-  if FBorderThickness <> Value then
-  begin
-    FBorderThickness := Max(0, Value);
-    Repaint;
-  end;
-end;
+function TANDMR_CButton.GetBorderThickness: Integer; begin Result := FBorderSettings.Thickness; end;
+procedure TANDMR_CButton.SetBorderThickness(const Value: Integer); begin FBorderSettings.Thickness := Max(0, Value); end;
 
-procedure TANDMR_CButton.SetBorderStyle(const Value: TPenStyle);
-begin
-  if FBorderStyle <> Value then
-  begin
-    FBorderStyle := Value;
-    Repaint;
-  end;
-end;
+function TANDMR_CButton.GetBorderStyle: TPenStyle; begin Result := FBorderSettings.Style; end;
+procedure TANDMR_CButton.SetBorderStyle(const Value: TPenStyle); begin FBorderSettings.Style := Value; end;
 
 procedure TANDMR_CButton.SetClickColor(const Value: TColor);
 begin
@@ -905,7 +868,6 @@ var
   LPresetDefaultCaption: string;
   LFinalCaptionToDraw: string;
   ButtonRectEffectiveF: TGPRectF;
-  // CurrentDrawModeForHelper: TImageDrawMode; // Removed, will pass idmStretch directly
 
 const
   SHADOW_ALPHA = 50;
@@ -949,9 +911,9 @@ begin
     if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and (FClickEffectDuration > 0) then
       LClickProgress := (255 - FClickEffectProgress) / 255.0;
 
-    LInitialFillColor := ResolveStateColor(Enabled, False, False, FActiveColor, clNone, clNone, FInactiveColor, False, False);
-    LInitialBorderColor := ResolveStateColor(Enabled, False, False, FBorderColor, clNone, clNone, BlendColors(FBorderColor, clGray, 0.7), False, False);
-    LActualBorderThickness := FBorderThickness;
+  LInitialFillColor := ResolveStateColor(Enabled, False, False, FBorderSettings.BackgroundColor, clNone, clNone, BlendColors(FBorderSettings.BackgroundColor, clGray, 0.65), False, False); // Use FBorderSettings.BackgroundColor and blend for disabled
+  LInitialBorderColor := ResolveStateColor(Enabled, False, False, FBorderSettings.Color, clNone, clNone, BlendColors(FBorderSettings.Color, clGray, 0.7), False, False); // Use FBorderSettings.Color
+  LActualBorderThickness := FBorderSettings.Thickness; // Use FBorderSettings.Thickness
 
     if FInternalHoverSettings.BackgroundColor <> clNone then
       LFinalHoverColor := FInternalHoverSettings.BackgroundColor
@@ -987,7 +949,7 @@ begin
       begin
         LDrawFill := False;
         LCurrentGradientEnabled := False;
-        LActualBorderThickness := Max(1, FBorderThickness);
+      LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Use FBorderSettings.Thickness
         LDrawBorder := LActualBorderThickness > 0;
         LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 70);
       end;
@@ -995,10 +957,10 @@ begin
       begin
         LBaseStyleColor := BlendColors(LInitialFillColor, clWhite, 0.6);
         LActualFillColor := LBaseStyleColor;
-        LActualBorderColor := LInitialBorderColor;
+      LActualBorderColor := LInitialBorderColor; // This is FBorderSettings.Color
         LFinalHoverColor := BlendColors(LBaseStyleColor, LighterColor(LInitialFillColor, 20), 0.7);
         LCurrentGradientEnabled := False;
-        LActualBorderThickness := Max(1, FBorderThickness);
+      LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Use FBorderSettings.Thickness
         LDrawBorder := LActualBorderThickness > 0;
       end;
       bsFlat:
@@ -1012,7 +974,7 @@ begin
       begin
         LDrawFill := False;
         LCurrentGradientEnabled := False;
-        LActualBorderThickness := Max(1, FBorderThickness);
+        LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Corrected from FBorderThickness
         LActualBorderColor := LInitialFillColor;
         LDrawBorder := LActualBorderThickness > 0;
         LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 100);
@@ -1044,7 +1006,7 @@ begin
       else if FStyle = bsFlat then
       begin
         LActualBorderColor := BlendColors(clNone, LFinalHoverBorderColor, LHoverProgress);
-        LActualBorderThickness := Max(1, FBorderThickness);
+        LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Use FBorderSettings.Thickness
         LDrawBorder := True;
       end;
     end;
@@ -1095,12 +1057,12 @@ begin
       LShadowPathDrawRect := MakeRect(ButtonRectEffectiveF.X + LPathInset + LShadowOffsetXToUse,
                                       ButtonRectEffectiveF.Y + LPathInset + LShadowOffsetYToUse,
                                       LPathWidth, LPathHeight);
-      LRadiusValue := Min(FCornerRadius, Min(LShadowPathDrawRect.Width, LShadowPathDrawRect.Height) / 2.0);
+    LRadiusValue := Min(FBorderSettings.CornerRadius, Min(LShadowPathDrawRect.Width, LShadowPathDrawRect.Height) / 2.0); // Use FBorderSettings.CornerRadius
       LRadiusValue := Max(0, LRadiusValue);
 
       LGPPath := TGPGraphicsPath.Create;
       try
-        CreateGPRoundedPath(LGPPath, LShadowPathDrawRect, LRadiusValue, FRoundCornerType);
+      CreateGPRoundedPath(LGPPath, LShadowPathDrawRect, LRadiusValue, FBorderSettings.RoundCornerType); // Use FBorderSettings.RoundCornerType
         if LGPPath.GetPointCount > 0 then
         begin
           LGPBrush := TGPSolidBrush.Create(ColorToARGB(clBlack, LShadowAlphaToUse));
@@ -1115,7 +1077,7 @@ begin
     end;
 
     if LDrawBorder and (LActualBorderThickness > 0) then LPathInset := LActualBorderThickness / 2.0 else LPathInset := 0.0;
-    LRadiusValue := Min(FCornerRadius, Min(ButtonRectEffectiveF.Width, ButtonRectEffectiveF.Height) / 2.0);
+    LRadiusValue := Min(FBorderSettings.CornerRadius, Min(ButtonRectEffectiveF.Width, ButtonRectEffectiveF.Height) / 2.0); // Use FBorderSettings.CornerRadius
     LRadiusValue := Max(0, LRadiusValue);
 
     var DrawAreaRect: TRect;
@@ -1139,11 +1101,11 @@ begin
     else
       BorderColorToUse := clNone;
 
-    DrawEditBox(LG, DrawAreaRect, BgColorToUse, BorderColorToUse, LActualBorderThickness, FBorderStyle, Round(LRadiusValue), FRoundCornerType, 255);
+    DrawEditBox(LG, DrawAreaRect, BgColorToUse, BorderColorToUse, LActualBorderThickness, FBorderSettings.Style, Round(LRadiusValue), FBorderSettings.RoundCornerType, 255); // Use FBorderSettings.Style and FBorderSettings.RoundCornerType
 
     LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
-                           Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
-                           Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
+                              Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
+                              Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
     if LDrawBorder and (LActualBorderThickness > 0) then
         InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
 

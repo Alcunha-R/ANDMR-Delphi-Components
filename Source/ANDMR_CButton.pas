@@ -59,6 +59,22 @@ type
 
     FInternalHoverSettings: THoverSettings;
 
+    // New fields for progress animation
+    FProcessing: Boolean;
+    FProgressTimer: TTimer;
+    FProgressStep: Integer;
+    FShowProgress: Boolean; // This will be a published property, but the field is private
+    FProgressColor: TColor; // This will be a published property, but the field is private
+    FOriginalCaption: string;
+    FHideCaptionWhileProcessing: Boolean; // This will be a published property, but the field is private
+    FOriginalEnabledState: Boolean; // New field
+    // End of new fields
+
+    procedure SetShowProgress(const Value: Boolean); // New Setter
+    procedure SetProgressColor(const Value: TColor); // New Setter
+    procedure SetHideCaptionWhileProcessing(const Value: Boolean); // New Setter
+
+    procedure ProgressTimerHandler(Sender: TObject); // Added
     procedure SetInternalHoverSettings(const Value: THoverSettings);
     procedure InternalHoverSettingsChanged(Sender: TObject);
     procedure BorderSettingsChanged(Sender: TObject); // New handler for FBorderSettings
@@ -150,8 +166,60 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    procedure StartProcessing; // New public method
+    procedure StopProcessing; // New public method
   published
     property Align;
+    property Enabled read GetEnabled write SetEnabled stored IsEnabledStored;
+    property Caption: string read FCaption write SetCaption;
+    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 12;
+    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
+    property ActiveColor: TColor read GetActiveColor write SetActiveColor default clTeal;
+    property HoverColor: TColor read GetHoverColor write SetHoverColor;
+    property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
+    property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
+    property TitleFont: TFont read GetTitleFont write SetTitleFont; // Changed
+    property Image: TPicture read GetImage write SetImage; // Changed
+    property TextAlign: TAlignment read GetTextAlign write SetTextAlign default taCenter; // Changed
+
+    property GradientEnabled: Boolean read GetGradientEnabled write SetGradientEnabled default False;
+    property GradientType: TGradientType read GetGradientType write SetGradientType default gtLinearVertical;
+    property GradientStartColor: TColor read GetGradientStartColor write SetGradientStartColor; // Default clNone is handled by TGradientSettings
+    property GradientEndColor: TColor read GetGradientEndColor write SetGradientEndColor; // Default clNone is handled by TGradientSettings
+
+    property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
+    property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
+    property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
+    property ImageStretchMode: TImageStretchMode read GetImageStretchMode write SetImageStretchMode default ismProportional; // Changed
+
+    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
+    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
+    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
+    property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor;
+    property ClickColor: TColor read FClickColor write SetClickColor default clNone;
+    property ClickBorderColor: TColor read FClickBorderColor write SetClickBorderColor default clNone;
+
+    property Style: TButtonStyle read FStyle write SetStyle default bsSolid;
+    property EnableHoverEffect: Boolean read GetEnableHoverEffect write SetEnableHoverEffect default True;
+    property HoverEffect: THoverEffect read GetHoverEffect write SetHoverEffect default heFade;
+    property ClickEffectDuration: Integer read FClickEffectDuration write SetClickEffectDuration default 200;
+
+    property DisabledCursor: TCursor read FDisabledCursor write SetDisabledCursor default crNo;
+    property OnClick: TNotifyEvent read FOnClick write FOnClick;
+
+    property Transparent: Boolean read FTransparent write SetTransparent default False;
+    property TagString: string read GetTagString write SetTagString;
+    property TagExtended: Extended read GetTagExtended write SetTagExtended;
+    property TagObject: TObject read GetTagObject write SetTagObject;
+
+    property PresetType: TPresetType read FPresetType write SetPresetType default cptNone;
+
+    // New properties for progress animation
+    property ShowProgress: Boolean read FShowProgress write SetShowProgress default True;
+    property ProgressColor: TColor read FProgressColor write SetProgressColor default clGray;
+    property HideCaptionWhileProcessing: Boolean read FHideCaptionWhileProcessing write SetHideCaptionWhileProcessing default True;
+
+    property Anchors;
     property Enabled read GetEnabled write SetEnabled stored IsEnabledStored;
     property Caption: string read FCaption write SetCaption;
     property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 12;
@@ -336,6 +404,17 @@ begin
   FInternalTagString := TANDMR_TagString.Create;
   FInternalTagExtended := TANDMR_TagExtended.Create;
   FInternalTagObject := TANDMR_TagObject.Create;
+
+  // Initializations for progress animation
+  FProcessing := False;
+  FShowProgress := True;
+  FProgressColor := clGray;
+  FHideCaptionWhileProcessing := True;
+  FProgressTimer := TTimer.Create(Self);
+  FProgressTimer.Enabled := False;
+  FProgressTimer.Interval := 100;
+  FProgressTimer.OnTimer := ProgressTimerHandler;
+  FOriginalEnabledState := True;
 end;
 
 destructor TANDMR_CButton.Destroy;
@@ -356,6 +435,7 @@ begin
 
   FTextMargins.Free;
   FClickEffectTimer.Free;
+  FProgressTimer.Free; // Added
 
   FInternalTagString.Free;
   FInternalTagExtended.Free;
@@ -365,6 +445,88 @@ begin
   FGradientSettings.Free;
 
   inherited;
+end;
+
+procedure TANDMR_CButton.StartProcessing;
+begin
+  if FShowProgress and not FProcessing then
+  begin
+    FProcessing := True;
+    FOriginalCaption := Self.Caption;
+    FOriginalEnabledState := Self.Enabled;
+
+    if FHideCaptionWhileProcessing then
+      Self.Caption := '';
+
+    if Self.Enabled then // Only change if it was enabled
+      Self.Enabled := False;
+
+    FProgressStep := 0;
+    FProgressTimer.Enabled := True;
+    Repaint;
+  end;
+end;
+
+procedure TANDMR_CButton.StopProcessing;
+begin
+  if FProcessing then // Only act if processing was active
+  begin
+    FProcessing := False;
+    FProgressTimer.Enabled := False;
+
+    Self.Caption := FOriginalCaption; // Restore caption
+
+    // Restore the button's original enabled state
+    if Self.Enabled <> FOriginalEnabledState then
+      Self.Enabled := FOriginalEnabledState;
+
+    Repaint;
+  end;
+end;
+
+procedure TANDMR_CButton.SetShowProgress(const Value: Boolean);
+begin
+  if FShowProgress <> Value then
+  begin
+    FShowProgress := Value;
+    Repaint;
+  end;
+end;
+
+procedure TANDMR_CButton.SetProgressColor(const Value: TColor);
+begin
+  if FProgressColor <> Value then
+  begin
+    FProgressColor := Value;
+    Repaint;
+  end;
+end;
+
+procedure TANDMR_CButton.SetHideCaptionWhileProcessing(const Value: Boolean);
+begin
+  if FHideCaptionWhileProcessing <> Value then
+  begin
+    FHideCaptionWhileProcessing := Value;
+    Repaint;
+  end;
+end;
+
+procedure TANDMR_CButton.ProgressTimerHandler(Sender: TObject);
+begin
+  if FProcessing then // Only do this if we are in the processing state
+  begin
+    Inc(FProgressStep);
+    // Optional: Cap or cycle FProgressStep if the animation has a fixed number of frames.
+    // For example, if it's a 12-step spinner:
+    // if FProgressStep >= 12 then FProgressStep := 0;
+    Repaint;
+  end
+  else
+  begin
+    // If not processing, ensure the timer is stopped.
+    // This is a safeguard, as StopProcessing should handle it.
+    FProgressTimer.Enabled := False;
+  end;
 end;
 
 procedure TANDMR_CButton.SetInternalHoverSettings(const Value: THoverSettings);
@@ -1050,11 +1212,11 @@ begin
     LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
     LHoverProgress := 0;
-    if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.CurrentAnimationValue > 0) and (FInternalHoverSettings.HoverEffect <> heNone) then
+    if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.CurrentAnimationValue > 0) and (FInternalHoverSettings.HoverEffect <> heNone) and not FProcessing then // Added not FProcessing
       LHoverProgress := FInternalHoverSettings.CurrentAnimationValue / 255.0;
 
     LClickProgress := 0;
-    if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and (FClickEffectDuration > 0) then
+    if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and (FClickEffectDuration > 0) and not FProcessing then // Added not FProcessing
       LClickProgress := (255 - FClickEffectProgress) / 255.0;
 
   LInitialFillColor := ResolveStateColor(Enabled, False, False, FBorderSettings.BackgroundColor, clNone, clNone, BlendColors(FBorderSettings.BackgroundColor, clGray, 0.65), False, False); // Use FBorderSettings.BackgroundColor and blend for disabled
@@ -1446,11 +1608,76 @@ begin
     if LDrawBorder and (LActualBorderThickness > 0) then
         InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
 
-
-    if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then // Use FImageSettings.Picture
+    // >>> START NEW PROGRESS ANIMATION LOGIC <<<
+    if FProcessing and FShowProgress then
     begin
-      LImgW := FImageSettings.Picture.Width; LImgH := FImageSettings.Picture.Height; // Use FImageSettings.Picture
-      case FImageSettings.DrawMode of // Use FImageSettings.DrawMode
+      var
+        LProgressRect: TRect;
+        LArcThickness: Integer;
+        LStartAngle, LSweepAngle: Single;
+        LProgressBarPen: TGPPen;
+        LProgressPath: TGPGraphicsPath;
+        ArcRectF: TGPRectF;
+
+      LProgressRect := ClientRect; // Start with full client rect
+      // Potentially deflate by border thickness if the animation should be inside the border
+      if FBorderSettings.Thickness > 0 then
+          InflateRect(LProgressRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
+
+      // Make it a square in the center for a circular animation
+      if LProgressRect.Width > LProgressRect.Height then
+      begin
+        LProgressRect.Left := LProgressRect.Left + (LProgressRect.Width - LProgressRect.Height) div 2;
+        LProgressRect.Width := LProgressRect.Height;
+      end
+      else
+      begin
+        LProgressRect.Top := LProgressRect.Top + (LProgressRect.Height - LProgressRect.Width) div 2;
+        LProgressRect.Height := LProgressRect.Width;
+      end;
+
+      // Reduce size slightly to give some padding
+      InflateRect(LProgressRect, -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)), -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)));
+
+      if (LProgressRect.Width > 4) and (LProgressRect.Height > 4) then // Only draw if there's enough space
+      begin
+        LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8); // Dynamic thickness
+
+        // Define the arc parameters
+        LStartAngle := (FProgressStep * 10) mod 360; // Degrees
+        LSweepAngle := 270; // Draw a 270 degree arc
+
+        LProgressPath := TGPGraphicsPath.Create;
+        try
+          ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness);
+
+          if (ArcRectF.Width > 0) and (ArcRectF.Height > 0) then
+          begin
+            LProgressPath.AddArc(ArcRectF, LStartAngle, LSweepAngle);
+
+            LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressColor, 255), LArcThickness);
+            LProgressBarPen.SetStartCap(LineCapRound);
+            LProgressBarPen.SetEndCap(LineCapRound);
+            try
+              LG.DrawPath(LProgressBarPen, LProgressPath);
+            finally
+              LProgressBarPen.Free;
+            end;
+          end;
+        finally
+          LProgressPath.Free;
+        end;
+      end;
+    end;
+    // >>> END NEW PROGRESS ANIMATION LOGIC <<<
+
+    // Conditionally draw image and caption
+    if not (FProcessing and FShowProgress and FHideCaptionWhileProcessing) then
+    begin
+      if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then // Use FImageSettings.Picture
+      begin
+        LImgW := FImageSettings.Picture.Width; LImgH := FImageSettings.Picture.Height; // Use FImageSettings.Picture
+        case FImageSettings.DrawMode of // Use FImageSettings.DrawMode
         idmProportional: // Changed from ismProportional
         begin
           if (LImgW = 0) or (LImgH = 0) then begin LDrawW := 0; LDrawH := 0; end
@@ -1561,59 +1788,62 @@ begin
       LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
                         LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
 
-    if Trim(Self.FCaption) <> '' then
-      LFinalCaptionToDraw := Self.FCaption
-    else if Trim(LPresetDefaultCaption) <> '' then
-      LFinalCaptionToDraw := LPresetDefaultCaption
-    else
-      LFinalCaptionToDraw := '';
+      if Trim(Self.FCaption) <> '' then
+        LFinalCaptionToDraw := Self.FCaption
+      else if Trim(LPresetDefaultCaption) <> '' then
+        LFinalCaptionToDraw := LPresetDefaultCaption
+      else
+        LFinalCaptionToDraw := '';
 
 
-    if Trim(LFinalCaptionToDraw) <> '' then
-    begin
-      LCurrentTitleFont := TFont.Create;
-      try
-        LCurrentTitleFont.Assign(FCaptionSettings.Font); // Use FCaptionSettings.Font
+      if Trim(LFinalCaptionToDraw) <> '' then
+      begin
+        LCurrentTitleFont := TFont.Create;
+        try
+          LCurrentTitleFont.Assign(FCaptionSettings.Font); // Use FCaptionSettings.Font
 
-        if Enabled then
-        begin
-          if GetEnableHoverEffect and (LHoverProgress > 0) then
+          if Enabled then // Font color/size adjustments based on state (hover, click), only if not processing
           begin
-            if FInternalHoverSettings.FontColor <> clNone then
-              LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, FInternalHoverSettings.FontColor, LHoverProgress) // Use FCaptionSettings.Font.Color
-            else if FInternalHoverSettings.HoverEffect = heFade then
-              LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, LighterColor(LActualFillColor, 80), LHoverProgress * 0.5); // Use FCaptionSettings.Font.Color
+            if GetEnableHoverEffect and (LHoverProgress > 0) and not FProcessing then // Added not FProcessing
+            begin
+              if FInternalHoverSettings.FontColor <> clNone then
+                LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, FInternalHoverSettings.FontColor, LHoverProgress) // Use FCaptionSettings.Font.Color
+              else if FInternalHoverSettings.HoverEffect = heFade then
+                LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, LighterColor(LActualFillColor, 80), LHoverProgress * 0.5); // Use FCaptionSettings.Font.Color
 
-            if FInternalHoverSettings.HoverEffect = heScale then
-              LCurrentTitleFont.Size := Round(FCaptionSettings.Font.Size * (1 + LHoverProgress * (1.05 - 1))); // Use FCaptionSettings.Font.Size
-          end;
+              if FInternalHoverSettings.HoverEffect = heScale then
+                LCurrentTitleFont.Size := Round(FCaptionSettings.Font.Size * (1 + LHoverProgress * (1.05 - 1))); // Use FCaptionSettings.Font.Size
+            end;
 
-          if FClickEffectActive and (LClickProgress > 0) and (FClickEffectDuration > 0) then
+            if FClickEffectActive and (LClickProgress > 0) and (FClickEffectDuration > 0) and not FProcessing then // Added not FProcessing
+            begin
+              if FClickTitleColor <> clNone then
+                LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickTitleColor, LClickProgress);
+            end;
+          end
+          else if not Enabled then // Disabled state font color
           begin
-            if FClickTitleColor <> clNone then
-              LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickTitleColor, LClickProgress);
+            LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, clGray, 0.6); // Use FCaptionSettings.Font.Color
           end;
-        end
-        else
-        begin
-          LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, clGray, 0.6); // Use FCaptionSettings.Font.Color
-        end;
+          // If FProcessing, the original FCaptionSettings.Font.Color is used unless hidden
 
-        if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
-        if LTextArea.Bottom < LTextArea.Top then LTextArea.Bottom := LTextArea.Top;
-        LTextArea.Left   := Max(LImageClipRect.Left, LTextArea.Left);
-        LTextArea.Top    := Max(LImageClipRect.Top, LTextArea.Top);
-        LTextArea.Right  := Min(LImageClipRect.Right, LTextArea.Right);
-        LTextArea.Bottom := Min(LImageClipRect.Bottom, LTextArea.Bottom);
+          if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
+          if LTextArea.Bottom < LTextArea.Top then LTextArea.Bottom := LTextArea.Top;
+          LTextArea.Left   := Max(LImageClipRect.Left, LTextArea.Left);
+          LTextArea.Top    := Max(LImageClipRect.Top, LTextArea.Top);
+          LTextArea.Right  := Min(LImageClipRect.Right, LTextArea.Right);
+          LTextArea.Bottom := Min(LImageClipRect.Bottom, LTextArea.Bottom);
 
-        if (LTextArea.Width > 0) and (LTextArea.Height > 0) then
-        begin
-          DrawComponentCaption( Self.Canvas, LTextArea, LFinalCaptionToDraw, LCurrentTitleFont, LCurrentTitleFont.Color, FCaptionSettings.Alignment, cvaCenter, False, 255 ); // Use FCaptionSettings.Alignment
+          if (LTextArea.Width > 0) and (LTextArea.Height > 0) then
+          begin
+            DrawComponentCaption( Self.Canvas, LTextArea, LFinalCaptionToDraw, LCurrentTitleFont, LCurrentTitleFont.Color, FCaptionSettings.Alignment, cvaCenter, False, 255 ); // Use FCaptionSettings.Alignment
+          end;
+        finally
+          LCurrentTitleFont.Free;
         end;
-      finally
-        LCurrentTitleFont.Free;
       end;
-    end;
+    end; // End of "if not (FProcessing and FShowProgress and FHideCaptionWhileProcessing) then"
+
   finally
     LG.Free;
   end;

@@ -22,28 +22,24 @@ type
     FTransparent: Boolean;
     FOnClick: TNotifyEvent;
     FOnCheckChanged: TNotifyEvent;
-    FInternalHoverSettings: THoverSettings;
+    FHoverSettings: THoverSettings;
+    procedure SetBorderSettings(const Value: TBorderSettings);
 
-    function GetChecked: Boolean; // Added
+    function GetChecked: Boolean;
     procedure SetChecked(const Value: Boolean);
-    procedure SetState(const Value: TCheckBoxState); // Added
-    function GetCaption: string; // Added
+    procedure SetState(const Value: TCheckBoxState);
+    function GetCaption: string;
     procedure SetCaption(const Value: string);
-    function GetCornerRadius: Integer; // Getter
-    procedure SetCornerRadius(const Value: Integer); // Setter
-    function GetRoundCornerType: TRoundCornerType; // Getter
-    procedure SetRoundCornerType(const Value: TRoundCornerType); // Setter
     procedure SetBoxColorUnchecked(const Value: TColor);
     procedure SetBoxColorChecked(const Value: TColor);
     procedure SetCheckMarkColor(const Value: TColor);
-    function GetTitleFont: TFont; // Added
-    procedure SetTitleFont(const Value: TFont);
+    procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure SetTransparent(const Value: Boolean);
-    procedure SetInternalHoverSettings(const Value: THoverSettings);
+    procedure SetHoverSettings(const Value: THoverSettings);
     procedure SetEnabled(Value: Boolean);
 
-    procedure InternalHoverSettingsChanged(Sender: TObject);
-    procedure SettingsChanged(Sender: TObject); // Added
+    procedure HoverSettingsChanged(Sender: TObject);
+    procedure SettingsChanged(Sender: TObject);
 
   protected
     procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
@@ -57,18 +53,21 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
-    property InternalHoverSettings: THoverSettings read FInternalHoverSettings write SetInternalHoverSettings;
+    // property InternalHoverSettings: THoverSettings read FInternalHoverSettings write SetInternalHoverSettings; // Removed
+    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // New
 
   published
     property Checked: Boolean read GetChecked write SetChecked;
-    property State: TCheckBoxState read FState write SetState; // Added
-    property Caption: string read GetCaption write SetCaption; // Changed
-    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius;
-    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType;
+    property State: TCheckBoxState read FState write SetState;
+    property Caption: string read GetCaption write SetCaption;
+    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
+    // property CornerRadius: Integer read GetCornerRadius write SetCornerRadius;
+    // property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType;
+    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings; // New
     property BoxColorUnchecked: TColor read FBoxColorUnchecked write SetBoxColorUnchecked;
     property BoxColorChecked: TColor read FBoxColorChecked write SetBoxColorChecked;
     property CheckMarkColor: TColor read FCheckMarkColor write SetCheckMarkColor;
-    property TitleFont: TFont read GetTitleFont write SetTitleFont; // Changed
+    // property TitleFont: TFont read GetTitleFont write SetTitleFont; // Removed
     property Transparent: Boolean read FTransparent write SetTransparent;
     property Enabled: Boolean read GetEnabled write SetEnabled;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
@@ -122,16 +121,16 @@ begin
     ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
 
   // FTitleFont := TFont.Create; // Removed
-  // FTitleFont.Name := 'Segoe UI'; // Removed
-  // FTitleFont.Size := 9; // Removed
-  // FTitleFont.Color := clWindowText; // Removed
+  // FTitleFont.Name := 'Segoe UI';
+  // FTitleFont.Size := 9;
+  // FTitleFont.Color := clWindowText;
 
-  FInternalHoverSettings := THoverSettings.Create(Self);
-  FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
-  FInternalHoverSettings.BackgroundColor := clNone;
-  FInternalHoverSettings.BorderColor := clNone;
-  FInternalHoverSettings.FontColor := clNone;
-  FInternalHoverSettings.Enabled := True;
+  FHoverSettings := THoverSettings.Create(Self); // Renamed
+  FHoverSettings.OnChange := HoverSettingsChanged; // Renamed
+  FHoverSettings.BackgroundColor := clNone;
+  FHoverSettings.BorderColor := clNone;
+  FHoverSettings.FontColor := clNone;
+  FHoverSettings.Enabled := True;
 
   // Temp FTitleFont to assign to FCaptionSettings, as original FTitleFont is removed
   var TempTitleFont: TFont;
@@ -166,11 +165,11 @@ begin
     FBorderSettings := nil;
   end;
 
-  if Assigned(FInternalHoverSettings) then
+  if Assigned(FHoverSettings) then // Renamed
   begin
-    FInternalHoverSettings.OnChange := nil;
-    FInternalHoverSettings.Free;
-    FInternalHoverSettings := nil;
+    FHoverSettings.OnChange := nil; // Renamed
+    FHoverSettings.Free; // Renamed
+    FHoverSettings := nil; // Renamed
   end;
 
   if Assigned(FCaptionSettings) then
@@ -195,7 +194,19 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.InternalHoverSettingsChanged(Sender: TObject);
+procedure TANDMR_CCheckBox.SetBorderSettings(const Value: TBorderSettings);
+begin
+  FBorderSettings.Assign(Value);
+  Invalidate;
+end;
+
+procedure TANDMR_CCheckBox.SetCaptionSettings(const Value: TCaptionSettings);
+begin
+  FCaptionSettings.Assign(Value);
+  Invalidate;
+end;
+
+procedure TANDMR_CCheckBox.HoverSettingsChanged(Sender: TObject); // Renamed
 begin
   Invalidate;
 end;
@@ -209,18 +220,18 @@ end;
 procedure TANDMR_CCheckBox.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
-  if Self.Enabled and Assigned(FInternalHoverSettings) and FInternalHoverSettings.Enabled then
+  if Self.Enabled and Assigned(FHoverSettings) and FHoverSettings.Enabled then // Renamed
   begin
-    FInternalHoverSettings.StartAnimation(True);
+    FHoverSettings.StartAnimation(True); // Renamed
   end;
 end;
 
 procedure TANDMR_CCheckBox.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
-  if Assigned(FInternalHoverSettings) then
+  if Assigned(FHoverSettings) then // Renamed
   begin
-    FInternalHoverSettings.StartAnimation(False);
+    FHoverSettings.StartAnimation(False); // Renamed
   end;
 end;
 
@@ -300,8 +311,8 @@ begin
 
     CaptionRect := Rect(Round(BoxRect.X + BoxRect.Width + Padding), 0, Self.Width - Padding, Self.Height);
 
-    LIsHovering := FInternalHoverSettings.Enabled and (FInternalHoverSettings.CurrentAnimationValue > 0) and Self.Enabled;
-    LHoverProgress := FInternalHoverSettings.CurrentAnimationValue / 255.0;
+    LIsHovering := FHoverSettings.Enabled and (FHoverSettings.CurrentAnimationValue > 0) and Self.Enabled; // Renamed
+    LHoverProgress := FHoverSettings.CurrentAnimationValue / 255.0; // Renamed
 
     // LCurrentBoxColor := IfThen(FChecked, FBoxColorChecked, FBoxColorUnchecked);
     case FState of
@@ -318,11 +329,11 @@ begin
 
     if LIsHovering then
     begin
-      if FInternalHoverSettings.BackgroundColor <> clNone then
-        LCurrentBoxColor := BlendColors(LCurrentBoxColor, FInternalHoverSettings.BackgroundColor, LHoverProgress);
-      // Hover caption color from FInternalHoverSettings.CaptionFontColor
-      if FInternalHoverSettings.CaptionFontColor <> clNone then
-        LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, FInternalHoverSettings.CaptionFontColor, LHoverProgress);
+      if FHoverSettings.BackgroundColor <> clNone then // Renamed
+        LCurrentBoxColor := BlendColors(LCurrentBoxColor, FHoverSettings.BackgroundColor, LHoverProgress); // Renamed
+      // Hover caption color from FHoverSettings.CaptionFontColor
+      if FHoverSettings.CaptionFontColor <> clNone then // Renamed
+        LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, FHoverSettings.CaptionFontColor, LHoverProgress); // Renamed
     end;
 
     if not Self.Enabled then
@@ -336,9 +347,9 @@ begin
         LCurrentCaptionColor := BlendColors(LCurrentCaptionColor, clGray, 0.50);
     end;
 
-    LBoxBorderColor := DarkerColor(LCurrentBoxColor, IfThen(LIsHovering and (FInternalHoverSettings.BorderColor = clNone), 15, 5));
-    if LIsHovering and (FInternalHoverSettings.BorderColor <> clNone) then
-        LBoxBorderColor := BlendColors(LBoxBorderColor, FInternalHoverSettings.BorderColor, LHoverProgress);
+    LBoxBorderColor := DarkerColor(LCurrentBoxColor, IfThen(LIsHovering and (FHoverSettings.BorderColor = clNone), 15, 5)); // Renamed
+    if LIsHovering and (FHoverSettings.BorderColor <> clNone) then // Renamed
+        LBoxBorderColor := BlendColors(LBoxBorderColor, FHoverSettings.BorderColor, LHoverProgress); // Renamed
 
     if FTransparent then
       LBoxFillColor := clNone
@@ -464,8 +475,11 @@ end;
 
 procedure TANDMR_CCheckBox.SetCaption(const Value: string);
 begin
-  FCaptionSettings.Text := Value;
-  // Invalidation is handled by FCaptionSettings.OnChange via SettingsChanged
+  if FCaptionSettings.Text <> Value then
+  begin
+    FCaptionSettings.Text := Value;
+    Invalidate; // Ensure repaint on caption change
+  end;
 end;
 
 function TANDMR_CCheckBox.GetChecked: Boolean;
@@ -511,48 +525,38 @@ begin
   end;
 end;
 
-function TANDMR_CCheckBox.GetCornerRadius: Integer;
-begin
-  Result := FBorderSettings.CornerRadius;
-end;
+// function TANDMR_CCheckBox.GetCornerRadius: Integer; // Removed
+// begin
+//   Result := FBorderSettings.CornerRadius;
+// end;
 
-procedure TANDMR_CCheckBox.SetCornerRadius(const Value: Integer);
-begin
-  FBorderSettings.CornerRadius := Value;
-  // FBorderSettings.OnChange will trigger Invalidate via SettingsChanged
-end;
+// procedure TANDMR_CCheckBox.SetCornerRadius(const Value: Integer); // Removed
+// begin
+//   FBorderSettings.CornerRadius := Value;
+// end;
 
 procedure TANDMR_CCheckBox.SetEnabled(Value: Boolean);
 begin
   inherited SetEnabled(Value);
 end;
 
-procedure TANDMR_CCheckBox.SetInternalHoverSettings(const Value: THoverSettings);
+procedure TANDMR_CCheckBox.SetHoverSettings(const Value: THoverSettings); // Renamed
 begin
-  FInternalHoverSettings.Assign(Value);
+  FHoverSettings.Assign(Value); // Renamed
 end;
 
-procedure TANDMR_CCheckBox.SetRoundCornerType(const Value: TRoundCornerType);
-begin
-  FBorderSettings.RoundCornerType := Value;
-  // FBorderSettings.OnChange will trigger Invalidate via SettingsChanged
-end;
+// procedure TANDMR_CCheckBox.SetRoundCornerType(const Value: TRoundCornerType); // Removed
+// begin
+//   FBorderSettings.RoundCornerType := Value;
+// end;
 
-function TANDMR_CCheckBox.GetRoundCornerType: TRoundCornerType;
-begin
-  Result := FBorderSettings.RoundCornerType;
-end;
+// function TANDMR_CCheckBox.GetRoundCornerType: TRoundCornerType; // Removed
+// begin
+//   Result := FBorderSettings.RoundCornerType;
+// end;
 
-function TANDMR_CCheckBox.GetTitleFont: TFont;
-begin
-  Result := FCaptionSettings.Font;
-end;
-
-procedure TANDMR_CCheckBox.SetTitleFont(const Value: TFont);
-begin
-  FCaptionSettings.Font.Assign(Value);
-  // Invalidation is handled by FCaptionSettings.OnChange or its Font.OnChange via SettingsChanged
-end;
+// function TANDMR_CCheckBox.GetTitleFont: TFont; // Removed
+// Removed GetTitleFont, SetTitleFont
 
 procedure TANDMR_CCheckBox.SetTransparent(const Value: Boolean);
 begin

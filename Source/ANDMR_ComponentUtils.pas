@@ -38,6 +38,13 @@ type
     pmtDateDMY
   );
 
+  TCEditPredefinedStyle = (
+    cepsNormal,
+    cepsError,
+    cepsWarning,
+    cepsSuccess
+  );
+
   TTagType = (ttDefault, ttString, ttExtended, ttObject);
 
   TANDMR_Tag = class(TPersistent)

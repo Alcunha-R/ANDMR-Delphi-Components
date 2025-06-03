@@ -31,42 +31,10 @@ type
     FIsHovering: Boolean;
 
     // Property Getters/Setters
-    function GetColor: TColor;
-    procedure SetColor(const Value: TColor);
-    function GetBorderColor: TColor;
-    procedure SetBorderColor(const Value: TColor);
-    function GetBorderThickness: Integer;
-    procedure SetBorderThickness(const Value: Integer);
-    function GetBorderStyle: TPenStyle;
-    procedure SetBorderStyle(const Value: TPenStyle);
-    function GetCornerRadius: Integer;
-    procedure SetCornerRadius(const Value: Integer);
-    function GetRoundCornerType: TRoundCornerType;
-    procedure SetRoundCornerType(const Value: TRoundCornerType);
-    function GetCaption: string;
-    procedure SetCaption(const Value: string);
-    // GetFont and SetFont are now in protected
-    function GetDropShadowEnabled: Boolean;
-    procedure SetDropShadowEnabled(const Value: Boolean);
-    function GetDropShadowColor: TColor;
-    procedure SetDropShadowColor(const Value: TColor);
-    function GetDropShadowOffset: TPoint;
-    procedure SetDropShadowOffset(const Value: TPoint);
-    function GetDropShadowBlurRadius: Integer;
-    procedure SetDropShadowBlurRadius(const Value: Integer);
+    procedure SetBorderSettings(const Value: TBorderSettings);
+    procedure SetCaptionSettings(const Value: TCaptionSettings);
+    procedure SetDropShadowSettings(const Value: TDropShadowSettings);
     procedure SetOpacity(const Value: Byte);
-    function GetCaptionAlignment: System.Classes.TAlignment;
-    procedure SetCaptionAlignment(const Value: System.Classes.TAlignment);
-    function GetCaptionVerticalAlignment: TCaptionVerticalAlignment;
-    procedure SetCaptionVerticalAlignment(const Value: TCaptionVerticalAlignment);
-    function GetCaptionWordWrap: Boolean;
-    procedure SetCaptionWordWrap(const Value: Boolean);
-    function GetCaptionOffsetX: Integer;
-    procedure SetCaptionOffsetX(const Value: Integer);
-    function GetCaptionOffsetY: Integer;
-    procedure SetCaptionOffsetY(const Value: Integer);
-    function GetDisabledFontColor: TColor;
-    procedure SetDisabledFontColor(const Value: TColor);
     procedure SetTransparentChildren(const Value: Boolean);
     procedure SetHoverSettings(const Value: THoverSettings);
 
@@ -83,35 +51,36 @@ type
     procedure Loaded; override;
     procedure Resize; override;
     procedure CreateWnd; override;
-    function GetFont: TFont; // Getter for published Font property
-    procedure SetFont(Value: TFont);   // Removed 'override'
 
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
   published
-    property Color: TColor read GetColor write SetColor default clBtnFace;
+    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings; // New
+    (* property Color: TColor read GetColor write SetColor default clBtnFace;
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
     property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
     property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 0;
-    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctNone;
-    property Caption: string read GetCaption write SetCaption;
+    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctNone; *)
+    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings; // New
+    (* property Caption: string read GetCaption write SetCaption;
     property CaptionAlignment: System.Classes.TAlignment read GetCaptionAlignment write SetCaptionAlignment default taCenter;
     property CaptionVerticalAlignment: TCaptionVerticalAlignment read GetCaptionVerticalAlignment write SetCaptionVerticalAlignment default cvaCenter;
     property CaptionWordWrap: Boolean read GetCaptionWordWrap write SetCaptionWordWrap default False;
     property CaptionOffsetX: Integer read GetCaptionOffsetX write SetCaptionOffsetX default 0;
     property CaptionOffsetY: Integer read GetCaptionOffsetY write SetCaptionOffsetY default 0;
     property DisabledFontColor: TColor read GetDisabledFontColor write SetDisabledFontColor default clGrayText;
-    property Font: TFont read GetFont write SetFont;
+    property Font: TFont read GetFont write SetFont; *)
     property TransparentChildren: Boolean read FTransparentChildren write SetTransparentChildren default False;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
+    property DropShadowSettings: TDropShadowSettings read FDropShadowSettings write SetDropShadowSettings; // New
 
-    property DropShadowEnabled: Boolean read GetDropShadowEnabled write SetDropShadowEnabled default False;
+    (* property DropShadowEnabled: Boolean read GetDropShadowEnabled write SetDropShadowEnabled default False;
     property DropShadowColor: TColor read GetDropShadowColor write SetDropShadowColor default clBlack;
     property DropShadowOffset: TPoint read GetDropShadowOffset write SetDropShadowOffset;
-    property DropShadowBlurRadius: Integer read GetDropShadowBlurRadius write SetDropShadowBlurRadius default 3;
+    property DropShadowBlurRadius: Integer read GetDropShadowBlurRadius write SetDropShadowBlurRadius default 3; *)
     property Opacity: Byte read FOpacity write SetOpacity default 255;
 
     property Align;
@@ -227,70 +196,23 @@ begin
   Invalidate;
 end;
 
-function TANDMR_CPanel.GetColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
-procedure TANDMR_CPanel.SetColor(const Value: TColor); begin FBorderSettings.BackgroundColor := Value; end;
-
-function TANDMR_CPanel.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
-procedure TANDMR_CPanel.SetBorderColor(const Value: TColor); begin FBorderSettings.Color := Value; end;
-
-function TANDMR_CPanel.GetBorderThickness: Integer; begin Result := FBorderSettings.Thickness; end;
-procedure TANDMR_CPanel.SetBorderThickness(const Value: Integer); begin FBorderSettings.Thickness := Max(0,Value); end;
-
-function TANDMR_CPanel.GetBorderStyle: TPenStyle; begin Result := FBorderSettings.Style; end;
-procedure TANDMR_CPanel.SetBorderStyle(const Value: TPenStyle); begin FBorderSettings.Style := Value; end;
-
-function TANDMR_CPanel.GetCornerRadius: Integer; begin Result := FBorderSettings.CornerRadius; end;
-procedure TANDMR_CPanel.SetCornerRadius(const Value: Integer);
+procedure TANDMR_CPanel.SetBorderSettings(const Value: TBorderSettings);
 begin
-  if FBorderSettings.CornerRadius <> Max(0,Value) then
-  begin
-    FBorderSettings.CornerRadius := Max(0,Value);
-  end;
+  FBorderSettings.Assign(Value);
+  SettingsChanged(Self);
 end;
 
-function TANDMR_CPanel.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
-procedure TANDMR_CPanel.SetRoundCornerType(const Value: TRoundCornerType);
+procedure TANDMR_CPanel.SetCaptionSettings(const Value: TCaptionSettings);
 begin
-  if FBorderSettings.RoundCornerType <> Value then
-  begin
-    FBorderSettings.RoundCornerType := Value;
-  end;
+  FCaptionSettings.Assign(Value);
+  SettingsChanged(Self);
 end;
 
-function TANDMR_CPanel.GetCaption: string; begin Result := FCaptionSettings.Text; end;
-procedure TANDMR_CPanel.SetCaption(const Value: string); begin FCaptionSettings.Text := Value; end;
-
-function TANDMR_CPanel.GetFont: TFont;
+procedure TANDMR_CPanel.SetDropShadowSettings(const Value: TDropShadowSettings);
 begin
-  Result := FCaptionSettings.Font;
+  FDropShadowSettings.Assign(Value);
+  SettingsChanged(Self);
 end;
-
-procedure TANDMR_CPanel.SetFont(Value: TFont);
-begin
-  // The published Font property should directly control the caption's font.
-  // FCaptionSettings.Font.Assign will trigger FCaptionSettings.Font.OnChange,
-  // which in turn calls FCaptionSettings.Changed, which calls Self.SettingsChanged.
-  FCaptionSettings.Font.Assign(Value);
-  // The Invalidate call here is therefore redundant if FCaptionSettings.OnChange works.
-  // However, keeping it for safety or if direct sub-property changes of Font
-  // (e.g., Font.Name := 'Arial') are made elsewhere and don't trigger through Assign.
-  // For now, let's assume FCaptionSettings.OnChange is sufficient.
-  // If Self.Invalidate is still needed, it can be added back, but
-  // TCaptionSettings.FontChanged calls Changed, which calls FOnChange, which is Self.SettingsChanged.
-  // Self.SettingsChanged calls Invalidate. So it should be fine.
-end;
-
-function TANDMR_CPanel.GetDropShadowEnabled: Boolean; begin Result := FDropShadowSettings.Enabled; end;
-procedure TANDMR_CPanel.SetDropShadowEnabled(const Value: Boolean); begin FDropShadowSettings.Enabled := Value; end;
-
-function TANDMR_CPanel.GetDropShadowColor: TColor; begin Result := FDropShadowSettings.Color; end;
-procedure TANDMR_CPanel.SetDropShadowColor(const Value: TColor); begin FDropShadowSettings.Color := Value; end;
-
-function TANDMR_CPanel.GetDropShadowOffset: TPoint; begin Result := FDropShadowSettings.Offset; end;
-procedure TANDMR_CPanel.SetDropShadowOffset(const Value: TPoint); begin FDropShadowSettings.Offset := Value; end;
-
-function TANDMR_CPanel.GetDropShadowBlurRadius: Integer; begin Result := FDropShadowSettings.BlurRadius; end;
-procedure TANDMR_CPanel.SetDropShadowBlurRadius(const Value: Integer); begin FDropShadowSettings.BlurRadius := Max(0,Value); end;
 
 procedure TANDMR_CPanel.SetOpacity(const Value: Byte);
 begin
@@ -310,24 +232,6 @@ begin
     Invalidate;
   end;
 end;
-
-function TANDMR_CPanel.GetCaptionAlignment: System.Classes.TAlignment; begin Result := FCaptionSettings.Alignment; end;
-procedure TANDMR_CPanel.SetCaptionAlignment(const Value: System.Classes.TAlignment); begin FCaptionSettings.Alignment := Value; end;
-
-function TANDMR_CPanel.GetCaptionVerticalAlignment: TCaptionVerticalAlignment; begin Result := FCaptionSettings.VerticalAlignment; end;
-procedure TANDMR_CPanel.SetCaptionVerticalAlignment(const Value: TCaptionVerticalAlignment); begin FCaptionSettings.VerticalAlignment := Value; end;
-
-function TANDMR_CPanel.GetCaptionWordWrap: Boolean; begin Result := FCaptionSettings.WordWrap; end;
-procedure TANDMR_CPanel.SetCaptionWordWrap(const Value: Boolean); begin FCaptionSettings.WordWrap := Value; end;
-
-function TANDMR_CPanel.GetCaptionOffsetX: Integer; begin Result := FCaptionSettings.Offset.X; end;
-procedure TANDMR_CPanel.SetCaptionOffsetX(const Value: Integer); begin FCaptionSettings.Offset := Point(Value, FCaptionSettings.Offset.Y); end;
-
-function TANDMR_CPanel.GetCaptionOffsetY: Integer; begin Result := FCaptionSettings.Offset.Y; end;
-procedure TANDMR_CPanel.SetCaptionOffsetY(const Value: Integer); begin FCaptionSettings.Offset := Point(FCaptionSettings.Offset.X, Value); end;
-
-function TANDMR_CPanel.GetDisabledFontColor: TColor; begin Result := FCaptionSettings.DisabledColor; end;
-procedure TANDMR_CPanel.SetDisabledFontColor(const Value: TColor); begin FCaptionSettings.DisabledColor := Value; end;
 
 procedure TANDMR_CPanel.SetTransparentChildren(const Value: Boolean);
 begin

@@ -5,30 +5,26 @@ interface
 uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
-  ANDMR_ComponentUtils, // Already includes System.Types for TPoint
+  ANDMR_ComponentUtils,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Vcl.Imaging.pngimage,
   System.Math;
 
 type
   TANDMR_CMemo = class(TCustomControl)
   private
-    // New Settings Objects
     FBorderSettings: TBorderSettings;
     FFocusSettings: TFocusSettings;
     FSeparatorSettings: TSeparatorSettings;
-    FImageSettings: TImageSettings; // Contains Picture, Margins, etc.
+    FImageSettings: TImageSettings;
     FCaptionSettings: TCaptionSettings;
     FHoverSettings: THoverSettings;
     FTextMargins: TANDMR_Margins;
 
-    // Fields specific to TANDMR_CMemo or retained temporarily
     FCaptionRect: TRect;
     FHovered: Boolean;
-
     FOpacity: Byte;
     FInternalMemo: TMemo;
 
-    // Event Fields
     FOnChange: TNotifyEvent;
     FOnEnter: TNotifyEvent;
     FOnExit: TNotifyEvent;
@@ -36,7 +32,6 @@ type
     FOnKeyPress: TKeyPressEvent;
     FOnKeyUp: TKeyEvent;
 
-    // Getter/Setter Declarations for Memo Properties
     function GetLines: TStrings;
     procedure SetLines(const Value: TStrings);
     function GetReadOnly: Boolean;
@@ -48,77 +43,20 @@ type
     function GetMaxLength: Integer;
     procedure SetMaxLength(const Value: Integer);
 
-    // Getters/Setters for Appearance Properties (delegating to settings objects)
-    function GetCornerRadius: Integer;
-    procedure SetCornerRadius(const Value: Integer);
-    function GetRoundCornerType: TRoundCornerType;
-    procedure SetRoundCornerType(const Value: TRoundCornerType);
-    function GetInactiveColor: TColor;
-    procedure SetInactiveColor(const Value: TColor);
-    function GetBorderColor: TColor;
-    procedure SetBorderColor(const Value: TColor);
-    function GetBorderThickness: Integer;
-    procedure SetBorderThickness(const Value: Integer);
-    function GetBorderStyle: TPenStyle;
-    procedure SetBorderStyle(const Value: TPenStyle);
-
-    function GetImage: TPicture;
-    procedure SetImage(const Value: TPicture);
-    function GetImageVisible: Boolean;
-    procedure SetImageVisible(const Value: Boolean);
-    function GetImagePosition: TImagePositionSide;
-    procedure SetImagePosition(const Value: TImagePositionSide);
-    function GetImageAlignment: TImageAlignmentVertical;
-    procedure SetImageAlignment(const Value: TImageAlignmentVertical);
-    function GetImageMargins: TANDMR_Margins;
-    procedure SetImageMargins(const Value: TANDMR_Margins);
-    function GetImagePlacement: TImagePlacement;
-    procedure SetImagePlacement(const Value: TImagePlacement);
-    function GetImageDrawMode: TImageDrawMode;
-    procedure SetImageDrawMode(const Value: TImageDrawMode);
-
-    function GetSeparatorVisible: Boolean;
-    procedure SetSeparatorVisible(const Value: Boolean);
-    function GetSeparatorColor: TColor;
-    procedure SetSeparatorColor(const Value: TColor);
-    function GetSeparatorThickness: Integer;
-    procedure SetSeparatorThickness(const Value: Integer);
-    function GetSeparatorPadding: Integer;
-    procedure SetSeparatorPadding(const Value: Integer);
-    function GetSeparatorHeightMode: TSeparatorHeightMode;
-    procedure SetSeparatorHeightMode(const Value: TSeparatorHeightMode);
-    function GetSeparatorCustomHeight: Integer;
-    procedure SetSeparatorCustomHeight(const Value: Integer);
-
+    procedure SetBorderSettings(const Value: TBorderSettings);
+    procedure SetFocusSettings(const Value: TFocusSettings);
+    procedure SetSeparatorSettings(const Value: TSeparatorSettings);
+    procedure SetImageSettings(const Value: TImageSettings);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure SetTextMargins(const Value: TANDMR_Margins);
-
-    function GetFocusBorderColor: TColor;
-    procedure SetFocusBorderColor(const Value: TColor);
-    function GetFocusBorderColorVisible: Boolean;
-    procedure SetFocusBorderColorVisible(const Value: Boolean);
-    function GetFocusBackgroundColor: TColor;
-    procedure SetFocusBackgroundColor(const Value: TColor);
-    function GetFocusBackgroundColorVisible: Boolean;
-    procedure SetFocusBackgroundColorVisible(const Value: Boolean);
-    function GetFocusUnderlineColor: TColor;
-    procedure SetFocusUnderlineColor(const Value: TColor);
-    function GetFocusUnderlineVisible: Boolean;
-    procedure SetFocusUnderlineVisible(const Value: Boolean);
-    function GetFocusUnderlineThickness: Integer;
-    procedure SetFocusUnderlineThickness(const Value: Integer);
-    function GetFocusUnderlineStyle: TPenStyle;
-    procedure SetFocusUnderlineStyle(const Value: TPenStyle);
     procedure SetOpacity(const Value: Byte);
 
-    // Event Handlers for Settings Objects
     procedure SettingsChanged(Sender: TObject);
     procedure CaptionSettingsChanged(Sender: TObject);
     procedure HoverSettingsChanged(Sender: TObject);
     procedure TextMarginsChanged(Sender: TObject);
 
-    // Internal Memo Event Handlers (Delegates)
     procedure InternalMemoChange(Sender: TObject);
     procedure InternalMemoEnter(Sender: TObject);
     procedure InternalMemoExit(Sender: TObject);
@@ -127,7 +65,6 @@ type
     procedure InternalMemoKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
 
   protected
-    // Control Message Handlers
     procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
     procedure CMExit(var Message: TCMExit); message CM_EXIT;
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
@@ -146,52 +83,22 @@ type
     procedure Paint; override;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
   published
-    // Core Memo Properties
     property Lines: TStrings read GetLines write SetLines;
     property ReadOnly: Boolean read GetReadOnly write SetReadOnly default False;
     property WordWrap: Boolean read GetWordWrap write SetWordWrap default True;
     property ScrollBars: TScrollStyle read GetScrollBars write SetScrollBars default ssVertical;
     property MaxLength: Integer read GetMaxLength write SetMaxLength default 0;
 
-    // Appearance Properties
-    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 8;
-    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    property InactiveColor: TColor read GetInactiveColor write SetInactiveColor default clBtnFace;
-    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
-
-    property Image: TPicture read GetImage write SetImage;
-    property ImageVisible: Boolean read GetImageVisible write SetImageVisible default True;
-    property ImagePosition: TImagePositionSide read GetImagePosition write SetImagePosition default ipsLeft;
-    property ImageAlignment: TImageAlignmentVertical read GetImageAlignment write SetImageAlignment default iavCenter;
-    property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins;
-    property ImagePlacement: TImagePlacement read GetImagePlacement write SetImagePlacement default iplInsideBounds;
-    property ImageDrawMode: TImageDrawMode read GetImageDrawMode write SetImageDrawMode default idmProportional;
-
-    property SeparatorVisible: Boolean read GetSeparatorVisible write SetSeparatorVisible default False;
-    property SeparatorColor: TColor read GetSeparatorColor write SetSeparatorColor default clGrayText;
-    property SeparatorThickness: Integer read GetSeparatorThickness write SetSeparatorThickness default 1;
-    property SeparatorPadding: Integer read GetSeparatorPadding write SetSeparatorPadding default 2;
-    property SeparatorHeightMode: TSeparatorHeightMode read GetSeparatorHeightMode write SetSeparatorHeightMode default shmFull;
-    property SeparatorCustomHeight: Integer read GetSeparatorCustomHeight write SetSeparatorCustomHeight default 0;
-
+    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
+    property FocusSettings: TFocusSettings read FFocusSettings write SetFocusSettings;
+    property SeparatorSettings: TSeparatorSettings read FSeparatorSettings write SetSeparatorSettings;
+    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
 
-    property FocusBorderColor: TColor read GetFocusBorderColor write SetFocusBorderColor;
-    property FocusBorderColorVisible: Boolean read GetFocusBorderColorVisible write SetFocusBorderColorVisible;
-    property FocusBackgroundColor: TColor read GetFocusBackgroundColor write SetFocusBackgroundColor;
-    property FocusBackgroundColorVisible: Boolean read GetFocusBackgroundColorVisible write SetFocusBackgroundColorVisible;
-    property FocusUnderlineColor: TColor read GetFocusUnderlineColor write SetFocusUnderlineColor;
-    property FocusUnderlineVisible: Boolean read GetFocusUnderlineVisible write SetFocusUnderlineVisible;
-    property FocusUnderlineThickness: Integer read GetFocusUnderlineThickness write SetFocusUnderlineThickness;
-    property FocusUnderlineStyle: TPenStyle read GetFocusUnderlineStyle write SetFocusUnderlineStyle;
-
     property Opacity: Byte read FOpacity write SetOpacity default 255;
 
-    // Standard Properties
     property Align;
     property Anchors;
     property Constraints;
@@ -204,7 +111,6 @@ type
     property TabStop default True;
     property Visible;
 
-    // Standard Event Properties
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
     property OnEnter: TNotifyEvent read FOnEnter write FOnEnter;
     property OnExit: TNotifyEvent read FOnExit write FOnExit;
@@ -244,8 +150,8 @@ begin
 
   FFocusSettings := TFocusSettings.Create;
   FFocusSettings.OnChange := SettingsChanged;
-  FFocusSettings.BorderColorVisible := True; // Changed
-  FFocusSettings.BorderColor := clHighlight; // Changed
+  FFocusSettings.BorderColorVisible := True;
+  FFocusSettings.BorderColor := clHighlight;
   FFocusSettings.BackgroundColorVisible := False;
   FFocusSettings.BackgroundColor := clWindow;
   FFocusSettings.UnderlineVisible := False;
@@ -263,7 +169,7 @@ begin
   FSeparatorSettings.CustomHeight := 0;
 
   FImageSettings := TImageSettings.Create(Self);
-  FImageSettings.OnChange := SettingsChanged;
+  FImageSettings.OnChange := SettingsChanged; // Ensure this calls the general SettingsChanged
   FImageSettings.Visible := True;
   FImageSettings.Position := ipsLeft;
   FImageSettings.AlignmentVertical := iavCenter;
@@ -336,7 +242,7 @@ end;
 
 procedure TANDMR_CMemo.SettingsChanged(Sender: TObject);
 begin
-  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then // Corrected set elements
+  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
   begin
     Invalidate;
     Exit;
@@ -350,7 +256,7 @@ end;
 
 procedure TANDMR_CMemo.CaptionSettingsChanged(Sender: TObject);
 begin
-  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then // Corrected set elements
+  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
   begin
     Invalidate;
     Exit;
@@ -369,7 +275,7 @@ end;
 
 procedure TANDMR_CMemo.TextMarginsChanged(Sender: TObject);
 begin
-  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then // Corrected set elements
+  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
   begin
     Invalidate;
     Exit;
@@ -414,67 +320,47 @@ begin
   if Assigned(FOnKeyUp) then FOnKeyUp(Self, Key, Shift);
 end;
 
-function TANDMR_CMemo.GetCornerRadius: Integer; begin Result := FBorderSettings.CornerRadius; end;
-procedure TANDMR_CMemo.SetCornerRadius(const Value: Integer); begin FBorderSettings.CornerRadius := Value; end;
-function TANDMR_CMemo.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
-procedure TANDMR_CMemo.SetRoundCornerType(const Value: TRoundCornerType); begin FBorderSettings.RoundCornerType := Value; end;
-function TANDMR_CMemo.GetInactiveColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
-procedure TANDMR_CMemo.SetInactiveColor(const Value: TColor); begin FBorderSettings.BackgroundColor := Value; end;
-function TANDMR_CMemo.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
-procedure TANDMR_CMemo.SetBorderColor(const Value: TColor); begin FBorderSettings.Color := Value; end;
-function TANDMR_CMemo.GetBorderThickness: Integer; begin Result := FBorderSettings.Thickness; end;
-procedure TANDMR_CMemo.SetBorderThickness(const Value: Integer); begin FBorderSettings.Thickness := Value; end;
-function TANDMR_CMemo.GetBorderStyle: TPenStyle; begin Result := FBorderSettings.Style; end;
-procedure TANDMR_CMemo.SetBorderStyle(const Value: TPenStyle); begin FBorderSettings.Style := Value; end;
+procedure TANDMR_CMemo.SetBorderSettings(const Value: TBorderSettings);
+begin
+  FBorderSettings.Assign(Value);
+  SettingsChanged(Self);
+end;
 
-function TANDMR_CMemo.GetImage: TPicture; begin Result := FImageSettings.Picture; end;
-procedure TANDMR_CMemo.SetImage(const Value: TPicture); begin FImageSettings.Picture.Assign(Value); end;
-function TANDMR_CMemo.GetImageVisible: Boolean; begin Result := FImageSettings.Visible; end;
-procedure TANDMR_CMemo.SetImageVisible(const Value: Boolean); begin FImageSettings.Visible := Value; end;
-function TANDMR_CMemo.GetImagePosition: TImagePositionSide; begin Result := FImageSettings.Position; end;
-procedure TANDMR_CMemo.SetImagePosition(const Value: TImagePositionSide); begin FImageSettings.Position := Value; end;
-function TANDMR_CMemo.GetImageAlignment: TImageAlignmentVertical; begin Result := FImageSettings.AlignmentVertical; end;
-procedure TANDMR_CMemo.SetImageAlignment(const Value: TImageAlignmentVertical); begin FImageSettings.AlignmentVertical := Value; end;
-function TANDMR_CMemo.GetImageMargins: TANDMR_Margins; begin Result := FImageSettings.Margins; end;
-procedure TANDMR_CMemo.SetImageMargins(const Value: TANDMR_Margins); begin FImageSettings.Margins.Assign(Value); end;
-function TANDMR_CMemo.GetImagePlacement: TImagePlacement; begin Result := FImageSettings.Placement; end;
-procedure TANDMR_CMemo.SetImagePlacement(const Value: TImagePlacement); begin FImageSettings.Placement := Value; end;
-function TANDMR_CMemo.GetImageDrawMode: TImageDrawMode; begin Result := FImageSettings.DrawMode; end;
-procedure TANDMR_CMemo.SetImageDrawMode(const Value: TImageDrawMode); begin FImageSettings.DrawMode := Value; end;
+procedure TANDMR_CMemo.SetImageSettings(const Value: TImageSettings);
+begin
+  FImageSettings.Assign(Value);
+  SettingsChanged(Self);
+end;
 
-function TANDMR_CMemo.GetSeparatorVisible: Boolean; begin Result := FSeparatorSettings.Visible; end;
-procedure TANDMR_CMemo.SetSeparatorVisible(const Value: Boolean); begin FSeparatorSettings.Visible := Value; end;
-function TANDMR_CMemo.GetSeparatorColor: TColor; begin Result := FSeparatorSettings.Color; end;
-procedure TANDMR_CMemo.SetSeparatorColor(const Value: TColor); begin FSeparatorSettings.Color := Value; end;
-function TANDMR_CMemo.GetSeparatorThickness: Integer; begin Result := FSeparatorSettings.Thickness; end;
-procedure TANDMR_CMemo.SetSeparatorThickness(const Value: Integer); begin FSeparatorSettings.Thickness := Value; end;
-function TANDMR_CMemo.GetSeparatorPadding: Integer; begin Result := FSeparatorSettings.Padding; end;
-procedure TANDMR_CMemo.SetSeparatorPadding(const Value: Integer); begin FSeparatorSettings.Padding := Value; end;
-function TANDMR_CMemo.GetSeparatorHeightMode: TSeparatorHeightMode; begin Result := FSeparatorSettings.HeightMode; end;
-procedure TANDMR_CMemo.SetSeparatorHeightMode(const Value: TSeparatorHeightMode); begin FSeparatorSettings.HeightMode := Value; end;
-function TANDMR_CMemo.GetSeparatorCustomHeight: Integer; begin Result := FSeparatorSettings.CustomHeight; end;
-procedure TANDMR_CMemo.SetSeparatorCustomHeight(const Value: Integer); begin FSeparatorSettings.CustomHeight := Value; end;
+procedure TANDMR_CMemo.SetSeparatorSettings(const Value: TSeparatorSettings);
+begin
+  FSeparatorSettings.Assign(Value);
+  SettingsChanged(Self);
+end;
 
-procedure TANDMR_CMemo.SetCaptionSettings(const Value: TCaptionSettings); begin FCaptionSettings.Assign(Value); end;
-procedure TANDMR_CMemo.SetHoverSettings(const Value: THoverSettings); begin FHoverSettings.Assign(Value); end;
-procedure TANDMR_CMemo.SetTextMargins(const Value: TANDMR_Margins); begin FTextMargins.Assign(Value); end;
+procedure TANDMR_CMemo.SetCaptionSettings(const Value: TCaptionSettings);
+begin
+  FCaptionSettings.Assign(Value);
+  CaptionSettingsChanged(Self);
+end;
 
-function TANDMR_CMemo.GetFocusBorderColor: TColor; begin Result := FFocusSettings.BorderColor; end;
-procedure TANDMR_CMemo.SetFocusBorderColor(const Value: TColor); begin FFocusSettings.BorderColor := Value; end;
-function TANDMR_CMemo.GetFocusBorderColorVisible: Boolean; begin Result := FFocusSettings.BorderColorVisible; end;
-procedure TANDMR_CMemo.SetFocusBorderColorVisible(const Value: Boolean); begin FFocusSettings.BorderColorVisible := Value; end;
-function TANDMR_CMemo.GetFocusBackgroundColor: TColor; begin Result := FFocusSettings.BackgroundColor; end;
-procedure TANDMR_CMemo.SetFocusBackgroundColor(const Value: TColor); begin FFocusSettings.BackgroundColor := Value; end;
-function TANDMR_CMemo.GetFocusBackgroundColorVisible: Boolean; begin Result := FFocusSettings.BackgroundColorVisible; end;
-procedure TANDMR_CMemo.SetFocusBackgroundColorVisible(const Value: Boolean); begin FFocusSettings.BackgroundColorVisible := Value; end;
-function TANDMR_CMemo.GetFocusUnderlineColor: TColor; begin Result := FFocusSettings.UnderlineColor; end;
-procedure TANDMR_CMemo.SetFocusUnderlineColor(const Value: TColor); begin FFocusSettings.UnderlineColor := Value; end;
-function TANDMR_CMemo.GetFocusUnderlineVisible: Boolean; begin Result := FFocusSettings.UnderlineVisible; end;
-procedure TANDMR_CMemo.SetFocusUnderlineVisible(const Value: Boolean); begin FFocusSettings.UnderlineVisible := Value; end;
-function TANDMR_CMemo.GetFocusUnderlineThickness: Integer; begin Result := FFocusSettings.UnderlineThickness; end;
-procedure TANDMR_CMemo.SetFocusUnderlineThickness(const Value: Integer); begin FFocusSettings.UnderlineThickness := Value; end;
-function TANDMR_CMemo.GetFocusUnderlineStyle: TPenStyle; begin Result := FFocusSettings.UnderlineStyle; end;
-procedure TANDMR_CMemo.SetFocusUnderlineStyle(const Value: TPenStyle); begin FFocusSettings.UnderlineStyle := Value; end;
+procedure TANDMR_CMemo.SetHoverSettings(const Value: THoverSettings);
+begin
+  FHoverSettings.Assign(Value);
+  HoverSettingsChanged(Self); // Call HoverSettingsChanged
+end;
+
+procedure TANDMR_CMemo.SetTextMargins(const Value: TANDMR_Margins);
+begin
+  FTextMargins.Assign(Value);
+  TextMarginsChanged(Self);
+end;
+
+procedure TANDMR_CMemo.SetFocusSettings(const Value: TFocusSettings);
+begin
+  FFocusSettings.Assign(Value);
+  SettingsChanged(Self);
+end;
 
 procedure TANDMR_CMemo.SetOpacity(const Value: Byte);
 begin
@@ -546,13 +432,13 @@ end;
 
 procedure TANDMR_CMemo.CMFontChanged(var Message: TMessage);
 begin
-  inherited; // Call the inherited CM_FONTCHANGED handler
+  inherited;
   if Assigned(FInternalMemo) then
   begin
-    FInternalMemo.Font.Assign(Self.Font); // Propagate the change to the internal memo
+    FInternalMemo.Font.Assign(Self.Font);
   end;
-  UpdateInternalMemoBounds; // Font changes can affect layout
-  Invalidate; // Repaint the entire component
+  UpdateInternalMemoBounds;
+  Invalidate;
 end;
 
 procedure TANDMR_CMemo.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
@@ -570,10 +456,10 @@ var
   tempW, tempH: Double;
   EffectiveCaptionOffsetX, EffectiveCaptionOffsetY: Integer;
 begin
-  if not HandleAllocated then // Guard against operations requiring a handle
+  if not HandleAllocated then
   begin
     outImgRect := Rect(0,0,0,0);
-    outTxtRect := Rect(0, 0, Width, Height); // Use Width/Height as a fallback
+    outTxtRect := Rect(0, 0, Width, Height);
     outSepRect := Rect(0,0,0,0);
     Exit;
   end;
@@ -914,7 +800,7 @@ begin
 
       var FocusFrameBG, FocusBorderColor, FocusMemoBG, FocusMemoFontColor, FocusCaptionColor: TColor;
       FocusFrameBG := clNone;
-      FocusBorderColor := FFocusSettings.BorderColor; // Changed: FActiveColor removed, ResolveStateColor handles visibility
+      FocusBorderColor := FFocusSettings.BorderColor;
       FocusMemoBG := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone);
       FocusMemoFontColor := BaseMemoFontColor;
       FocusCaptionColor := BaseCaptionColor;

@@ -11,10 +11,11 @@ uses
 type
   TANDMR_CCheckBox = class(TCustomControl)
   private
+    FBorderSettings: TBorderSettings; // Added
     FChecked: Boolean;
     FCaption: string;
-    FCornerRadius: Integer;
-    FRoundCornerType: TRoundCornerType;
+    // FCornerRadius: Integer; // Moved to FBorderSettings
+    // FRoundCornerType: TRoundCornerType; // Moved to FBorderSettings
     FBoxColorUnchecked: TColor;
     FBoxColorChecked: TColor;
     FCheckMarkColor: TColor;
@@ -26,8 +27,10 @@ type
 
     procedure SetChecked(const Value: Boolean);
     procedure SetCaption(const Value: string);
-    procedure SetCornerRadius(const Value: Integer);
-    procedure SetRoundCornerType(const Value: TRoundCornerType);
+    function GetCornerRadius: Integer; // Getter
+    procedure SetCornerRadius(const Value: Integer); // Setter
+    function GetRoundCornerType: TRoundCornerType; // Getter
+    procedure SetRoundCornerType(const Value: TRoundCornerType); // Setter
     procedure SetBoxColorUnchecked(const Value: TColor);
     procedure SetBoxColorChecked(const Value: TColor);
     procedure SetCheckMarkColor(const Value: TColor);
@@ -38,6 +41,7 @@ type
 
     procedure FontChanged(Sender: TObject);
     procedure InternalHoverSettingsChanged(Sender: TObject);
+    procedure SettingsChanged(Sender: TObject); // Added
 
   protected
     procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
@@ -53,8 +57,8 @@ type
 
     property Checked: Boolean read FChecked write SetChecked;
     property Caption: string read FCaption write SetCaption;
-    property CornerRadius: Integer read FCornerRadius write SetCornerRadius;
-    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType;
+    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius;
+    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType;
     property BoxColorUnchecked: TColor read FBoxColorUnchecked write SetBoxColorUnchecked;
     property BoxColorChecked: TColor read FBoxColorChecked write SetBoxColorChecked;
     property CheckMarkColor: TColor read FCheckMarkColor write SetCheckMarkColor;
@@ -89,21 +93,31 @@ begin
 
   ControlStyle := ControlStyle + [csClickEvents, csDoubleClicks, csReplicatable, csCaptureMouse, csNeedsBorderPaint, csAcceptsControls]; // csAcceptsControls for focus
   FTransparent := False;
-  if FTransparent then
-    ControlStyle := ControlStyle - [csOpaque] + [csParentBackground]
-  else
-    ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
+  // Transparent style setting moved after FBorderSettings initialization if it affects background
 
   Width := 120;
   Height := 24;
 
   FChecked := False;
   FCaption := Name;
-  FCornerRadius := 3;
-  FRoundCornerType := rctAll;
+  // FCornerRadius := 3; // Moved to FBorderSettings
+  // FRoundCornerType := rctAll; // Moved to FBorderSettings
   FBoxColorUnchecked := clWindow;
   FBoxColorChecked := clHighlight;
   FCheckMarkColor := clWindowText;
+
+  FBorderSettings := TBorderSettings.Create;
+  FBorderSettings.OnChange := SettingsChanged;
+  FBorderSettings.CornerRadius := 3;
+  FBorderSettings.RoundCornerType := rctAll;
+  FBorderSettings.BackgroundColor := clNone; // Checkbox itself doesn't have a fill behind the box by default
+  FBorderSettings.Color := clBlack; // Default border color for the box
+  FBorderSettings.Thickness := 1;   // Default border thickness
+
+  if FTransparent then // Apply transparency after FBorderSettings might be involved
+    ControlStyle := ControlStyle - [csOpaque] + [csParentBackground]
+  else
+    ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
 
   FTitleFont := TFont.Create;
   FTitleFont.Name := 'Segoe UI';
@@ -125,6 +139,13 @@ end;
 
 destructor TANDMR_CCheckBox.Destroy;
 begin
+  if Assigned(FBorderSettings) then
+  begin
+    FBorderSettings.OnChange := nil;
+    FBorderSettings.Free;
+    FBorderSettings := nil;
+  end;
+
   if Assigned(FInternalHoverSettings) then
   begin
     FInternalHoverSettings.OnChange := nil;
@@ -140,6 +161,11 @@ begin
   end;
 
   inherited Destroy;
+end;
+
+procedure TANDMR_CCheckBox.SettingsChanged(Sender: TObject);
+begin
+  Invalidate;
 end;
 
 procedure TANDMR_CCheckBox.FontChanged(Sender: TObject);
@@ -283,10 +309,10 @@ begin
       BoxDrawRect,        // ADrawArea
       LBoxFillColor,      // ABackgroundColor
       LBoxBorderColor,    // ABorderColor
-      1,                  // ABorderThickness (Integer)
-      psSolid,            // ABorderStyle
-      FCornerRadius,      // ACornerRadius
-      FRoundCornerType,   // ARoundCornerType
+      FBorderSettings.Thickness, // ABorderThickness (Integer) from FBorderSettings
+      psSolid,            // ABorderStyle (remains psSolid for checkbox)
+      FBorderSettings.CornerRadius,      // ACornerRadius from FBorderSettings
+      FBorderSettings.RoundCornerType,   // ARoundCornerType from FBorderSettings
       255                 // AOpacity
     );
 
@@ -385,13 +411,15 @@ begin
   end;
 end;
 
+function TANDMR_CCheckBox.GetCornerRadius: Integer;
+begin
+  Result := FBorderSettings.CornerRadius;
+end;
+
 procedure TANDMR_CCheckBox.SetCornerRadius(const Value: Integer);
 begin
-  if FCornerRadius <> Value then
-  begin
-    FCornerRadius := Value;
-    Invalidate;
-  end;
+  FBorderSettings.CornerRadius := Value;
+  // FBorderSettings.OnChange will trigger Invalidate via SettingsChanged
 end;
 
 procedure TANDMR_CCheckBox.SetEnabled(Value: Boolean);
@@ -404,14 +432,15 @@ begin
   FInternalHoverSettings.Assign(Value);
 end;
 
-procedure TANDMR_CCheckBox.SetRoundCornerType(
-  const Value: TRoundCornerType);
+procedure TANDMR_CCheckBox.SetRoundCornerType(const Value: TRoundCornerType);
 begin
-  if FRoundCornerType <> Value then
-  begin
-    FRoundCornerType := Value;
-    Invalidate;
-  end;
+  FBorderSettings.RoundCornerType := Value;
+  // FBorderSettings.OnChange will trigger Invalidate via SettingsChanged
+end;
+
+function TANDMR_CCheckBox.GetRoundCornerType: TRoundCornerType;
+begin
+  Result := FBorderSettings.RoundCornerType;
 end;
 
 procedure TANDMR_CCheckBox.SetTitleFont(const Value: TFont);

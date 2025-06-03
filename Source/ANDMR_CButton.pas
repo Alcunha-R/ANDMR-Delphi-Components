@@ -220,51 +220,6 @@ type
     property HideCaptionWhileProcessing: Boolean read FHideCaptionWhileProcessing write SetHideCaptionWhileProcessing default True;
 
     property Anchors;
-    property Enabled read GetEnabled write SetEnabled stored IsEnabledStored;
-    property Caption: string read FCaption write SetCaption;
-    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 12;
-    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read GetActiveColor write SetActiveColor default clTeal;
-    property HoverColor: TColor read GetHoverColor write SetHoverColor;
-    property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
-    property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
-    property TitleFont: TFont read GetTitleFont write SetTitleFont; // Changed
-    property Image: TPicture read GetImage write SetImage; // Changed
-    property TextAlign: TAlignment read GetTextAlign write SetTextAlign default taCenter; // Changed
-
-    property GradientEnabled: Boolean read GetGradientEnabled write SetGradientEnabled default False;
-    property GradientType: TGradientType read GetGradientType write SetGradientType default gtLinearVertical;
-    property GradientStartColor: TColor read GetGradientStartColor write SetGradientStartColor; // Default clNone is handled by TGradientSettings
-    property GradientEndColor: TColor read GetGradientEndColor write SetGradientEndColor; // Default clNone is handled by TGradientSettings
-
-    property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
-    property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
-    property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
-    property ImageStretchMode: TImageStretchMode read GetImageStretchMode write SetImageStretchMode default ismProportional; // Changed
-
-    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
-    property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor;
-    property ClickColor: TColor read FClickColor write SetClickColor default clNone;
-    property ClickBorderColor: TColor read FClickBorderColor write SetClickBorderColor default clNone;
-
-    property Style: TButtonStyle read FStyle write SetStyle default bsSolid;
-    property EnableHoverEffect: Boolean read GetEnableHoverEffect write SetEnableHoverEffect default True;
-    property HoverEffect: THoverEffect read GetHoverEffect write SetHoverEffect default heFade;
-    property ClickEffectDuration: Integer read FClickEffectDuration write SetClickEffectDuration default 200;
-
-    property DisabledCursor: TCursor read FDisabledCursor write SetDisabledCursor default crNo;
-    property OnClick: TNotifyEvent read FOnClick write FOnClick;
-
-    property Transparent: Boolean read FTransparent write SetTransparent default False;
-    property TagString: string read GetTagString write SetTagString;
-    property TagExtended: Extended read GetTagExtended write SetTagExtended;
-    property TagObject: TObject read GetTagObject write SetTagObject;
-
-    property PresetType: TPresetType read FPresetType write SetPresetType default cptNone;
-
-    property Anchors;
     property Constraints;
     property DragCursor;
     property DragKind;
@@ -1502,10 +1457,9 @@ begin
       LShadowOffsetYToUse := 2;
       LShadowAlphaToUse := 60;
 
-      const
-        MATERIAL_SHADOW_OFFSET_X_HOVER_FACTOR = 1.8;
-        MATERIAL_SHADOW_OFFSET_Y_HOVER_FACTOR = 1.8;
-        MATERIAL_SHADOW_ALPHA_HOVER = 90;
+      const  MATERIAL_SHADOW_OFFSET_X_HOVER_FACTOR = 1.8;
+      const  MATERIAL_SHADOW_OFFSET_Y_HOVER_FACTOR = 1.8;
+      const  MATERIAL_SHADOW_ALPHA_HOVER = 90;
 
       if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
       begin
@@ -1611,13 +1565,12 @@ begin
     // >>> START NEW PROGRESS ANIMATION LOGIC <<<
     if FProcessing and FShowProgress then
     begin
-      var
-        LProgressRect: TRect;
-        LArcThickness: Integer;
-        LStartAngle, LSweepAngle: Single;
-        LProgressBarPen: TGPPen;
-        LProgressPath: TGPGraphicsPath;
-        ArcRectF: TGPRectF;
+      var  LProgressRect: TRect;
+      var  LArcThickness: Integer;
+      var  LStartAngle, LSweepAngle: Single;
+      var  LProgressBarPen: TGPPen;
+      var  LProgressPath: TGPGraphicsPath;
+      var  ArcRectF: TGPRectF;
 
       LProgressRect := ClientRect; // Start with full client rect
       // Potentially deflate by border thickness if the animation should be inside the border

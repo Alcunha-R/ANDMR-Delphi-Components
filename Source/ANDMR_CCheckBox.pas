@@ -9,10 +9,12 @@ uses
   ANDMR_ComponentUtils;
 
 type
+  TCheckBoxState = (csUnchecked, csChecked, csIndeterminate);
+
   TANDMR_CCheckBox = class(TCustomControl)
   private
     FBorderSettings: TBorderSettings; // Added
-    FChecked: Boolean;
+    FState: TCheckBoxState;
     FCaption: string;
     // FCornerRadius: Integer; // Moved to FBorderSettings
     // FRoundCornerType: TRoundCornerType; // Moved to FBorderSettings
@@ -25,7 +27,9 @@ type
     FOnCheckChanged: TNotifyEvent;
     FInternalHoverSettings: THoverSettings;
 
+    function GetChecked: Boolean; // Added
     procedure SetChecked(const Value: Boolean);
+    procedure SetState(const Value: TCheckBoxState); // Added
     procedure SetCaption(const Value: string);
     function GetCornerRadius: Integer; // Getter
     procedure SetCornerRadius(const Value: Integer); // Setter
@@ -55,7 +59,11 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
-    property Checked: Boolean read FChecked write SetChecked;
+    property InternalHoverSettings: THoverSettings read FInternalHoverSettings write SetInternalHoverSettings;
+
+  published
+    property Checked: Boolean read GetChecked write SetChecked;
+    property State: TCheckBoxState read FState write SetState; // Added
     property Caption: string read FCaption write SetCaption;
     property CornerRadius: Integer read GetCornerRadius write SetCornerRadius;
     property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType;
@@ -65,12 +73,8 @@ type
     property TitleFont: TFont read FTitleFont write SetTitleFont;
     property Transparent: Boolean read FTransparent write SetTransparent;
     property Enabled: Boolean read GetEnabled write SetEnabled;
-    property InternalHoverSettings: THoverSettings read FInternalHoverSettings write SetInternalHoverSettings;
-
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
     property OnCheckChanged: TNotifyEvent read FOnCheckChanged write FOnCheckChanged;
-  published
-    // Properties will be moved here later
   end;
 
 procedure Register; // Declaration for Register procedure
@@ -98,7 +102,7 @@ begin
   Width := 120;
   Height := 24;
 
-  FChecked := False;
+  FState := csUnchecked;
   FCaption := Name;
   // FCornerRadius := 3; // Moved to FBorderSettings
   // FRoundCornerType := rctAll; // Moved to FBorderSettings
@@ -206,7 +210,11 @@ procedure TANDMR_CCheckBox.Click;
 begin
   if not Enabled then Exit;
 
-  SetChecked(not Checked);
+  case FState of
+    csUnchecked: SetState(csChecked);
+    csChecked: SetState(csUnchecked);
+    csIndeterminate: SetState(csChecked); // Or csUnchecked, depending on desired UX. Let's go with csChecked.
+  end;
 
   if Assigned(FOnClick) then
     FOnClick(Self);
@@ -222,8 +230,11 @@ begin
 
   if Self.Enabled and (Key = VK_SPACE) then
   begin
-    // Perform the same action as a click
-    SetChecked(not Checked); // Toggles state, repaints, and fires OnCheckChanged
+    case FState of
+      csUnchecked: SetState(csChecked);
+      csChecked: SetState(csUnchecked);
+      csIndeterminate: SetState(csChecked); // Consistent with Click
+    end;
 
     // Trigger the standard OnClick event
     if Assigned(FOnClick) then
@@ -274,7 +285,14 @@ begin
     LIsHovering := FInternalHoverSettings.Enabled and (FInternalHoverSettings.CurrentAnimationValue > 0) and Self.Enabled;
     LHoverProgress := FInternalHoverSettings.CurrentAnimationValue / 255.0;
 
-    LCurrentBoxColor := IfThen(FChecked, FBoxColorChecked, FBoxColorUnchecked);
+    // LCurrentBoxColor := IfThen(FChecked, FBoxColorChecked, FBoxColorUnchecked);
+    case FState of
+      csChecked: LCurrentBoxColor := FBoxColorChecked;
+      csUnchecked: LCurrentBoxColor := FBoxColorUnchecked;
+      csIndeterminate: LCurrentBoxColor := FBoxColorUnchecked; // Using Unchecked background for Indeterminate
+    else
+      LCurrentBoxColor := FBoxColorUnchecked;
+    end;
     LCurrentCheckMarkColor := FCheckMarkColor;
     LCurrentCaptionColor := FTitleFont.Color;
 
@@ -316,25 +334,47 @@ begin
       255                 // AOpacity
     );
 
-    if FChecked then
+    if FState = csChecked then
     begin
       CheckmarkThickness := Max(1.5, CheckBoxSquareSize / 8);
-      InnerBoxRect := BoxRect;
-//      System.Types.InflateRect(InnerBoxRect, Single(-CheckBoxSquareSize * 0.25), Single(-CheckBoxSquareSize * 0.25));
+      // InnerBoxRect := BoxRect; // Not strictly needed here if points are relative to BoxRect
+      // System.Types.InflateRect(InnerBoxRect, -CheckBoxSquareSize * 0.20, -CheckBoxSquareSize * 0.20);
 
       LGPPen := TGPPen.Create(ColorToARGB(LCurrentCheckMarkColor, 255), CheckmarkThickness);
       LGPPen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
+      try
+        SetLength(LPoints, 3);
+        LPoints[0].X := BoxRect.X + BoxRect.Width * 0.20;
+        LPoints[0].Y := BoxRect.Y + BoxRect.Height * 0.50;
+        LPoints[1].X := BoxRect.X + BoxRect.Width * 0.45;
+        LPoints[1].Y := BoxRect.Y + BoxRect.Height * 0.75;
+        LPoints[2].X := BoxRect.X + BoxRect.Width * 0.80;
+        LPoints[2].Y := BoxRect.Y + BoxRect.Height * 0.25;
+        if Length(LPoints) > 1 then // Ensure there are at least two points to draw a line
+          LG.DrawLines(LGPPen, PGPPointF(LPoints), Length(LPoints));
+      finally
+        LGPPen.Free;
+      end;
+    end
+    else if FState = csIndeterminate then
+    begin
+      LGPBrush := TGPSolidBrush.Create(ColorToARGB(LCurrentCheckMarkColor, 255));
+      try
+        var IndeterminateSymbolRect: TGPRectF;
+        IndeterminateSymbolRect.Width := BoxRect.Width * 0.5;
+        IndeterminateSymbolRect.Height := BoxRect.Height * 0.5;
+        IndeterminateSymbolRect.X := BoxRect.X + (BoxRect.Width - IndeterminateSymbolRect.Width) / 2;
+        IndeterminateSymbolRect.Y := BoxRect.Y + (BoxRect.Height - IndeterminateSymbolRect.Height) / 2;
 
-      SetLength(LPoints, 3);
-      LPoints[0].X := InnerBoxRect.X + InnerBoxRect.Width * 0.15;
-      LPoints[0].Y := InnerBoxRect.Y + InnerBoxRect.Height * 0.45;
-      LPoints[1].X := InnerBoxRect.X + InnerBoxRect.Width * 0.40;
-      LPoints[1].Y := InnerBoxRect.Y + InnerBoxRect.Height * 0.75;
-      LPoints[2].X := InnerBoxRect.X + InnerBoxRect.Width * 0.85;
-      LPoints[2].Y := InnerBoxRect.Y + InnerBoxRect.Height * 0.25;
-//      LG.DrawLines(LGPPen, LPoints);
+        if IndeterminateSymbolRect.Width < 4 then IndeterminateSymbolRect.Width := 4;
+        if IndeterminateSymbolRect.Height < 4 then IndeterminateSymbolRect.Height := 4;
+        IndeterminateSymbolRect.X := BoxRect.X + (BoxRect.Width - IndeterminateSymbolRect.Width) / 2;
+        IndeterminateSymbolRect.Y := BoxRect.Y + (BoxRect.Height - IndeterminateSymbolRect.Height) / 2;
 
-      LGPPen.Free;
+        LG.FillRectangle(LGPBrush, IndeterminateSymbolRect);
+      finally
+        LGPBrush.Free;
+      end;
     end;
 
     if (FCaption <> '') and (CaptionRect.Right > CaptionRect.Left) then
@@ -391,11 +431,34 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetChecked(const Value: Boolean);
+function TANDMR_CCheckBox.GetChecked: Boolean;
 begin
-  if FChecked <> Value then
+  Result := (FState = csChecked);
+end;
+
+procedure TANDMR_CCheckBox.SetChecked(const Value: Boolean);
+var
+  NewState: TCheckBoxState;
+begin
+  if Value then
+    NewState := csChecked
+  else
+    NewState := csUnchecked;
+
+  if FState <> NewState then
   begin
-    FChecked := Value;
+    FState := NewState;
+    Invalidate;
+    if Assigned(FOnCheckChanged) then
+      FOnCheckChanged(Self);
+  end;
+end;
+
+procedure TANDMR_CCheckBox.SetState(const Value: TCheckBoxState);
+begin
+  if FState <> Value then
+  begin
+    FState := Value;
     Invalidate;
     if Assigned(FOnCheckChanged) then
       FOnCheckChanged(Self);

@@ -153,6 +153,18 @@ type
     procedure SetTagExtended(const Value: Extended);
     procedure SetPresetType(const Value: TPresetType);
 
+    // Getters and Setters for new ImageSettings properties
+    function GetImageAutoSize: Boolean;
+    procedure SetImageAutoSize(const Value: Boolean);
+    function GetImageTargetWidth: Integer;
+    procedure SetImageTargetWidth(const Value: Integer);
+    function GetImageTargetHeight: Integer;
+    procedure SetImageTargetHeight(const Value: Integer);
+    function GetImageHorizontalAlign: TImageHorizontalAlignment;
+    procedure SetImageHorizontalAlign(const Value: TImageHorizontalAlignment);
+    function GetImageVerticalAlign: TImageVerticalAlignment;
+    procedure SetImageVerticalAlign(const Value: TImageVerticalAlignment);
+
   protected
     procedure Paint; override;
     procedure Loaded; override;
@@ -187,6 +199,11 @@ type
     property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
     property ImageStretchMode: TImageStretchMode read GetImageStretchMode write SetImageStretchMode default ismProportional; // Changed
+    property ImageAutoSize: Boolean read GetImageAutoSize write SetImageAutoSize default True;
+    property ImageTargetWidth: Integer read GetImageTargetWidth write SetImageTargetWidth default 0;
+    property ImageTargetHeight: Integer read GetImageTargetHeight write SetImageTargetHeight default 0;
+    property ImageHorizontalAlign: TImageHorizontalAlignment read GetImageHorizontalAlign write SetImageHorizontalAlign default ihaCenter;
+    property ImageVerticalAlign: TImageVerticalAlignment read GetImageVerticalAlign write SetImageVerticalAlign default ivaCenter;
 
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
@@ -1787,119 +1804,185 @@ begin
     // Conditionally draw image and caption
     if not (FProcessing and FProgressSettings.ShowProgress and FProgressSettings.HideCaptionWhileProcessing) then
     begin
-      if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then // Use FImageSettings.Picture
+      LImgW := 0; LImgH := 0; LDrawW := 0; LDrawH := 0; LImgX := 0; LImgY := 0;
+      AvailableWidth := 0; AvailableHeight := 0;
+      var imageCanvasX, imageCanvasY: Integer;
+      var imgAspectRatio, availAspectRatio, targetAspectRatio: Single; // Use Single for AspectRatio
+
+      if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and FImageSettings.Visible then
       begin
-        LImgW := FImageSettings.Picture.Width; LImgH := FImageSettings.Picture.Height; // Use FImageSettings.Picture
-        case FImageSettings.DrawMode of // Use FImageSettings.DrawMode
-        idmProportional: // Changed from ismProportional
+        LImgW := FImageSettings.Picture.Width;
+        LImgH := FImageSettings.Picture.Height;
+
+        AvailableWidth  := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
+        AvailableHeight := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+
+        if FImageSettings.AutoSize then
         begin
-          if (LImgW = 0) or (LImgH = 0) then begin LDrawW := 0; LDrawH := 0; end
-          else
-          begin
-            AvailableWidth  := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right); // Use FImageSettings.Margins
-            AvailableHeight := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom); // Use FImageSettings.Margins
-            if FImagePosition in [ipLeft, ipRight] then
-            begin
-              LDrawH := AvailableHeight;
-              if LImgH <> 0 then LDrawW := Round(LImgW / LImgH * LDrawH) else LDrawW := 0;
-              if LDrawW > AvailableWidth then
-              begin
-                LDrawW := AvailableWidth;
-                if LImgW <> 0 then LDrawH := Round(LImgH / LImgW * LDrawW) else LDrawH := 0;
-              end;
-            end
-            else
+          case FImageSettings.DrawMode of
+            idmStretch:
             begin
               LDrawW := AvailableWidth;
-              if LImgW <> 0 then LDrawH := Round(LImgH / LImgW * LDrawW) else LDrawH := 0;
-              if LDrawH > AvailableHeight then
+              LDrawH := AvailableHeight;
+            end;
+            idmProportional:
+            begin
+              if (LImgW = 0) or (LImgH = 0) or (AvailableWidth <= 0) or (AvailableHeight <= 0) then
+              begin LDrawW := 0; LDrawH := 0; end
+              else
               begin
-                LDrawH := AvailableHeight;
-                if LImgH <> 0 then LDrawW := Round(LImgW / LImgH * LDrawH) else LDrawW := 0;
+                imgAspectRatio := LImgW / LImgH;
+                availAspectRatio := AvailableWidth / AvailableHeight;
+                if availAspectRatio > imgAspectRatio then // Fit to height
+                begin
+                  LDrawH := AvailableHeight;
+                  LDrawW := Round(LDrawH * imgAspectRatio);
+                end
+                else // Fit to width
+                begin
+                  LDrawW := AvailableWidth;
+                  LDrawH := Round(LDrawW / imgAspectRatio);
+                end;
               end;
             end;
+            idmNormal:
+            begin
+              LDrawW := LImgW;
+              LDrawH := LImgH;
+            end;
+          else // Should not happen, but default to normal
+            LDrawW := LImgW; LDrawH := LImgH;
+          end;
+        end
+        else // Not AutoSize (use TargetWidth, TargetHeight)
+        begin
+          var targetW, targetH: Integer;
+          targetW := FImageSettings.TargetWidth;
+          targetH := FImageSettings.TargetHeight;
+
+          case FImageSettings.DrawMode of
+            idmStretch:
+            begin
+              LDrawW := targetW;
+              LDrawH := targetH;
+            end;
+            idmProportional:
+            begin
+              if (LImgW = 0) or (LImgH = 0) or (targetW <= 0) or (targetH <= 0) then
+              begin LDrawW := 0; LDrawH := 0; end
+              else
+              begin
+                imgAspectRatio := LImgW / LImgH;
+                targetAspectRatio := targetW / targetH;
+                if targetAspectRatio > imgAspectRatio then // Fit to target height
+                begin
+                  LDrawH := targetH;
+                  LDrawW := Round(LDrawH * imgAspectRatio);
+                end
+                else // Fit to target width
+                begin
+                  LDrawW := targetW;
+                  LDrawH := Round(LDrawW / imgAspectRatio);
+                end;
+              end;
+            end;
+            idmNormal:
+            begin
+              LDrawW := LImgW;
+              LDrawH := LImgH;
+              // Optionally clip to target dimensions if idmNormal should not exceed target
+              // LDrawW := Min(LDrawW, targetW);
+              // LDrawH := Min(LDrawH, targetH);
+            end;
+          else // Should not happen, but default to normal (respecting original image size)
+            LDrawW := LImgW; LDrawH := LImgH;
           end;
         end;
-        idmStretch: // Changed from ismFlat
-        begin
-          LDrawW := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right); // Use FImageSettings.Margins
-          LDrawH := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom); // Use FImageSettings.Margins
-        end;
-      else LDrawW := LImgW; LDrawH := LImgH; // Default case if FImageSettings.DrawMode is neither
-      end;
 
-      if (LImgW > 0) and (LDrawW <=0) then LDrawW := Min(LImgW, Max(0, LImageClipRect.Width div 3));
-      if (LImgH > 0) and (LDrawH <=0) then LDrawH := Min(LImgH, Max(0, LImageClipRect.Height div 3));
+        LDrawW := Max(0, LDrawW);
+        LDrawH := Max(0, LDrawH);
 
-      case FImagePosition of
-        ipLeft:
-        begin
-          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left; // Use FImageSettings.Margins
-          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top + (Max(0,LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom - LDrawH)) div 2; // Use FImageSettings.Margins
-          LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top, // Use FImageSettings.Margins
-                            LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
-        end;
-        ipRight:
-        begin
-          LImgX := LImageClipRect.Right - LDrawW - FImageSettings.Margins.Right; // Use FImageSettings.Margins
-          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top + (Max(0,LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom - LDrawH)) div 2; // Use FImageSettings.Margins
-          LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                            LImgX - FImageSettings.Margins.Left - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom); // Use FImageSettings.Margins
-        end;
-        ipAbove:
-        begin
-          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left + (Max(0,LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right - LDrawW)) div 2; // Use FImageSettings.Margins
-          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top; // Use FImageSettings.Margins
-          LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImgY + LDrawH + FImageSettings.Margins.Bottom + FTextMargins.Top, // Use FImageSettings.Margins
-                            LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
-        end;
-        ipBelow:
-        begin
-          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left + (Max(0,LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right - LDrawW)) div 2; // Use FImageSettings.Margins
-          LImgY := LImageClipRect.Bottom - LDrawH - FImageSettings.Margins.Bottom; // Use FImageSettings.Margins
-          LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                            LImageClipRect.Right - FTextMargins.Right, LImgY - FImageSettings.Margins.Top - FTextMargins.Bottom); // Use FImageSettings.Margins
-        end;
-        ipBehind:
-        begin
-          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left + (Max(0,LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right - LDrawW)) div 2; // Use FImageSettings.Margins
-          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top + (Max(0,LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom - LDrawH)) div 2; // Use FImageSettings.Margins
-          LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                            LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
-        end;
-      else // Default to ipLeft
-        begin
-          LImgX := LImageClipRect.Left + FImageSettings.Margins.Left; // Use FImageSettings.Margins
-          LImgY := LImageClipRect.Top + FImageSettings.Margins.Top + (Max(0,LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom - LDrawH)) div 2; // Use FImageSettings.Margins
-          LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top, // Use FImageSettings.Margins
-                            LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
-        end;
-      end;
-      LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
+        // Clip LDrawW and LDrawH to AvailableWidth and AvailableHeight if they exceed
+        // This is important especially for idmNormal or when TargetWidth/Height are larger than available space
+        if LDrawW > AvailableWidth then LDrawW := AvailableWidth;
+        if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
 
-      if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
+        imageCanvasX := LImageClipRect.Left + FImageSettings.Margins.Left;
+        imageCanvasY := LImageClipRect.Top + FImageSettings.Margins.Top;
+
+        case FImageSettings.HorizontalAlign of
+          ihaLeft:   LImgX := imageCanvasX;
+          ihaCenter: LImgX := imageCanvasX + (AvailableWidth - LDrawW) div 2;
+          ihaRight:  LImgX := imageCanvasX + AvailableWidth - LDrawW;
+        else LImgX := imageCanvasX; // Default to left
+        end;
+
+        case FImageSettings.VerticalAlign of
+          ivaTop:    LImgY := imageCanvasY;
+          ivaCenter: LImgY := imageCanvasY + (AvailableHeight - LDrawH) div 2;
+          ivaBottom: LImgY := imageCanvasY + AvailableHeight - LDrawH;
+        else LImgY := imageCanvasY; // Default to top
+        end;
+
+        // Adjust LTextArea based on image position and dimensions
+        case FImagePosition of
+          ipLeft:
+            LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left,
+                              LImageClipRect.Top + FTextMargins.Top,
+                              LImageClipRect.Right - FTextMargins.Right,
+                              LImageClipRect.Bottom - FTextMargins.Bottom);
+          ipRight:
+            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
+                              LImageClipRect.Top + FTextMargins.Top,
+                              LImgX - FImageSettings.Margins.Left - FTextMargins.Right,
+                              LImageClipRect.Bottom - FTextMargins.Bottom);
+          ipAbove:
+            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
+                              LImgY + LDrawH + FImageSettings.Margins.Bottom + FTextMargins.Top,
+                              LImageClipRect.Right - FTextMargins.Right,
+                              LImageClipRect.Bottom - FTextMargins.Bottom);
+          ipBelow:
+            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
+                              LImageClipRect.Top + FTextMargins.Top,
+                              LImageClipRect.Right - FTextMargins.Right,
+                              LImgY - FImageSettings.Margins.Top - FTextMargins.Bottom);
+          ipBehind: // Text area covers the whole space, image is behind
+            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
+                              LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
+        else // Default to ipLeft behavior for LTextArea
+           LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left,
+                              LImageClipRect.Top + FTextMargins.Top,
+                              LImageClipRect.Right - FTextMargins.Right,
+                              LImageClipRect.Bottom - FTextMargins.Bottom);
+        end;
+        LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
+
+        if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
+        begin
+          LScaleFactor := 1 + (LHoverProgress * (1.05 - 1)); // Example scale factor
+          var ScaledW, ScaledH: Integer;
+          ScaledW := Round(LDrawW * LScaleFactor);
+          ScaledH := Round(LDrawH * LScaleFactor);
+          // Adjust LDestRect for scaling, centered on original LImgX, LImgY + LDrawW/2, LDrawH/2
+          LDestRect.Left := LImgX + (LDrawW - ScaledW) div 2;
+          LDestRect.Top := LImgY + (LDrawH - ScaledH) div 2;
+          LDestRect.Right := LDestRect.Left + ScaledW;
+          LDestRect.Bottom := LDestRect.Top + ScaledH;
+        end;
+
+        if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
+        begin
+          if FImageSettings.Picture.Graphic is TPNGImage then
+            DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, LDestRect, idmStretch) // Always stretch
+          else if FImageSettings.Picture.Graphic <> nil then
+            DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, LDestRect, idmStretch); // Always stretch
+        end;
+      end
+      else // No image or image not visible
       begin
-        LScaleFactor := 1 + (LHoverProgress * (1.05 - 1));
-        InflateRect(LDestRect, Round(LDrawW * (LScaleFactor - 1) / 2), Round(LDrawH * (LScaleFactor - 1) / 2));
+        LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
+                          LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
       end;
-
-      if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
-      begin
-        // LDestRect is ALREADY calculated based on FImageSettings.DrawMode.
-        // The drawing helpers should stretch the source image into this pre-calculated LDestRect.
-        if FImageSettings.Picture.Graphic is TPNGImage then // Use FImageSettings.Picture
-        begin
-          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, LDestRect, idmStretch); // Always stretch into LDestRect // Use FImageSettings.Picture
-        end
-        else if FImageSettings.Picture.Graphic <> nil then // Use FImageSettings.Picture
-        begin
-          DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, LDestRect, idmStretch); // Always stretch into LDestRect // Use FImageSettings.Picture
-        end;
-      end;
-    end
-    else // No image
-      LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                        LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
 
       if Trim(Self.FCaption) <> '' then
         LFinalCaptionToDraw := Self.FCaption
@@ -1964,6 +2047,58 @@ begin
   if Focused and TabStop and Enabled then
     DrawFocusRect(Canvas.Handle, ClientRect);
 
+end;
+
+{ Getters and Setters for new ImageSettings properties }
+
+function TANDMR_CButton.GetImageAutoSize: Boolean;
+begin
+  Result := FImageSettings.AutoSize;
+end;
+
+procedure TANDMR_CButton.SetImageAutoSize(const Value: Boolean);
+begin
+  FImageSettings.AutoSize := Value;
+end;
+
+function TANDMR_CButton.GetImageTargetWidth: Integer;
+begin
+  Result := FImageSettings.TargetWidth;
+end;
+
+procedure TANDMR_CButton.SetImageTargetWidth(const Value: Integer);
+begin
+  FImageSettings.TargetWidth := Value;
+end;
+
+function TANDMR_CButton.GetImageTargetHeight: Integer;
+begin
+  Result := FImageSettings.TargetHeight;
+end;
+
+procedure TANDMR_CButton.SetImageTargetHeight(const Value: Integer);
+begin
+  FImageSettings.TargetHeight := Value;
+end;
+
+function TANDMR_CButton.GetImageHorizontalAlign: TImageHorizontalAlignment;
+begin
+  Result := FImageSettings.HorizontalAlign;
+end;
+
+procedure TANDMR_CButton.SetImageHorizontalAlign(const Value: TImageHorizontalAlignment);
+begin
+  FImageSettings.HorizontalAlign := Value;
+end;
+
+function TANDMR_CButton.GetImageVerticalAlign: TImageVerticalAlignment;
+begin
+  Result := FImageSettings.VerticalAlign;
+end;
+
+procedure TANDMR_CButton.SetImageVerticalAlign(const Value: TImageVerticalAlignment);
+begin
+  FImageSettings.VerticalAlign := Value;
 end;
 
 procedure TANDMR_CButton.KeyDown(var Key: Word; Shift: TShiftState);

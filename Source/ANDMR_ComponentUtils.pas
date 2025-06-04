@@ -51,6 +51,9 @@ type
 
   TProgressAnimationStyle = (pasRotatingSemiCircle, pasFullCircularSpinner, pasHorizontalBar, pasBouncingDots);
 
+  TImageHorizontalAlignment = (ihaLeft, ihaCenter, ihaRight);
+  TImageVerticalAlignment = (ivaTop, ivaCenter, ivaBottom);
+
   TANDMR_Tag = class(TPersistent)
   private
     FValue: Variant;
@@ -241,6 +244,9 @@ type
     FPlacement: TImagePlacement;
     FTargetWidth: Integer;      // Added
     FTargetHeight: Integer;     // Added
+    FAutoSize: Boolean;
+    FHorizontalAlign: TImageHorizontalAlignment;
+    FVerticalAlign: TImageVerticalAlignment;
 
     procedure SetPicture(const Value: TPicture);
     procedure SetVisible(const Value: Boolean);
@@ -251,6 +257,9 @@ type
     procedure SetPlacement(const Value: TImagePlacement);
     procedure SetTargetWidth(const Value: Integer);    // Added
     procedure SetTargetHeight(const Value: Integer);   // Added
+    procedure SetAutoSize(const Value: Boolean);
+    procedure SetHorizontalAlign(const Value: TImageHorizontalAlignment);
+    procedure SetVerticalAlign(const Value: TImageVerticalAlignment);
     procedure InternalPictureChanged(Sender: TObject);
     procedure InternalMarginsChanged(Sender: TObject);
   protected
@@ -269,6 +278,9 @@ type
     property Placement: TImagePlacement read FPlacement write SetPlacement default iplInsideBounds;
     property TargetWidth: Integer read FTargetWidth write SetTargetWidth default 0; // Added
     property TargetHeight: Integer read FTargetHeight write SetTargetHeight default 0; // Added
+    property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
+    property HorizontalAlign: TImageHorizontalAlignment read FHorizontalAlign write SetHorizontalAlign default ihaCenter;
+    property VerticalAlign: TImageVerticalAlignment read FVerticalAlign write SetVerticalAlign default ivaCenter;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
@@ -1541,6 +1553,9 @@ begin
   FPlacement := iplInsideBounds;
   FTargetWidth := 0;  // Added initialization
   FTargetHeight := 0; // Added initialization
+  FAutoSize := True;
+  FHorizontalAlign := ihaCenter;
+  FVerticalAlign := ivaCenter;
 end;
 
 destructor TImageSettings.Destroy;
@@ -1577,6 +1592,9 @@ begin
     SetPlacement(LSource.Placement);
     SetTargetWidth(LSource.TargetWidth);     // Added assignment
     SetTargetHeight(LSource.TargetHeight);   // Added assignment
+    SetAutoSize(LSource.AutoSize);
+    SetHorizontalAlign(LSource.HorizontalAlign);
+    SetVerticalAlign(LSource.VerticalAlign);
     // DoChange is called by setters.
   end
   else
@@ -1613,6 +1631,33 @@ begin
   if FTargetHeight <> Value then
   begin
     FTargetHeight := Max(0, Value); // Ensure non-negative
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetAutoSize(const Value: Boolean);
+begin
+  if FAutoSize <> Value then
+  begin
+    FAutoSize := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetHorizontalAlign(const Value: TImageHorizontalAlignment);
+begin
+  if FHorizontalAlign <> Value then
+  begin
+    FHorizontalAlign := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetVerticalAlign(const Value: TImageVerticalAlignment);
+begin
+  if FVerticalAlign <> Value then
+  begin
+    FVerticalAlign := Value;
     DoChange;
   end;
 end;

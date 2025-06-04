@@ -19,6 +19,7 @@ type
     BorderSettings_IsCustomized: Boolean; // For the radio circle's border
     CaptionSettings_IsCustomized: Boolean;
     HoverSettings_IsCustomized: Boolean;
+    OverallComponentBorder_IsCustomized: Boolean;
     // Add more as needed
   end;
 
@@ -26,7 +27,8 @@ type
   private
     FChecked: Boolean;
     FCaptionSettings: TCaptionSettings;
-    FBorderSettings: TBorderSettings; // For the radio circle's border and component background
+    FRadioIndicatorBorderSettings: TBorderSettings; // For the radio circle's border and component background
+    FOverallComponentBorder: TBorderSettings;
     FHoverSettings: THoverSettings;
     FRadioColorUnchecked: TColor; // Color of the radio circle when unchecked
     FRadioColorChecked: TColor;   // Color of the radio circle background when checked (outer part)
@@ -43,7 +45,8 @@ type
     function GetCaption: string;
     procedure SetCaption(const Value: string);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
-    procedure SetBorderSettings(const Value: TBorderSettings);
+    procedure SetRadioIndicatorBorder(const Value: TBorderSettings);
+    procedure SetOverallComponentBorder(const Value: TBorderSettings); // New Setter
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure SetRadioColorUnchecked(const Value: TColor);
     procedure SetRadioColorChecked(const Value: TColor);
@@ -76,7 +79,8 @@ type
     property Checked: Boolean read FChecked write SetChecked default False;
     property Caption: string read GetCaption write SetCaption;
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
-    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings; // For radio circle border & component BG
+    property RadioIndicatorBorder: TBorderSettings read FRadioIndicatorBorderSettings write SetRadioIndicatorBorder; // For radio circle border & component BG
+    property OverallComponentBorder: TBorderSettings read FOverallComponentBorder write SetOverallComponentBorder; // New Property
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
 
     property RadioColorUnchecked: TColor read FRadioColorUnchecked write SetRadioColorUnchecked default clWindow;
@@ -146,14 +150,26 @@ begin
   FRadioColorChecked := clActiveCaption; // A common system color for checked elements
   FMarkColor := clWindowText; // Color of the dot inside
 
-  // BorderSettings for the radio circle itself and component background
-  FBorderSettings := TBorderSettings.Create;
-  FBorderSettings.OnChange := SettingsChanged;
-  FBorderSettings.CornerRadius := Height div 2; // For a circle, radius is half the height
-  FBorderSettings.RoundCornerType := rctAll;    // All corners rounded to make a circle
-  FBorderSettings.BackgroundColor := clNone;    // Component background, clNone for transparent unless FTransparent is false
-  FBorderSettings.Color := clBlack;             // Radio circle border color
-  FBorderSettings.Thickness := 1;               // Radio circle border thickness
+  // BorderSettings for the radio circle itself
+  FRadioIndicatorBorderSettings := TBorderSettings.Create;
+  FRadioIndicatorBorderSettings.OnChange := SettingsChanged;
+  FRadioIndicatorBorderSettings.CornerRadius := Height div 2; // For a circle, radius is half the component height initially
+  FRadioIndicatorBorderSettings.RoundCornerType := rctAll;    // All corners rounded to make a circle
+  FRadioIndicatorBorderSettings.BackgroundColor := clNone;    // Radio indicator's own background area, not component's.
+  FRadioIndicatorBorderSettings.Color := clBlack;             // Radio circle border color
+  FRadioIndicatorBorderSettings.Thickness := 1;               // Radio circle border thickness
+  FRadioIndicatorBorderSettings.Style := psSolid;             // Default style for indicator border
+
+  // Overall Component Border
+  FOverallComponentBorder := TBorderSettings.Create;
+  FOverallComponentBorder.OnChange := SettingsChanged; // Or a new OverallComponentBorderChanged if distinct logic is needed
+  FOverallComponentBorder.CornerRadius := 3;
+  FOverallComponentBorder.RoundCornerType := rctAll;
+  FOverallComponentBorder.BackgroundColor := clNone; // Explicitly not used for overall border's fill
+  FOverallComponentBorder.Color := clGray;
+  FOverallComponentBorder.Thickness := 1;
+  FOverallComponentBorder.Visible := False; // Default to not visible
+  FOverallComponentBorder.Style := psSolid;
 
   // CaptionSettings
   TempCaptionFont := TFont.Create;
@@ -187,9 +203,26 @@ end;
 
 destructor TANDMR_CRadioBox.Destroy;
 begin
-  if Assigned(FBorderSettings) then FreeAndNil(FBorderSettings);
-  if Assigned(FCaptionSettings) then FreeAndNil(FCaptionSettings);
-  if Assigned(FHoverSettings) then FreeAndNil(FHoverSettings);
+  if Assigned(FRadioIndicatorBorderSettings) then
+  begin
+    FRadioIndicatorBorderSettings.OnChange := nil;
+    FreeAndNil(FRadioIndicatorBorderSettings);
+  end;
+  if Assigned(FOverallComponentBorder) then
+  begin
+    FOverallComponentBorder.OnChange := nil;
+    FreeAndNil(FOverallComponentBorder);
+  end;
+  if Assigned(FCaptionSettings) then
+  begin
+    FCaptionSettings.OnChange := nil;
+    FreeAndNil(FCaptionSettings);
+  end;
+  if Assigned(FHoverSettings) then
+  begin
+    FHoverSettings.OnChange := nil;
+    FreeAndNil(FHoverSettings);
+  end;
   inherited Destroy;
 end;
 
@@ -227,13 +260,25 @@ begin
         if not FUserOverrides.RadioColorChecked_IsSet then Self.RadioColorChecked := clActiveCaption;
         if not FUserOverrides.MarkColor_IsSet then Self.MarkColor := clWindowText;
 
-        if not FUserOverrides.BorderSettings_IsCustomized then
+        if not FUserOverrides.BorderSettings_IsCustomized then // For RadioIndicatorBorder
         begin
-          Self.BorderSettings.Color := clBlack;
-          Self.BorderSettings.Thickness := 1;
-          Self.BorderSettings.CornerRadius := Height div 2; // Keep it circular
-          Self.BorderSettings.RoundCornerType := rctAll;
-          Self.BorderSettings.BackgroundColor := clNone; // Component BG
+          Self.RadioIndicatorBorder.Color := clBlack; // Radio circle border
+          Self.RadioIndicatorBorder.Thickness := 1;
+          // Assuming a typical indicator diameter of 16px for styling purposes
+          Self.RadioIndicatorBorder.CornerRadius := 8; // Half of 16px
+          Self.RadioIndicatorBorder.RoundCornerType := rctAll;
+          Self.RadioIndicatorBorder.Style := psSolid;
+          Self.RadioIndicatorBorder.BackgroundColor := clNone; // Important for radio indicator
+        end;
+
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+          Self.OverallComponentBorder.Visible := False; // Default: no overall border for radio
+          Self.OverallComponentBorder.Color := clGray;
+          Self.OverallComponentBorder.Thickness := 1;
+          Self.OverallComponentBorder.CornerRadius := 3; // General small radius
+          Self.OverallComponentBorder.RoundCornerType := rctAll;
+          Self.OverallComponentBorder.Style := psSolid;
         end;
 
         if not FUserOverrides.CaptionSettings_IsCustomized then
@@ -265,8 +310,10 @@ begin
   if not FApplyingStyle then
   begin
     FCurrentStyle := crsCustom;
-    if Sender = FBorderSettings then
-      FUserOverrides.BorderSettings_IsCustomized := True
+    if Sender = FRadioIndicatorBorderSettings then
+      FUserOverrides.BorderSettings_IsCustomized := True // This flags indicator border customization
+    else if Sender = FOverallComponentBorder then
+      FUserOverrides.OverallComponentBorder_IsCustomized := True // This flags overall component border customization
     else if Sender = FCaptionSettings then
       FUserOverrides.CaptionSettings_IsCustomized := True;
   end;
@@ -344,13 +391,24 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SetBorderSettings(const Value: TBorderSettings);
+procedure TANDMR_CRadioBox.SetRadioIndicatorBorder(const Value: TBorderSettings);
 begin
-  FBorderSettings.Assign(Value);
+  FRadioIndicatorBorderSettings.Assign(Value);
   if not FApplyingStyle then
   begin
     FCurrentStyle := crsCustom;
     FUserOverrides.BorderSettings_IsCustomized := True;
+  end;
+  Invalidate;
+end;
+
+procedure TANDMR_CRadioBox.SetOverallComponentBorder(const Value: TBorderSettings);
+begin
+  FOverallComponentBorder.Assign(Value);
+  if not FApplyingStyle then
+  begin
+    FCurrentStyle := crsCustom;
+    FUserOverrides.OverallComponentBorder_IsCustomized := True;
   end;
   Invalidate;
 end;
@@ -487,6 +545,10 @@ var
   LClientRectF: TGPRectF;
   TextMargin: Integer;       // Space between radio circle and text
   EffectiveBorderThickness: Integer;
+
+  OverallBorderPaintRect: TRect; // Rect for drawing the overall component border
+  ContentPaintRect: TRect;       // Rect inside the overall component border
+  LOverallBorderColor: TColor;
 begin
   inherited Paint;
 
@@ -504,8 +566,11 @@ begin
       var BackgroundBrush: TGPSolidBrush;
       var ComponentBGColor: TColor;
 
-      if FBorderSettings.BackgroundColor <> clNone then
-        ComponentBGColor := FBorderSettings.BackgroundColor
+      // Component background logic: uses FRadioIndicatorBorderSettings.BackgroundColor if set, otherwise Self.Color.
+      // Given FRadioIndicatorBorderSettings.BackgroundColor is clNone by default for radio indicator,
+      // Self.Color will typically define the component background unless FTransparent is True.
+      if FRadioIndicatorBorderSettings.BackgroundColor <> clNone then
+        ComponentBGColor := FRadioIndicatorBorderSettings.BackgroundColor
       else
         ComponentBGColor := Self.Color; // Fallback to control's own Color property
 
@@ -522,51 +587,77 @@ begin
     end
     else
     begin
-      // If transparent, VCL handles parent background if csParentBackground is set in ControlStyle.
-      // csParentBackground is typically set/unset in the SetTransparent method.
-      // If more explicit control is needed, one might call:
-      // StyleServices.DrawParentBackground(Self, Canvas.Handle, nil, True);
-      // However, relying on ControlStyle is standard.
+      // VCL handles parent background if csParentBackground is set.
     end;
 
-    // --- 2. Determine Radio Element Size & Position ---
-    // Radio button is typically circular, its diameter based on component height.
-    // Subtract padding and border thickness from available height for the actual radio graphic diameter.
-    EffectiveBorderThickness := FBorderSettings.Thickness;
-    RadioDiameter := Max(8, Self.Height - (Padding * 2)); // Max ensures minimum clickable size, adjust as needed
+    // --- 1.5 Overall Component Border ---
+    OverallBorderPaintRect := ClientRect;
+    ContentPaintRect := ClientRect; // Will be deflated if border is visible
 
-    // Actual drawing diameter for the outer circle graphic, ensuring it fits with border
+    LIsHovering := FHoverSettings.Enabled and (FHoverSettings.CurrentAnimationValue > 0) and Self.Enabled;
+    LHoverProgress := FHoverSettings.CurrentAnimationValue / 255.0;
+
+    if FOverallComponentBorder.Visible and (FOverallComponentBorder.Thickness > 0) then
+    begin
+      LOverallBorderColor := FOverallComponentBorder.Color;
+      // Note: Hover effect for overall border is not explicitly defined in FHoverSettings yet.
+      // For now, it only changes with Enabled state. Styles can override color directly.
+      if not Self.Enabled then
+      begin
+        LOverallBorderColor := BlendColors(LOverallBorderColor, clGray, 0.60);
+      end;
+
+      ANDMR_ComponentUtils.DrawEditBox(
+        LG, OverallBorderPaintRect, clNone, // Fill is by component background already drawn
+        LOverallBorderColor, FOverallComponentBorder.Thickness,
+        FOverallComponentBorder.Style, FOverallComponentBorder.CornerRadius,
+        FOverallComponentBorder.RoundCornerType, 255 // Opacity
+      );
+      // Deflate ContentPaintRect to be inside the overall border
+      InflateRect(ContentPaintRect, -FOverallComponentBorder.Thickness, -FOverallComponentBorder.Thickness);
+    end;
+
+    // --- 2. Determine Radio Element Size & Position (within ContentPaintRect) ---
+    EffectiveBorderThickness := FRadioIndicatorBorderSettings.Thickness;
+    // RadioDiameter based on ContentPaintRect's height
+    RadioDiameter := Max(8, ContentPaintRect.Height - (Padding * 2));
+
     ActualRadioDiameter := RadioDiameter - EffectiveBorderThickness;
-    if Odd(ActualRadioDiameter) then Dec(ActualRadioDiameter); // Keep even for better centering of mark
+    if Odd(ActualRadioDiameter) then Dec(ActualRadioDiameter);
 
     RadioOuterRect.Width  := ActualRadioDiameter;
     RadioOuterRect.Height := ActualRadioDiameter;
-    // Positioned to the left, considering border thickness for accurate placement
-    RadioOuterRect.X      := Padding + (EffectiveBorderThickness div 2);
-    RadioOuterRect.Y      := (Self.Height - ActualRadioDiameter) / 2;
+    // Positioned relative to ContentPaintRect
+    RadioOuterRect.X      := ContentPaintRect.Left + Padding + (EffectiveBorderThickness div 2);
+    RadioOuterRect.Y      := ContentPaintRect.Top + (ContentPaintRect.Height - ActualRadioDiameter) / 2;
 
 
-    // --- 3. Calculate Caption Paint Rect ---
-    CaptionPaintRect := ClientRect; // Start with full client rect
-    CaptionPaintRect.Left := Round(RadioOuterRect.X + ActualRadioDiameter + (EffectiveBorderThickness div 2) + TextMargin);
-    CaptionPaintRect.Top := Padding;
-    CaptionPaintRect.Bottom := Self.Height - Padding;
-    CaptionPaintRect.Right := Self.Width - Padding;
+    // --- 3. Calculate Caption Paint Rect (within ContentPaintRect) ---
+    CaptionPaintRect := ContentPaintRect; // Start with content rect
+    CaptionPaintRect.Left := Round(RadioOuterRect.X - ContentPaintRect.Left + ActualRadioDiameter + (EffectiveBorderThickness div 2) + TextMargin) + ContentPaintRect.Left;
+    CaptionPaintRect.Top    := ContentPaintRect.Top + Padding;
+    CaptionPaintRect.Bottom := ContentPaintRect.Top + ContentPaintRect.Height - Padding;
+    CaptionPaintRect.Right  := ContentPaintRect.Left + ContentPaintRect.Width - Padding;
+    // Ensure valid rect
+    if CaptionPaintRect.Right < CaptionPaintRect.Left then CaptionPaintRect.Right := CaptionPaintRect.Left;
+    if CaptionPaintRect.Bottom < CaptionPaintRect.Top then CaptionPaintRect.Bottom := CaptionPaintRect.Top;
 
 
     // --- 4. Determine Colors and Font based on State (Hover, Disabled) ---
     LCurrentRadioColorUnchecked := Self.FRadioColorUnchecked;
-    LCurrentRadioColorChecked   := Self.FRadioColorChecked; // This is the fill of the radio circle when checked
-    LCurrentMarkColor           := Self.FMarkColor;        // This is the inner dot
-    LCurrentRadioBorderColorToUse := Self.FBorderSettings.Color;
+    LCurrentRadioColorChecked   := Self.FRadioColorChecked;
+    LCurrentMarkColor           := Self.FMarkColor;
+    LCurrentRadioBorderColorToUse := Self.FRadioIndicatorBorderSettings.Color;
 
     ActualCaptionFont := TFont.Create;
     try
       ActualCaptionFont.Assign(FCaptionSettings.Font);
       LCurrentCaptionColor := ActualCaptionFont.Color; // Start with base caption color
 
-      LIsHovering := FHoverSettings.Enabled and (FHoverSettings.CurrentAnimationValue > 0) and Self.Enabled;
-      LHoverProgress := FHoverSettings.CurrentAnimationValue / 255.0;
+      ActualCaptionFont.Assign(FCaptionSettings.Font);
+      LCurrentCaptionColor := ActualCaptionFont.Color; // Start with base caption color
+
+      // LIsHovering and LHoverProgress are already calculated before overall border drawing
 
       if LIsHovering then
       begin
@@ -575,14 +666,12 @@ begin
         begin
           LCurrentRadioColorUnchecked := BlendColors(LCurrentRadioColorUnchecked, FHoverSettings.BackgroundColor, LHoverProgress);
           LCurrentRadioColorChecked   := BlendColors(LCurrentRadioColorChecked,   FHoverSettings.BackgroundColor, LHoverProgress);
-           // If you want mark color to change on hover too:
-          // LCurrentMarkColor := BlendColors(LCurrentMarkColor, FHoverSettings.BackgroundColor, LHoverProgress);
         end;
         // Hover effect on caption font color
         if FHoverSettings.FontColor <> clNone then
           LCurrentCaptionColor := BlendColors(ActualCaptionFont.Color, FHoverSettings.FontColor, LHoverProgress);
         // Hover effect on radio circle's border color
-        if FHoverSettings.BorderColor <> clNone then
+        if FHoverSettings.BorderColor <> clNone then // This applies to indicator border
            LCurrentRadioBorderColorToUse := BlendColors(LCurrentRadioBorderColorToUse, FHoverSettings.BorderColor, LHoverProgress);
       end;
 
@@ -596,12 +685,12 @@ begin
         if FCaptionSettings.DisabledColor <> clNone then
           LCurrentCaptionColor := FCaptionSettings.DisabledColor
         else
-          LCurrentCaptionColor := BlendColors(ActualCaptionFont.Color, clGray, 0.50); // Default disabled caption color
+          LCurrentCaptionColor := BlendColors(ActualCaptionFont.Color, clGray, 0.50);
       end;
     finally
-      // ActualCaptionFont is freed later after drawing
+      // ActualCaptionFont is used and then freed
     end;
-    ActualCaptionFont.Color := LCurrentCaptionColor; // Apply final calculated color to font
+    ActualCaptionFont.Color := LCurrentCaptionColor;
 
     // --- 5. Draw Radio Element (Circle and Mark) ---
     if FChecked then
@@ -609,26 +698,18 @@ begin
     else
       LRadioFillColorToUse := LCurrentRadioColorUnchecked;
 
-    // Convert TGPRectF to TRect for DrawEditBox
     RadioDrawTRect := System.Types.Rect(
-      Round(RadioOuterRect.X),
-      Round(RadioOuterRect.Y),
-      Round(RadioOuterRect.X + RadioOuterRect.Width),
-      Round(RadioOuterRect.Y + RadioOuterRect.Height)
+      Round(RadioOuterRect.X), Round(RadioOuterRect.Y),
+      Round(RadioOuterRect.X + RadioOuterRect.Width), Round(RadioOuterRect.Y + RadioOuterRect.Height)
     );
 
-    // Draw the radio circle (border and fill)
-    // The 'CornerRadius' for DrawEditBox should be half of the diameter to make it a circle.
     ANDMR_ComponentUtils.DrawEditBox(
-      LG,
-      RadioDrawTRect,
-      LRadioFillColorToUse,
-      LCurrentRadioBorderColorToUse,
-      EffectiveBorderThickness,
-      FBorderSettings.Style,
-      ActualRadioDiameter div 2, // Radius for circle
-      rctAll, // All corners rounded
-      255     // Opacity
+      LG, RadioDrawTRect, LRadioFillColorToUse, LCurrentRadioBorderColorToUse,
+      EffectiveBorderThickness, // From FRadioIndicatorBorderSettings.Thickness
+      FRadioIndicatorBorderSettings.Style, // Use style from FRadioIndicatorBorderSettings
+      ActualRadioDiameter div 2,        // Radius for circle
+      FRadioIndicatorBorderSettings.RoundCornerType, // Use RoundCornerType
+      255
     );
 
     // Draw the inner mark if checked
@@ -671,39 +752,94 @@ begin
     end;
     ActualCaptionFont.Free; // Free the temporary font object
 
-    // --- 7. Draw Focus Rectangle ---
+    // --- 7. Draw Focus Rectangle (within ContentPaintRect) ---
     if Self.Focused and Self.TabStop and Self.Enabled then
     begin
       var FocusBoundsTRect: TRect;
-      // Define bounds for focus rect: encompasses radio and text
-      FocusBoundsTRect.Left   := Padding; // Start from near the radio circle
-      FocusBoundsTRect.Top    := Padding;
-      FocusBoundsTRect.Right  := ClientRect.Width - Padding; // Extend to near component edge
-      FocusBoundsTRect.Bottom := ClientRect.Height - Padding;
+      // Focus rectangle should be within ContentPaintRect
+      FocusBoundsTRect.Left   := ContentPaintRect.Left + Padding div 2;
+      FocusBoundsTRect.Top    := ContentPaintRect.Top + Padding div 2;
+      FocusBoundsTRect.Right  := ContentPaintRect.Left + ContentPaintRect.Width - Padding div 2;
+      FocusBoundsTRect.Bottom := ContentPaintRect.Top + ContentPaintRect.Height - Padding div 2;
 
-      // Use VCL's DrawFocusRect for standard look and feel
-      Self.Canvas.DrawFocusRect(FocusBoundsTRect);
+      // Ensure focus rect is valid
+      if FocusBoundsTRect.Right < FocusBoundsTRect.Left then FocusBoundsTRect.Right := FocusBoundsTRect.Left;
+      if FocusBoundsTRect.Bottom < FocusBoundsTRect.Top then FocusBoundsTRect.Bottom := FocusBoundsTRect.Top;
 
-      // Alternatively, for a GDI+ dashed focus rectangle (like in CCheckBox):
-      {
-      LGPPath := TGPGraphicsPath.Create;
-      LGPPen := nil;
-      try
-        var FocusGPRect: TGPRectF;
-        FocusGPRect.Initialize(FocusBoundsTRect.Left, FocusBoundsTRect.Top, FocusBoundsTRect.Width, FocusBoundsTRect.Height);
-        // Optional: Make path slightly rounded if desired
-        // CreateGPRoundedPath(LGPPath, FocusGPRect, 2, rctAll);
-        LGPPath.AddRectangle(FocusGPRect);
-
-        LGPPen := TGPPen.Create(ColorToARGB(LCurrentCaptionColor, 180)); // Use caption color for focus
-        LGPPen.SetDashStyle(DashStyleDash);
-        LG.DrawPath(LGPPen, LGPPath);
-      finally
-        LGPPath.Free;
-        if Assigned(LGPPen) then LGPPen.Free;
+      // Use VCL's DrawFocusRect for standard look and feel, applied to the content area
+      if (FocusBoundsTRect.Right > FocusBoundsTRect.Left) and (FocusBoundsTRect.Bottom > FocusBoundsTRect.Top) then
+         Self.Canvas.DrawFocusRect(FocusBoundsTRect);
+      // GDI+ alternative can also be used here, making sure it draws within ContentPaintRect
       end;
-      }
+
+  finally
+    LG.Free;
+  end;
+end;
+
+procedure TANDMR_CRadioBox.Click;
+begin
+  if not Enabled then Exit;
+
+  // A radio button once checked, cannot be unchecked by clicking it again.
+  // It's unchecked when another in its group is checked.
+  if not FChecked then
+  begin
+    SetChecked(True); // This will handle unchecking others and calling OnClick
+  end;
+  // We call OnClick regardless of state change because that's standard VCL behavior for many controls.
+  // However, for a radio button, OnClick might be more appropriate only when it becomes checked.
+  // Let's call it always for now to be like TCheckBox, can be refined.
+  inherited Click; // This calls the FOnClick event
+  // if Assigned(FOnClick) then FOnClick(Self); // Redundant if inherited Click does it.
+end;
+
+procedure TANDMR_CRadioBox.KeyDown(var Key: Word; Shift: TShiftState);
+begin
+  inherited KeyDown(Key, Shift);
+  if Key = 0 then Exit;
+
+  if Self.Enabled and (Key = VK_SPACE) then
+  begin
+    if not FChecked then // Only "click" if it's not already checked
+    begin
+      Click; // This will call SetChecked(True)
     end;
+    Key := 0; // Mark key as handled
+  end;
+end;
+
+procedure TANDMR_CRadioBox.CMMouseEnter(var Message: TMessage);
+begin
+  inherited;
+  if Self.Enabled and Assigned(FHoverSettings) and FHoverSettings.Enabled then
+  begin
+    FHoverSettings.StartAnimation(True);
+  end;
+end;
+
+procedure TANDMR_CRadioBox.CMMouseLeave(var Message: TMessage);
+begin
+  inherited;
+  if Assigned(FHoverSettings) then // Always try to stop, even if disabled, to reset state
+  begin
+    FHoverSettings.StartAnimation(False);
+  end;
+end;
+
+procedure TANDMR_CRadioBox.CMEnabledChanged(var Message: TMessage);
+begin
+  inherited;
+  if not Enabled then // If disabled, ensure hover animation is stopped/reset
+  begin
+    if Assigned(FHoverSettings) then FHoverSettings.StartAnimation(False);
+  end;
+  Invalidate;
+end;
+
+end.
+      // GDI+ alternative can also be used here, making sure it draws within ContentPaintRect
+      end;
 
   finally
     LG.Free;

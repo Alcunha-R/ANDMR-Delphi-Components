@@ -37,11 +37,15 @@ type
     FCurrentStyle: TANDMR_CRadioBoxStyle;
     FApplyingStyle: Boolean;      // To prevent re-entrant calls during style application
     FUserOverrides: TRadioUserPropertyOverrides;
+    FIsGroupHovered: Boolean;                  // New field
+    FGroupHoverCaptionBackgroundColor: TColor; // New field
     FOnClick: TNotifyEvent;
     FOnCheckChanged: TNotifyEvent; // Event triggered when FChecked changes
 
     // Property Setters & Getters
     procedure SetChecked(const Value: Boolean);
+    procedure SetIsGroupHovered(const Value: Boolean);                // New setter
+    procedure SetGroupHoverCaptionBackgroundColor(const Value: TColor); // New setter
     function GetCaption: string;
     procedure SetCaption(const Value: string);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
@@ -113,6 +117,10 @@ type
     property OnMouseUp;
     property OnDblClick;
     // Add other relevant inherited properties
+
+    // Group Hover Properties
+    property IsGroupHovered: Boolean read FIsGroupHovered write SetIsGroupHovered;
+    property GroupHoverCaptionBackgroundColor: TColor read FGroupHoverCaptionBackgroundColor write SetGroupHoverCaptionBackgroundColor;
   end;
 
 procedure Register;
@@ -144,6 +152,8 @@ begin
   FTransparent := False;
   FApplyingStyle := False;
   InitializeUserOverrides;
+  FIsGroupHovered := False;
+  FGroupHoverCaptionBackgroundColor := clNone;
 
   // Default colors (can be refined by styles)
   FRadioColorUnchecked := clWindow;
@@ -736,6 +746,23 @@ begin
     end;
 
     // --- 6. Draw Caption ---
+    // Background for caption if group is hovered
+    if FIsGroupHovered and (FGroupHoverCaptionBackgroundColor <> clNone) then
+    begin
+      var TempBrush: TGPSolidBrush;
+      TempBrush := TGPSolidBrush.Create(ColorToARGB(FGroupHoverCaptionBackgroundColor, 255));
+      try
+        var FillRectF: TGPRectF;
+        FillRectF.X := CaptionPaintRect.Left;
+        FillRectF.Y := CaptionPaintRect.Top;
+        FillRectF.Width := CaptionPaintRect.Width;
+        FillRectF.Height := CaptionPaintRect.Height;
+        LG.FillRectangle(TempBrush, FillRectF);
+      finally
+        TempBrush.Free;
+      end;
+    end;
+
     if (FCaptionSettings.Text <> '') and (CaptionPaintRect.Right > CaptionPaintRect.Left) and (CaptionPaintRect.Bottom > CaptionPaintRect.Top) then
     begin
       ANDMR_ComponentUtils.DrawComponentCaption(
@@ -835,6 +862,24 @@ begin
     if Assigned(FHoverSettings) then FHoverSettings.StartAnimation(False);
   end;
   Invalidate;
+end;
+
+procedure TANDMR_CRadioBox.SetIsGroupHovered(const Value: Boolean);
+begin
+  if FIsGroupHovered <> Value then
+  begin
+    FIsGroupHovered := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CRadioBox.SetGroupHoverCaptionBackgroundColor(const Value: TColor);
+begin
+  if FGroupHoverCaptionBackgroundColor <> Value then
+  begin
+    FGroupHoverCaptionBackgroundColor := Value;
+    Invalidate;
+  end;
 end;
 
 end.

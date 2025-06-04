@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
-  ANDMR_CCheckBox, ANDMR_ComponentUtils; // Make sure ANDMR_CCheckBox is in uses
+  ANDMR_CCheckBox, ANDMR_ComponentUtils, ANDMR_CRadioGroup; // Added ANDMR_CRadioGroup
 
 type
   TFormTestCheckBox = class(TForm)
@@ -18,9 +18,11 @@ type
     cbxIOS_Styled: TANDMR_CCheckBox;
     cbxWin11_Disabled: TANDMR_CCheckBox;
     cbxTransparent: TANDMR_CCheckBox;
+    MyRadioGroup: TANDMR_CRadioGroup; // Added MyRadioGroup field
     procedure FormCreate(Sender: TObject);
     procedure GeneralCheckBoxClick(Sender: TObject);
     procedure GeneralCheckBoxChange(Sender: TObject);
+    procedure MyRadioGroupChange(Sender: TObject); // Added procedure declaration
   private
     { Private declarations }
   public
@@ -81,6 +83,14 @@ begin
     CheckBox := TANDMR_CCheckBox(Sender);
     MemoLog.Lines.Add(Format('OnChange: %s, Checked: %s', [CheckBox.Name, BoolToStr(CheckBox.Checked, True)]));
   end;
+end;
+
+procedure TFormTestCheckBox.MyRadioGroupChange(Sender: TObject);
+begin
+  if MyRadioGroup.ItemIndex >= 0 then
+    Self.Caption := 'Selected: ' + MyRadioGroup.Items[MyRadioGroup.ItemIndex]
+  else
+    Self.Caption := 'No selection in radio group';
 end;
 
 end.

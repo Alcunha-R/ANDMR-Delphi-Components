@@ -130,4 +130,19 @@ object FormTestCheckBox: TFormTestCheckBox
     OnClick = GeneralCheckBoxClick
     OnChange = GeneralCheckBoxChange
   end
+  object MyRadioGroup: TANDMR_CRadioGroup
+    Left = 450
+    Top = 24
+    Width = 180
+    Height = 105
+    Caption = 'My Radio Group'
+    Columns = 1
+    Items.Strings = (
+      'Option Alpha'
+      'Option Beta'
+      'Option Gamma')
+    ItemIndex = 0
+    TabOrder = 9
+    OnChange = MyRadioGroupChange
+  end
 end

@@ -38,6 +38,7 @@ contains
   ANDMR_CEdit in 'Source\ANDMR_CEdit.pas',
   ANDMR_ComponentUtils in 'Source\ANDMR_ComponentUtils.pas',
   ANDMR_CPanel in 'Source\ANDMR_CPanel.pas',
-  ANDMR_CCheckBox in 'Source\ANDMR_CCheckBox.pas';
+  ANDMR_CCheckBox in 'Source\ANDMR_CCheckBox.pas',
+  ANDMR_CRadioGroup in 'Source\ANDMR_CRadioGroup.pas';
 
 end.

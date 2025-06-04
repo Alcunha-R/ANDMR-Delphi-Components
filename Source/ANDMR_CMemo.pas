@@ -820,7 +820,6 @@ begin
     else
         SepRefRect := MemoDrawingArea; // Fallback if image outside but not visible
 
-    var SepH: Integer;
     case FSeparatorSettings.HeightMode of
       shmFull:    SepH := SepRefRect.Height;
       shmAsText:  SepH := outTxtRect.Height;

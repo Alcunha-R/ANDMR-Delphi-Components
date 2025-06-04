@@ -818,9 +818,9 @@ begin
 
       var NonHoveredComponentBGColor, TargetStateComponentBGColor, ResolvedComponentFrameBG: TColor;
       var NonHoveredTextAreaBGColor, TargetStateTextAreaBGColor, ActualTextAreaBGColor: TColor; // Renamed ActualEditBGColor
-      var NonHoveredBorderColor, TargetStateBorderColor, ActualEditBorderColor: TColor;
-      var NonHoveredTextColor, TargetStateTextColor, ActualEditTextColor: TColor;
-      var NonHoveredCaptionColor, TargetStateCaptionColor, ActualCaptionTextColor: TColor;
+      var NonHoveredBorderColor, TargetStateBorderColor: TColor;
+      var NonHoveredTextColor, TargetStateTextColor: TColor;
+      var NonHoveredCaptionColor, TargetStateCaptionColor: TColor;
 
       // Define base colors
       TrueBaseComponentBG := FBorderSettings.BackgroundColor; // Background for the entire component frame

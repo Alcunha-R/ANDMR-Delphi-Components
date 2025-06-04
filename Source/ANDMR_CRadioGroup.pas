@@ -5,7 +5,7 @@ interface
 uses
   System.SysUtils, System.Classes, System.Generics.Collections,
   Vcl.Controls, ANDMR_CPanel, ANDMR_CRadioBox, ANDMR_ComponentUtils,
-  Vcl.Graphics, Winapi.Windows; // Ensure Vcl.Graphics is here for TFont, TColor
+  Vcl.Graphics, Winapi.Windows, Winapi.Messages; // Ensure Vcl.Graphics is here for TFont, TColor
 
 type
   TRadioBoxItemSettings = class(TPersistent)
@@ -80,6 +80,8 @@ type
 
     property ItemSettings: TRadioBoxItemSettings read FItemSettings write SetItemSettings;
   end;
+
+procedure Register;
 
 implementation
 
@@ -287,11 +289,15 @@ var
   ActualPaddingX, ActualPaddingY: Integer;
   AvailableWidth: Double;
   // Constants (can be defined globally or locally if preferred)
-  BasePadding: Integer = 4;
-  RadioButtonSpacing: Integer = 4;
-  DefaultRadioButtonHeight: Integer = 24;
+  BasePadding: Integer;
+  RadioButtonSpacing: Integer;
+  DefaultRadioButtonHeight: Integer;
 
 begin
+  BasePadding := 4;
+  RadioButtonSpacing := 4;
+  DefaultRadioButtonHeight := 24;
+
   if (FRadioButtons.Count = 0) or (FColumns <= 0) then
   begin
     Invalidate;
@@ -324,7 +330,7 @@ begin
   end;
 
   ItemsPerColumn := Ceil(FRadioButtons.Count / FColumns);
-  if ItemsPerColumn = 0 && FRadioButtons.Count > 0 then ItemsPerColumn := 1;
+  if (ItemsPerColumn = 0) and (FRadioButtons.Count > 0) then ItemsPerColumn := 1;
 
   AvailableWidth := Self.ClientWidth - (ActualPaddingX * 2);
 
@@ -337,7 +343,7 @@ begin
   // Also ensure it doesn't try to be wider than available space if ActualPaddingX is large
   if ColumnWidth < (DefaultRadioButtonHeight * 2) then
       ColumnWidth := DefaultRadioButtonHeight * 2;
-  if AvailableWidth > 0 && ColumnWidth > AvailableWidth then
+  if (AvailableWidth > 0) and (ColumnWidth > AvailableWidth) then
       ColumnWidth := AvailableWidth;
 
 

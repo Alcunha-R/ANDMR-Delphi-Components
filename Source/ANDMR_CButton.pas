@@ -68,7 +68,6 @@ type
     FOriginalEnabledState: Boolean; // New field
     // End of new fields
 
-    procedure SetImageSettings(const Value: TImageSettings); // Added to fix E2168
     procedure SetProgressSettings(const Value: TProgressSettings); // Added
 
     procedure ProgressTimerHandler(Sender: TObject); // Added
@@ -176,7 +175,7 @@ type
     property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
     property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
     property TitleFont: TFont read GetTitleFont write SetTitleFont; // Changed
-    // Image, ImageMargins, ImageStretchMode removed from published
+    property Image: TPicture read GetImage write SetImage; // Changed
     property TextAlign: TAlignment read GetTextAlign write SetTextAlign default taCenter; // Changed
 
     property GradientEnabled: Boolean read GetGradientEnabled write SetGradientEnabled default False;
@@ -185,10 +184,9 @@ type
     property GradientEndColor: TColor read GetGradientEndColor write SetGradientEndColor; // Default clNone is handled by TGradientSettings
 
     property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
-    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings; // Added
+    property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
-    // ImageStretchMode removed (part of ImageSettings)
-    // ImageMargins removed (part of ImageSettings)
+    property ImageStretchMode: TImageStretchMode read GetImageStretchMode write SetImageStretchMode default ismProportional; // Changed
 
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
@@ -257,12 +255,6 @@ begin
 end;
 
 { TANDMR_CButton }
-
-procedure TANDMR_CButton.SetImageSettings(const Value: TImageSettings);
-begin
-  FImageSettings.Assign(Value);
-  SettingsChanged(Self); // Ensure repaint/update
-end;
 
 constructor TANDMR_CButton.Create(AOwner: TComponent);
 begin
@@ -674,9 +666,9 @@ begin
       cptSave:     begin BaseColor := TColor($00F39621); PresetCaption := 'Salvar';    NewTitleColor := clWhite; end;
       cptEdit:     begin BaseColor := TColor($000098FF); PresetCaption := 'Editar';    NewTitleColor := clBlack; end;
       cptDelete:   begin BaseColor := TColor($003643F4); PresetCaption := 'Excluir';   NewTitleColor := clWhite; end;
-      cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'AvanÃ§ar';   NewTitleColor := clWhite; end;
+      cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'Avançar';   NewTitleColor := clWhite; end;
       cptPrevious: begin BaseColor := TColor($009E9E9E); PresetCaption := 'Voltar';    NewTitleColor := clBlack; end;
-      cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'InformaÃ§Ã£o';NewTitleColor := clBlack; end;
+      cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'Informação';NewTitleColor := clBlack; end;
       cptWarning:  begin BaseColor := TColor($003BEBFF); PresetCaption := 'Aviso';     NewTitleColor := clBlack; end;
       cptHelp:     begin BaseColor := TColor($008B7D60); PresetCaption := 'Ajuda';     NewTitleColor := clWhite; end;
     else
@@ -1143,9 +1135,9 @@ begin
       cptSave: LPresetDefaultCaption := 'Salvar';
       cptEdit: LPresetDefaultCaption := 'Editar';
       cptDelete: LPresetDefaultCaption := 'Excluir';
-      cptNext: LPresetDefaultCaption := 'AvanÃ§ar';
+      cptNext: LPresetDefaultCaption := 'Avançar';
       cptPrevious: LPresetDefaultCaption := 'Voltar';
-      cptInfo: LPresetDefaultCaption := 'InformaÃ§Ã£o';
+      cptInfo: LPresetDefaultCaption := 'Informação';
       cptWarning: LPresetDefaultCaption := 'Aviso';
       cptHelp: LPresetDefaultCaption := 'Ajuda';
     end;

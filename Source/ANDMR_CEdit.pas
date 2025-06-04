@@ -490,8 +490,12 @@ var
   OriginalFont: TFont;
   OriginalImgW, OriginalImgH: Integer;
   availWForImg, availHForImg: Integer;
-  rImageRatio, rAvailBoxRatio: Double;
-  tempW, tempH: Double;
+  rImageRatio, rAvailBoxRatio: Double; // For AutoSize = True
+  tempW, tempH: Double; // For AutoSize = True
+  targetW, targetH: Integer; // For AutoSize = False
+  imgAspectRatio, targetAspectRatio: Single; // For AutoSize = False & Proportional
+  slotStartX, slotAvailableWidth, slotEndX: Integer; // For Horizontal Alignment
+  AvailHForImgLayoutAdjusted: Integer; // For Vertical Alignment
 begin
   FullClientRect := Self.ClientRect;
   FCaptionRect := Rect(0,0,0,0);
@@ -555,47 +559,101 @@ begin
 
       if (availWForImg > 0) and (availHForImg > 0) then
       begin
-        case FImageSettings.DrawMode of
-          idmProportional:
-          begin
-            rImageRatio := OriginalImgW / OriginalImgH;
-            rAvailBoxRatio := availWForImg / availHForImg;
-            if rAvailBoxRatio > rImageRatio then
+        if FImageSettings.AutoSize then
+        begin
+          // AutoSize = True: Use available space
+          case FImageSettings.DrawMode of
+            idmProportional:
             begin
-              ImgH := availHForImg;
-              tempW := availHForImg * rImageRatio;
-              ImgW := Round(tempW);
-              if (ImgW = 0) and (tempW > 0) then ImgW := 1;
-            end
-            else
+              rImageRatio := OriginalImgW / OriginalImgH;
+              rAvailBoxRatio := availWForImg / availHForImg;
+              if rAvailBoxRatio > rImageRatio then // Fit to height
+              begin
+                ImgH := availHForImg;
+                tempW := availHForImg * rImageRatio;
+                ImgW := Round(tempW);
+                if (ImgW = 0) and (tempW > 0) then ImgW := 1;
+              end
+              else // Fit to width
+              begin
+                ImgW := availWForImg;
+                if rImageRatio > 0 then
+                begin
+                  tempH := availWForImg / rImageRatio;
+                  ImgH := Round(tempH);
+                  if (ImgH = 0) and (tempH > 0) then ImgH := 1;
+                end else ImgH := 0;
+              end;
+            end;
+            idmStretch:
             begin
               ImgW := availWForImg;
-              if rImageRatio > 0 then
-              begin
-                tempH := availWForImg / rImageRatio;
-                ImgH := Round(tempH);
-                if (ImgH = 0) and (tempH > 0) then ImgH := 1;
-              end else ImgH := 0;
+              ImgH := availHForImg;
             end;
+            idmNormal:
+            begin
+              ImgW := OriginalImgW;
+              ImgH := OriginalImgH;
+              // Image will be clipped by outImgRect calculation if larger than WorkArea margins
+            end;
+          else // Default for AutoSize True if unknown draw mode
+            ImgW := OriginalImgW; ImgH := OriginalImgH;
           end;
-          idmStretch:
-          begin
-            ImgW := availWForImg;
-            ImgH := availHForImg;
+        end
+        else // AutoSize = False: Use TargetWidth and TargetHeight
+        begin
+          targetW := FImageSettings.TargetWidth;
+          targetH := FImageSettings.TargetHeight;
+          case FImageSettings.DrawMode of
+            idmProportional:
+            begin
+              if (OriginalImgW = 0) or (OriginalImgH = 0) or (targetW <= 0) or (targetH <= 0) then
+              begin ImgW := 0; ImgH := 0; end
+              else
+              begin
+                imgAspectRatio := OriginalImgW / OriginalImgH;
+                targetAspectRatio := targetW / targetH;
+                if targetAspectRatio > imgAspectRatio then // Fit to target height
+                begin
+                  ImgH := targetH;
+                  ImgW := Round(ImgH * imgAspectRatio);
+                end
+                else // Fit to target width
+                begin
+                  ImgW := targetW;
+                  ImgH := Round(ImgW / imgAspectRatio);
+                end;
+              end;
+            end;
+            idmStretch:
+            begin
+              ImgW := targetW;
+              ImgH := targetH;
+            end;
+            idmNormal:
+            begin
+              ImgW := OriginalImgW;
+              ImgH := OriginalImgH;
+              // Optional: ImgW := Min(ImgW, targetW); ImgH := Min(ImgH, targetH);
+            end;
+          else // Default for AutoSize False if unknown draw mode
+            ImgW := 0; ImgH := 0;
           end;
-          idmNormal:
-          begin
-            ImgW := OriginalImgW;
-            ImgH := OriginalImgH;
-          end;
-        else // Default to proportional if unknown
-            rImageRatio := OriginalImgW / OriginalImgH;
-            rAvailBoxRatio := availWForImg / availHForImg;
-            if rAvailBoxRatio > rImageRatio then begin ImgH := availHForImg; tempW := availHForImg * rImageRatio; ImgW := Round(tempW); if (ImgW = 0) and (tempW > 0) then ImgW := 1; end
-            else begin ImgW := availWForImg; if rImageRatio > 0 then begin tempH := availWForImg / rImageRatio; ImgH := Round(tempH); if (ImgH = 0) and (tempH > 0) then ImgH := 1; end else ImgH := 0; end;
         end;
+      end
+      else // No available space for image if margins consume all space
+      begin
+        ImgW := 0; ImgH := 0;
       end;
+    end
+    else // Original image has no dimensions
+    begin
+      ImgW := 0; ImgH := 0;
     end;
+  end
+  else // Image not visible or no graphic
+  begin
+    ImgW := 0; ImgH := 0;
   end;
 
   ImgW := Max(0, ImgW);
@@ -605,16 +663,30 @@ begin
   begin
     if FImageSettings.Position = ipsLeft then
     begin
-      outImgRect.Left := WorkArea.Left + FImageSettings.Margins.Left;
+      slotStartX := WorkArea.Left + FImageSettings.Margins.Left;
+      slotAvailableWidth := availWForImg; // Calculated based on WorkArea and ImageSettings.Margins
+      case FImageSettings.HorizontalAlign of
+        ihaLeft:   outImgRect.Left := slotStartX;
+        ihaCenter: outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2;
+        ihaRight:  outImgRect.Left := slotStartX + slotAvailableWidth - ImgW;
+      else         outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2; // Default center
+      end;
       outImgRect.Right := outImgRect.Left + ImgW;
     end
-    else
+    else // ipsRight
     begin
-      outImgRect.Right := WorkArea.Right - FImageSettings.Margins.Right;
-      outImgRect.Left := outImgRect.Right - ImgW;
+      slotEndX := WorkArea.Right - FImageSettings.Margins.Right;
+      slotAvailableWidth := availWForImg;
+      case FImageSettings.HorizontalAlign of
+        ihaLeft:   outImgRect.Left := slotEndX - slotAvailableWidth;
+        ihaCenter: outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2;
+        ihaRight:  outImgRect.Left := slotEndX - ImgW;
+      else         outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2; // Default center
+      end;
+      outImgRect.Right := outImgRect.Left + ImgW;
     end;
 
-    var AvailHForImgLayoutAdjusted: Integer := WorkArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
+    AvailHForImgLayoutAdjusted := WorkArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
     AvailHForImgLayoutAdjusted := Max(0, AvailHForImgLayoutAdjusted);
 
     case FImageSettings.AlignmentVertical of
@@ -791,9 +863,9 @@ begin
       if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
       begin
         if (FImageSettings.Picture.Graphic is TPNGImage) then
-          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, imgR, FImageSettings.DrawMode)
+          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, imgR, idmStretch)
         else
-          DrawNonPNGImageWithCanvas(Canvas, FImageSettings.Picture.Graphic, imgR, FImageSettings.DrawMode);
+          DrawNonPNGImageWithCanvas(Canvas, FImageSettings.Picture.Graphic, imgR, idmStretch);
       end;
 
       if FSeparatorSettings.Visible and (FSeparatorSettings.Thickness > 0) and (sepR.Width > 0) and (sepR.Height > 0) then

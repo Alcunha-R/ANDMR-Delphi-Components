@@ -518,16 +518,28 @@ begin
     if WorkArea.Right < WorkArea.Left then WorkArea.Right := WorkArea.Left;
   end
   else
-    WorkArea := FullClientRect;
+    WorkArea := FullClientRect; // This is now BaseWorkArea conceptually
 
+  // Define BaseWorkArea, MemoDrawingArea, ImagePlacementArea
+  var BaseWorkArea: TRect;
+  var MemoDrawingArea: TRect; // Area for text and internal elements, border-deflated
+  var ImagePlacementArea: TRect; // Area for image placement
+
+  BaseWorkArea := WorkArea; // WorkArea from caption adjustments is our BaseWorkArea
+
+  MemoDrawingArea := BaseWorkArea;
   if FBorderSettings.Thickness > 0 then
-      InflateRect(WorkArea, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
+    InflateRect(MemoDrawingArea, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
 
-  MemoContentArea := WorkArea; // Store WorkArea before it's modified for text rect
+  ImagePlacementArea := BaseWorkArea; // Default for iplOutsideBounds
+  if FImageSettings.Placement = iplInsideBounds then
+    ImagePlacementArea := MemoDrawingArea; // For iplInsideBounds, image uses MemoDrawingArea
 
+  // Initialize output rects
+  outTxtRect := MemoDrawingArea; // Text rect starts as the full memo drawing area
   outImgRect := Rect(0,0,0,0);
   outSepRect := Rect(0,0,0,0);
-  outTxtRect := WorkArea; // Initialize outTxtRect, will be adjusted
+  // MemoContentArea is effectively replaced by MemoDrawingArea or ImagePlacementArea depending on context
 
   ImgW := 0; ImgH := 0;
   if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
@@ -537,8 +549,9 @@ begin
 
     if (OriginalImgW > 0) and (OriginalImgH > 0) then
     begin
-      availWForImg := outTxtRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right;
-      availHForImg := outTxtRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
+      // Calculate available space for image within ImagePlacementArea
+      availWForImg := ImagePlacementArea.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right;
+      availHForImg := ImagePlacementArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
       availWForImg := Max(0, availWForImg);
       availHForImg := Max(0, availHForImg);
 
@@ -657,177 +670,189 @@ begin
   if FSeparatorSettings.Visible and (FSeparatorSettings.Thickness > 0) then
     SepW := FSeparatorSettings.Thickness;
 
-  if FImageSettings.Placement = iplInsideBounds then
+  // --- Unified Image and Text Layout Logic ---
+  if FImageSettings.Visible and (ImgW > 0) then
   begin
-    // Image is INSIDE the WorkArea (MemoContentArea)
-    if FImageSettings.Visible and (ImgW > 0) then
+    var slotStartX, slotAvailableWidth, slotEndX: Integer; // For Horizontal Alignment
+
+    // Horizontal positioning of image within ImagePlacementArea
+    if FImageSettings.Position = ipsLeft then
     begin
-      var imageAreaLeftBoundary, actualImageSpaceWidth: Integer;
-
-      if FImageSettings.Position = ipsLeft then
-      begin
-        // Determine the space available for the image on the left.
-        // availWForImg was calculated based on outTxtRect (WorkArea)
-        actualImageSpaceWidth := availWForImg; // Max space image could take initially.
-                                               // ImgW is the actual width it will take.
-
-        imageAreaLeftBoundary := outTxtRect.Left + FImageSettings.Margins.Left;
-
-        case FImageSettings.HorizontalAlign of
-          ihaLeft:   outImgRect.Left := imageAreaLeftBoundary;
-          ihaCenter: outImgRect.Left := imageAreaLeftBoundary + (actualImageSpaceWidth - ImgW) div 2;
-          ihaRight:  outImgRect.Left := imageAreaLeftBoundary + actualImageSpaceWidth - ImgW;
-        else         outImgRect.Left := imageAreaLeftBoundary + (actualImageSpaceWidth - ImgW) div 2; // Default to center
-        end;
-        outImgRect.Right := outImgRect.Left + ImgW;
-
-        outTxtRect.Left := outImgRect.Right + FImageSettings.Margins.Right;
-        if SepW > 0 then
-        begin
-          outSepRect.Left := outTxtRect.Left + FSeparatorSettings.Padding;
-          outSepRect.Right := outSepRect.Left + SepW;
-          outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
-        end;
-      end
-      else // ipsRight
-      begin
-        actualImageSpaceWidth := availWForImg;
-        imageAreaLeftBoundary := outTxtRect.Right - FImageSettings.Margins.Right - actualImageSpaceWidth; // Potential start if it took all space
-
-        case FImageSettings.HorizontalAlign of
-          ihaLeft:   outImgRect.Left := imageAreaLeftBoundary;
-          ihaCenter: outImgRect.Left := imageAreaLeftBoundary + (actualImageSpaceWidth - ImgW) div 2;
-          ihaRight:  outImgRect.Left := imageAreaLeftBoundary + actualImageSpaceWidth - ImgW;
-        else         outImgRect.Left := imageAreaLeftBoundary + (actualImageSpaceWidth - ImgW) div 2; // Default to center
-        end;
-        outImgRect.Right := outImgRect.Left + ImgW;
-
-        outTxtRect.Right := outImgRect.Left - FImageSettings.Margins.Left;
-        if SepW > 0 then
-        begin
-          outSepRect.Right := outTxtRect.Right - FSeparatorSettings.Padding;
-          outSepRect.Left := outSepRect.Right - SepW;
-          outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
-        end;
+      slotStartX := ImagePlacementArea.Left + FImageSettings.Margins.Left;
+      slotAvailableWidth := availWForImg;
+      case FImageSettings.HorizontalAlign of
+        ihaLeft:   outImgRect.Left := slotStartX;
+        ihaCenter: outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2;
+        ihaRight:  outImgRect.Left := slotStartX + slotAvailableWidth - ImgW;
+      else         outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2; // Default center
       end;
-
-      // Vertical alignment for image inside bounds (references WorkArea)
-      availHForImgLayoutAdjusted := WorkArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
-      availHForImgLayoutAdjusted := Max(0, availHForImgLayoutAdjusted);
-      case FImageSettings.AlignmentVertical of
-        iavTop:    outImgRect.Top := WorkArea.Top + FImageSettings.Margins.Top;
-        iavCenter: outImgRect.Top := WorkArea.Top + FImageSettings.Margins.Top + (availHForImgLayoutAdjusted - ImgH) div 2;
-        iavBottom: outImgRect.Top := WorkArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
-      end;
-      outImgRect.Bottom := outImgRect.Top + ImgH;
-
-      // Clip image rect to WorkArea
-      if outImgRect.Top < WorkArea.Top then outImgRect.Top := WorkArea.Top;
-      if outImgRect.Bottom > WorkArea.Bottom then outImgRect.Bottom := WorkArea.Bottom;
-      if outImgRect.Left < WorkArea.Left then outImgRect.Left := WorkArea.Left;
-      if outImgRect.Right > WorkArea.Right then outImgRect.Right := WorkArea.Right;
+      outImgRect.Right := outImgRect.Left + ImgW;
     end
-    else if SepW > 0 then // No image visible, but separator might be (if placed relative to text area edges)
+    else // ipsRight
     begin
-      // This case for separator without image needs careful consideration.
-      // For iplInsideBounds, if image is not visible, separator usually isn't either or is based on text area.
-      // Assuming separator is only shown if image is also shown and inside.
-      // If separator can be independent, its positioning logic needs to be more robust here.
-      // For now, if image is not visible, separator is not drawn for iplInsideBounds.
-      outSepRect := Rect(0,0,0,0); // No separator if no image inside
+      slotEndX := ImagePlacementArea.Right - FImageSettings.Margins.Right;
+      slotAvailableWidth := availWForImg;
+      case FImageSettings.HorizontalAlign of
+        ihaLeft:   outImgRect.Left := slotEndX - slotAvailableWidth;
+        ihaCenter: outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2;
+        ihaRight:  outImgRect.Left := slotEndX - ImgW;
+      else         outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2; // Default center
+      end;
+      outImgRect.Right := outImgRect.Left + ImgW;
     end;
+
+    // Vertical positioning of image within ImagePlacementArea
+    availHForImgLayoutAdjusted := ImagePlacementArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
+    availHForImgLayoutAdjusted := Max(0, availHForImgLayoutAdjusted);
+    case FImageSettings.AlignmentVertical of
+      iavTop:    outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top;
+      iavCenter: outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top + (availHForImgLayoutAdjusted - ImgH) div 2;
+      iavBottom: outImgRect.Top := ImagePlacementArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
+    end;
+    outImgRect.Bottom := outImgRect.Top + ImgH;
+
+    // Clip image rect to ImagePlacementArea
+    if outImgRect.Left < ImagePlacementArea.Left then outImgRect.Left := ImagePlacementArea.Left;
+    if outImgRect.Right > ImagePlacementArea.Right then outImgRect.Right := ImagePlacementArea.Right;
+    if outImgRect.Top < ImagePlacementArea.Top then outImgRect.Top := ImagePlacementArea.Top;
+    if outImgRect.Bottom > ImagePlacementArea.Bottom then outImgRect.Bottom := ImagePlacementArea.Bottom;
+    if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
+    if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
+    ImgW := outImgRect.Width; // Update ImgW/H after clipping
+    ImgH := outImgRect.Height;
+
+
+    // This block is removed as the logic is now integrated below.
   end
-  else // FImageSettings.Placement = iplOutsideBounds
+  else // No image visible
   begin
-    outTxtRect := MemoContentArea; // Text uses the original memo content area
-
-    if FImageSettings.Visible and (ImgW > 0) then
-    begin
-      if FImageSettings.Position = ipsLeft then
-      begin
-        outImgRect.Right := MemoContentArea.Left - FImageSettings.Margins.Right;
-        if FSeparatorSettings.Visible and (SepW > 0) then
-          outImgRect.Right := outImgRect.Right - FSeparatorSettings.Padding - SepW - FSeparatorSettings.Padding;
-        outImgRect.Left := outImgRect.Right - ImgW;
-      end
-      else // ipsRight
-      begin
-        outImgRect.Left := MemoContentArea.Right + FImageSettings.Margins.Left;
-        if FSeparatorSettings.Visible and (SepW > 0) then
-          outImgRect.Left := outImgRect.Left + FSeparatorSettings.Padding + SepW + FSeparatorSettings.Padding;
-        outImgRect.Right := outImgRect.Left + ImgW;
-      end;
-
-      availHForImgLayoutAdjusted := MemoContentArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
-      availHForImgLayoutAdjusted := Max(0, availHForImgLayoutAdjusted);
-      case FImageSettings.AlignmentVertical of
-        iavTop:    outImgRect.Top := MemoContentArea.Top + FImageSettings.Margins.Top;
-        iavCenter: outImgRect.Top := MemoContentArea.Top + FImageSettings.Margins.Top + (availHForImgLayoutAdjusted - ImgH) div 2;
-        iavBottom: outImgRect.Top := MemoContentArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
-      end;
-      outImgRect.Bottom := outImgRect.Top + ImgH;
-      // Note: outImgRect for iplOutsideBounds is not clipped by MemoContentArea, but by FullClientRect later if needed.
-    end;
-    // Separator for iplOutsideBounds
-    if FImageSettings.Visible and (ImgW > 0) and FSeparatorSettings.Visible and (SepW > 0) then
-    begin
-      if FImageSettings.Position = ipsLeft then
-      begin
-        outSepRect.Left := outImgRect.Right + FSeparatorSettings.Padding;
-        outSepRect.Right := outSepRect.Left + SepW;
-      end
-      else // ipsRight
-      begin
-        outSepRect.Right := outImgRect.Left - FSeparatorSettings.Padding;
-        outSepRect.Left := outSepRect.Right - SepW;
-      end;
-      // Vertical positioning for separator will be handled below with common logic
-    end else outSepRect := Rect(0,0,0,0);
+    outImgRect := Rect(0,0,0,0); // Ensure image rect is zeroed if not visible
+    ImgW := 0; ImgH := 0;
+    // outTxtRect remains MemoDrawingArea, potentially adjusted by separator if visible without image
   end;
 
-  // Common Separator Vertical Positioning & Height Calculation (after its horizontal pos is known)
-  if FSeparatorSettings.Visible and (SepW > 0) and not IsRectEmpty(outSepRect) then // Check if sepRect has been set
+  // --- Combined Image, Separator, and TextRect Horizontal Adjustment ---
+  if FImageSettings.Visible and (ImgW > 0) then
+  begin
+    if FImageSettings.Placement = iplInsideBounds then
+    begin // Image AND Separator (if visible) are INSIDE MemoDrawingArea, carving space from outTxtRect
+      if FImageSettings.Position = ipsLeft then
+      begin
+        if FSeparatorSettings.Visible and (SepW > 0) then
+        begin
+          outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding;
+          outSepRect.Right := outSepRect.Left + SepW;
+          outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
+        end
+        else // No separator
+        begin
+          outTxtRect.Left := outImgRect.Right + FImageSettings.Margins.Right;
+          outSepRect := Rect(0,0,0,0);
+        end;
+      end
+      else // Image position ipsRight
+      begin
+        if FSeparatorSettings.Visible and (SepW > 0) then
+        begin
+          outSepRect.Right := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding;
+          outSepRect.Left := outSepRect.Right - SepW;
+          outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
+        end
+        else // No separator
+        begin
+          outTxtRect.Right := outImgRect.Left - FImageSettings.Margins.Left;
+          outSepRect := Rect(0,0,0,0);
+        end;
+      end;
+    end
+    else // iplOutsideBounds: Image is OUTSIDE MemoDrawingArea. outTxtRect is not changed by image.
+         // Separator is between image and MemoDrawingArea.
+    begin
+      if FSeparatorSettings.Visible and (SepW > 0) then
+      begin
+        if FImageSettings.Position = ipsLeft then
+        begin
+          outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding;
+          outSepRect.Right := outSepRect.Left + SepW;
+          // Note: outTxtRect.Left (MemoDrawingArea.Left) is not affected by image/sep outside
+        end
+        else // ipsRight
+        begin
+          outSepRect.Right := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding;
+          outSepRect.Left := outSepRect.Right - SepW;
+          // Note: outTxtRect.Right (MemoDrawingArea.Right) is not affected by image/sep outside
+        end;
+      end
+      else // No separator
+      begin
+        outSepRect := Rect(0,0,0,0);
+      end;
+      // outTxtRect remains MemoDrawingArea as image is outside.
+    end;
+  end
+  else // No image is visible
+  begin
+    // Separator might still be visible, e.g., at an edge of MemoDrawingArea
+    if FSeparatorSettings.Visible and (SepW > 0) then
+    begin
+      // Default: place separator on left of MemoDrawingArea if no image
+      // This could be made configurable if needed (e.g. separator position without image)
+      outSepRect.Left := MemoDrawingArea.Left + FSeparatorSettings.Padding;
+      outSepRect.Right := outSepRect.Left + SepW;
+      outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
+    end
+    else // No image and no separator
+    begin
+      outSepRect := Rect(0,0,0,0);
+      // outTxtRect remains MemoDrawingArea
+    end;
+  end;
+
+  // --- Common Vertical Separator positioning and final clipping ---
+  if FSeparatorSettings.Visible and (SepW > 0) and not IsRectEmpty(outSepRect) then
   begin
     var SepH: Integer;
-    var RefTop, RefHeight: Integer;
-    var RefRectForSepVertical: TRect;
-
-    // Determine the reference rectangle for separator's vertical alignment and height
+    var SepRefRect: TRect; // Reference for separator's vertical extent
     if FImageSettings.Placement = iplInsideBounds then
-      RefRectForSepVertical := WorkArea // Separator is inside the main work area
-    else // iplOutsideBounds
-      RefRectForSepVertical := MemoContentArea; // Separator aligns with the memo content area
+        SepRefRect := MemoDrawingArea // Separator is relative to the memo's drawing area
+    else if FImageSettings.Visible and (ImgW > 0) then // Outside, and image exists
+        SepRefRect := outImgRect // Align with the image vertically
+    else
+        SepRefRect := MemoDrawingArea; // Fallback if image outside but not visible
 
-    outSepRect.Top := RefRectForSepVertical.Top; // Default Top
-    SepH := RefRectForSepVertical.Height;      // Default Height
-
+    var SepH: Integer;
     case FSeparatorSettings.HeightMode of
-      shmFull: SepH := RefRectForSepVertical.Height; // Already set
-      shmAsText: begin // Align with the text area (outTxtRect)
-          RefTop := outTxtRect.Top; RefHeight := outTxtRect.Height;
-          if RefHeight > 0 then // Only if text area has height
-          begin
-            SepH := RefHeight; outSepRect.Top := RefTop;
-          end else SepH := 0; // No height if text area has no height
-      end;
-      shmAsImage: if FImageSettings.Visible and (ImgW > 0) and (outImgRect.Height > 0) then
-                  begin RefTop := outImgRect.Top; RefHeight := outImgRect.Height; SepH := RefHeight; outSepRect.Top := RefTop; end
-                  // If image not visible or no height, SepH remains RefRectForSepVertical.Height or could be 0
-                  else if FImageSettings.Placement = iplInsideBounds then SepH := 0 // No image, no sep for inside
-                  else SepH := RefRectForSepVertical.Height; // Fallback for outside
-      shmCustom: if FSeparatorSettings.CustomHeight > 0 then
-                 begin SepH := FSeparatorSettings.CustomHeight; outSepRect.Top := RefRectForSepVertical.Top + (RefRectForSepVertical.Height - SepH) div 2; end
-                 else SepH := RefRectForSepVertical.Height; // Fallback to full height of reference
+      shmFull:    SepH := SepRefRect.Height;
+      shmAsText:  SepH := outTxtRect.Height;
+      shmAsImage: if FImageSettings.Visible and (ImgH > 0) then SepH := ImgH else SepH := SepRefRect.Height;
+      shmCustom:  if FSeparatorSettings.CustomHeight > 0 then SepH := FSeparatorSettings.CustomHeight else SepH := SepRefRect.Height;
+    else SepH := SepRefRect.Height;
     end;
+    SepH := Max(0, SepH);
+
+    outSepRect.Top := SepRefRect.Top + (SepRefRect.Height - SepH) div 2;
     outSepRect.Bottom := outSepRect.Top + SepH;
 
-    // Clip separator vertically to its reference context
-    if outSepRect.Top < RefRectForSepVertical.Top then outSepRect.Top := RefRectForSepVertical.Top;
-    if outSepRect.Bottom > RefRectForSepVertical.Bottom then outSepRect.Bottom := RefRectForSepVertical.Bottom;
-    if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top; // Ensure valid rect
-  end else outSepRect := Rect(0,0,0,0); // Ensure it's zeroed if not visible or no width
+    // Clip separator to its relevant context (MemoDrawingArea if inside, or FullClientRect if related to outside image)
+    var ClipRectForSep: TRect;
+    if FImageSettings.Placement = iplInsideBounds then ClipRectForSep := MemoDrawingArea
+    else ClipRectForSep := FullClientRect; // Allow separator to be outside MemoDrawingArea if image is
 
-  // Final clipping and validation of rects
+    if outSepRect.Left < ClipRectForSep.Left then outSepRect.Left := ClipRectForSep.Left;
+    if outSepRect.Right > ClipRectForSep.Right then outSepRect.Right := ClipRectForSep.Right;
+    if outSepRect.Top < ClipRectForSep.Top then outSepRect.Top := ClipRectForSep.Top;
+    if outSepRect.Bottom > ClipRectForSep.Bottom then outSepRect.Bottom := ClipRectForSep.Bottom;
+    if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left;
+    if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
+    SepW := outSepRect.Width;
+  end else outSepRect := Rect(0,0,0,0);
+
+
+  // Final clipping and validation of outTxtRect to MemoDrawingArea
+  if outTxtRect.Left < MemoDrawingArea.Left then outTxtRect.Left := MemoDrawingArea.Left;
+  if outTxtRect.Right > MemoDrawingArea.Right then outTxtRect.Right := MemoDrawingArea.Right;
+  if outTxtRect.Top < MemoDrawingArea.Top then outTxtRect.Top := MemoDrawingArea.Top;
+  if outTxtRect.Bottom > MemoDrawingArea.Bottom then outTxtRect.Bottom := MemoDrawingArea.Bottom;
   if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left;
   if outTxtRect.Bottom < outTxtRect.Top then outTxtRect.Bottom := outTxtRect.Top;
 end;

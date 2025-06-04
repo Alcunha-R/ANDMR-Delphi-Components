@@ -39,7 +39,7 @@ type
 
   TANDMR_CCheckBox = class(TCustomControl)
   private
-    FBorderSettings: TBorderSettings; // Existing: for the check element's border and component background
+    FIndicatorBorderSettings: TBorderSettings; // Existing: for the check element's border and component background
     FCaptionSettings: TCaptionSettings;
     FState: TCheckBoxState;
     FBoxColorUnchecked: TColor;
@@ -58,7 +58,7 @@ type
     FCheckedIndicatorPosition: TCheckBoxIndicatorPosition;
     FCheckedIndicatorSize: Integer; // Size of the check element (box)
 
-    procedure SetBorderSettings(const Value: TBorderSettings);
+    procedure SetIndicatorBorder(const Value: TBorderSettings);
     function GetChecked: Boolean;
     procedure SetChecked(const Value: Boolean);
     procedure SetState(const Value: TCheckBoxState);
@@ -103,7 +103,7 @@ type
     property Checked: Boolean read GetChecked write SetChecked;
     property State: TCheckBoxState read FState write SetState;
     property Caption: string read GetCaption write SetCaption;
-    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings; // Existing: for check element border & component background
+    property IndicatorBorder: TBorderSettings read FIndicatorBorderSettings write SetIndicatorBorder; // Existing: for check element border & component background
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property BoxColorUnchecked: TColor read FBoxColorUnchecked write SetBoxColorUnchecked default clWindow;
     property BoxColorChecked: TColor read FBoxColorChecked write SetBoxColorChecked default clHighlight;
@@ -193,13 +193,13 @@ begin
   FTransparent := False;
 
   // Existing BorderSettings for the check element and component background
-  FBorderSettings := TBorderSettings.Create;
-  FBorderSettings.OnChange := SettingsChanged;
-  FBorderSettings.CornerRadius := 3;
-  FBorderSettings.RoundCornerType := rctAll;
-  FBorderSettings.BackgroundColor := clNone; // This is for the component's background
-  FBorderSettings.Color := clBlack;         // This is for the check element's border
-  FBorderSettings.Thickness := 1;           // For the check element's border
+  FIndicatorBorderSettings := TBorderSettings.Create;
+  FIndicatorBorderSettings.OnChange := SettingsChanged;
+  FIndicatorBorderSettings.CornerRadius := 3;
+  FIndicatorBorderSettings.RoundCornerType := rctAll;
+  FIndicatorBorderSettings.BackgroundColor := clNone; // This is for the component's background
+  FIndicatorBorderSettings.Color := clBlack;         // This is for the check element's border
+  FIndicatorBorderSettings.Thickness := 1;           // For the check element's border
 
   // New OverallComponentBorder
   FOverallComponentBorder := TBorderSettings.Create;
@@ -254,11 +254,11 @@ end;
 
 destructor TANDMR_CCheckBox.Destroy;
 begin
-  if Assigned(FBorderSettings) then
+  if Assigned(FIndicatorBorderSettings) then
   begin
-    FBorderSettings.OnChange := nil;
-    FBorderSettings.Free;
-    FBorderSettings := nil;
+    FIndicatorBorderSettings.OnChange := nil;
+    FIndicatorBorderSettings.Free;
+    FIndicatorBorderSettings := nil;
   end;
 
   if Assigned(FOverallComponentBorder) then // Free new border settings
@@ -318,13 +318,14 @@ begin
         if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := clHighlight;
         if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
 
-        if not FUserOverrides.BorderSettings_IsCustomized then // For Check Element
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
         begin
-          Self.BorderSettings.Color := clBlack;
-          Self.BorderSettings.Thickness := 1;
-          Self.BorderSettings.CornerRadius := 3;
-          Self.BorderSettings.RoundCornerType := rctAll;
-          Self.BorderSettings.BackgroundColor := clWindow; // Component background
+          Self.IndicatorBorder.Color := clBlack;       // Check element's border
+          Self.IndicatorBorder.Thickness := 1;
+          Self.IndicatorBorder.CornerRadius := 3;
+          Self.IndicatorBorder.RoundCornerType := rctAll;
+          Self.IndicatorBorder.BackgroundColor := clWindow; // Component background
+          Self.IndicatorBorder.Style := psSolid;
         end;
 
         if not FUserOverrides.CaptionSettings_IsCustomized then
@@ -343,10 +344,12 @@ begin
         // New properties for Light style
         if not FUserOverrides.OverallComponentBorder_IsCustomized then
         begin
-//          Self.OverallComponentBorder.Visible := False; // Typically no overall border for light
+          Self.OverallComponentBorder.Visible := False; // Typically no overall border for light
           Self.OverallComponentBorder.Color := clGray;
           Self.OverallComponentBorder.Thickness := 1;
           Self.OverallComponentBorder.CornerRadius := 3;
+          Self.OverallComponentBorder.RoundCornerType := rctAll;
+          Self.OverallComponentBorder.Style := psSolid;
         end;
         if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
         if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
@@ -357,11 +360,12 @@ begin
         if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($000099FF);
         if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
 
-        if not FUserOverrides.BorderSettings_IsCustomized then // For Check Element
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
         begin
-          Self.BorderSettings.Color := TColor($00777777); Self.BorderSettings.Thickness := 1;
-          Self.BorderSettings.CornerRadius := 3; Self.BorderSettings.RoundCornerType := rctAll;
-          Self.BorderSettings.BackgroundColor := TColor($00333333); // Component background
+          Self.IndicatorBorder.Color := TColor($00777777); Self.IndicatorBorder.Thickness := 1;
+          Self.IndicatorBorder.CornerRadius := 3; Self.IndicatorBorder.RoundCornerType := rctAll;
+          Self.IndicatorBorder.BackgroundColor := TColor($00333333); // Component background
+          Self.IndicatorBorder.Style := psSolid;
         end;
 
         if not FUserOverrides.CaptionSettings_IsCustomized then
@@ -380,10 +384,12 @@ begin
         // New properties for Dark style
         if not FUserOverrides.OverallComponentBorder_IsCustomized then
         begin
-//          Self.OverallComponentBorder.Visible := False; // Typically no overall border for dark
+          Self.OverallComponentBorder.Visible := False; // Typically no overall border for dark
           Self.OverallComponentBorder.Color := TColor($00AAAAAA);
           Self.OverallComponentBorder.Thickness := 1;
           Self.OverallComponentBorder.CornerRadius := 3;
+          Self.OverallComponentBorder.RoundCornerType := rctAll;
+          Self.OverallComponentBorder.Style := psSolid;
         end;
         if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
         if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
@@ -394,11 +400,12 @@ begin
         if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($FF2196F3);
         if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
 
-        if not FUserOverrides.BorderSettings_IsCustomized then // For Check Element
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
         begin
-          Self.BorderSettings.Color := TColor($FFBDBDBD); Self.BorderSettings.Thickness := 2;
-          Self.BorderSettings.CornerRadius := 2; Self.BorderSettings.RoundCornerType := rctAll;
-          Self.BorderSettings.BackgroundColor := clNone; // Component background (Material often transparent bg on cards)
+          Self.IndicatorBorder.Color := TColor($FFBDBDBD); Self.IndicatorBorder.Thickness := 2;
+          Self.IndicatorBorder.CornerRadius := 2; Self.IndicatorBorder.RoundCornerType := rctAll;
+          Self.IndicatorBorder.BackgroundColor := clNone; // Component background (Material often transparent bg on cards)
+          Self.IndicatorBorder.Style := psSolid;
         end;
 
         if not FUserOverrides.CaptionSettings_IsCustomized then
@@ -417,10 +424,12 @@ begin
         // New properties for Material style
         if not FUserOverrides.OverallComponentBorder_IsCustomized then
         begin
-//          Self.OverallComponentBorder.Visible := False; // Material checkbox usually no overall border
+          Self.OverallComponentBorder.Visible := False; // Material checkbox usually no overall border
           Self.OverallComponentBorder.Color := TColor($FFBDBDBD);
           Self.OverallComponentBorder.Thickness := 1;
           Self.OverallComponentBorder.CornerRadius := 2;
+          Self.OverallComponentBorder.RoundCornerType := rctAll;
+          Self.OverallComponentBorder.Style := psSolid;
         end;
         if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
         if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 20; // Material checkboxes are a bit larger
@@ -434,11 +443,12 @@ begin
         if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($00757575);
         if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
 
-        if not FUserOverrides.BorderSettings_IsCustomized then // For Check Element
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
         begin
-          Self.BorderSettings.Color := TColor($00AAAAAA); Self.BorderSettings.Thickness := 1;
-          Self.BorderSettings.CornerRadius := 0; Self.BorderSettings.RoundCornerType := rctNone;
-          Self.BorderSettings.BackgroundColor := clNone; // Component background
+          Self.IndicatorBorder.Color := TColor($00AAAAAA); Self.IndicatorBorder.Thickness := 1;
+          Self.IndicatorBorder.CornerRadius := 0; Self.IndicatorBorder.RoundCornerType := rctNone;
+          Self.IndicatorBorder.BackgroundColor := clNone; // Component background
+          Self.IndicatorBorder.Style := psSolid;
         end;
 
         if not FUserOverrides.CaptionSettings_IsCustomized then
@@ -456,10 +466,12 @@ begin
 
         if not FUserOverrides.OverallComponentBorder_IsCustomized then
         begin
-//          Self.OverallComponentBorder.Visible := False; // Flat usually no overall border
+          Self.OverallComponentBorder.Visible := False; // Flat usually no overall border
           Self.OverallComponentBorder.Color := TColor($00AAAAAA);
           Self.OverallComponentBorder.Thickness := 1;
           Self.OverallComponentBorder.CornerRadius := 0;
+          Self.OverallComponentBorder.RoundCornerType := rctNone;
+          Self.OverallComponentBorder.Style := psSolid;
         end;
         if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
         if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
@@ -472,9 +484,10 @@ begin
         if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
         if not FUserOverrides.BorderSettings_IsCustomized then
         begin
-          Self.BorderSettings.Color := TColor($00D1D1D6); Self.BorderSettings.Thickness := 1;
-          Self.BorderSettings.CornerRadius := 5; Self.BorderSettings.RoundCornerType := rctAll;
-          Self.BorderSettings.BackgroundColor := clNone;
+          Self.IndicatorBorder.Color := TColor($00D1D1D6); Self.IndicatorBorder.Thickness := 1;
+          Self.IndicatorBorder.CornerRadius := 5; Self.IndicatorBorder.RoundCornerType := rctAll;
+          Self.IndicatorBorder.BackgroundColor := clNone;
+          Self.IndicatorBorder.Style := psSolid;
         end;
         if not FUserOverrides.CaptionSettings_IsCustomized then
         begin
@@ -489,15 +502,231 @@ begin
         end;
         if not FUserOverrides.OverallComponentBorder_IsCustomized then
         begin
-//          Self.OverallComponentBorder.Visible := True; // Modern might have a subtle overall border
+          Self.OverallComponentBorder.Visible := True; // Modern might have a subtle overall border
           Self.OverallComponentBorder.Color := TColor($00E5E5EA);
           Self.OverallComponentBorder.Thickness := 1;
           Self.OverallComponentBorder.CornerRadius := 6;
+          Self.OverallComponentBorder.RoundCornerType := rctAll;
+          Self.OverallComponentBorder.Style := psSolid;
         end;
         if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
         if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0; // Approx 18-20px
       end;
-      // ... and so on for cbsGhost, cbsFaded, cbsBordered, cbsIOS, cbsWin11
+      cbsGhost: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := True;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := clNone; // Fully transparent box
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := clNone;   // Fully transparent box for checked (mark provides visual)
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := TColor($FF333333); // Dark checkmark
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
+        begin
+          Self.IndicatorBorder.Color := TColor($FF999999); // Lighter border for unchecked state
+          Self.IndicatorBorder.Thickness := 1;
+          Self.IndicatorBorder.CornerRadius := 4;
+          Self.IndicatorBorder.RoundCornerType := rctAll;
+          Self.IndicatorBorder.BackgroundColor := clNone; // Component background is transparent
+          Self.IndicatorBorder.Style := psSolid;
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := TColor($FF333333); TempCaptionFont.Name := 'Segoe UI'; TempCaptionFont.Size := 9;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := clGrayText;
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True;
+          Self.HoverSettings.BackgroundColor := TColor($1FCCCCCC); // Very subtle hover fill
+          Self.HoverSettings.BorderColor := TColor($FF333333); // Border darkens on hover
+          Self.HoverSettings.FontColor := TColor($FF333333);
+        end;
+
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+          Self.OverallComponentBorder.Visible := False; // No overall border for ghost style
+          Self.OverallComponentBorder.Color := clNone;
+          Self.OverallComponentBorder.Thickness := 0;
+          Self.OverallComponentBorder.CornerRadius := 0;
+          Self.OverallComponentBorder.RoundCornerType := rctNone;
+          Self.OverallComponentBorder.Style := psClear;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
+      end;
+      cbsFaded: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := False;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := TColor($00F0F0F0);
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($00D5E5F5); // Light blue checked
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := TColor($00336699); // Darker blue checkmark
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
+        begin
+          Self.IndicatorBorder.Color := TColor($00CCCCCC); // Light gray border
+          Self.IndicatorBorder.Thickness := 1;
+          Self.IndicatorBorder.CornerRadius := 3;
+          Self.IndicatorBorder.RoundCornerType := rctAll;
+          Self.IndicatorBorder.BackgroundColor := TColor($00FAFAFA); // Light component BG
+          Self.IndicatorBorder.Style := psSolid;
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := TColor($00777777); TempCaptionFont.Name := 'Segoe UI'; TempCaptionFont.Size := 9;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := TColor($00BBBBBB);
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True;
+          Self.HoverSettings.BackgroundColor := TColor($00E8F0F8);
+          Self.HoverSettings.BorderColor := TColor($00AECAF0);
+          Self.HoverSettings.FontColor := TColor($005588AA);
+        end;
+
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+          Self.OverallComponentBorder.Visible := False;
+          Self.OverallComponentBorder.Color := clNone;
+          Self.OverallComponentBorder.Thickness := 0;
+          Self.OverallComponentBorder.CornerRadius := 0;
+          Self.OverallComponentBorder.RoundCornerType := rctNone;
+          Self.OverallComponentBorder.Style := psClear;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
+      end;
+      cbsBordered: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := False;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := clWindow;
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := clWindow; // Box remains window color, checkmark appears
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clHighlight; // Standard highlight for checkmark
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
+        begin
+          Self.IndicatorBorder.Color := clGray; // Visible border for the check box
+          Self.IndicatorBorder.Thickness := 2;
+          Self.IndicatorBorder.CornerRadius := 1;
+          Self.IndicatorBorder.RoundCornerType := rctNone; // Square corners for indicator
+          Self.IndicatorBorder.BackgroundColor := clWindow; // Standard component BG
+          Self.IndicatorBorder.Style := psSolid;
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := clWindowText; TempCaptionFont.Name := 'Segoe UI'; TempCaptionFont.Size := 9;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := clGrayText;
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True;
+          Self.HoverSettings.BackgroundColor := BlendColors(clWindow, clHighlight, 0.05);
+          Self.HoverSettings.BorderColor := clHighlight; // Indicator border changes on hover
+          Self.HoverSettings.FontColor := clWindowText;
+        end;
+
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+          Self.OverallComponentBorder.Visible := True; // This style HAS an overall border
+          Self.OverallComponentBorder.Color := clSilver;
+          Self.OverallComponentBorder.Thickness := 1;
+          Self.OverallComponentBorder.CornerRadius := 3;
+          Self.OverallComponentBorder.RoundCornerType := rctAll;
+          Self.OverallComponentBorder.Style := psSolid;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 0;
+      end;
+      cbsIOS: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := False; // iOS usually non-transparent background for controls
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := clWindow;
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($FF34C759); // iOS Green
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder (the round check area)
+        begin
+          Self.IndicatorBorder.Color := TColor($FFDCDCDC); // Light gray border for unchecked
+          Self.IndicatorBorder.Thickness := 1;
+          Self.IndicatorBorder.CornerRadius := 10; // iOS uses very rounded indicators (adjust based on CheckedIndicatorSize)
+          Self.IndicatorBorder.RoundCornerType := rctAll;
+          Self.IndicatorBorder.BackgroundColor := clWindow; // Component BG
+          Self.IndicatorBorder.Style := psSolid;
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := clBlack; TempCaptionFont.Name := 'San Francisco'; TempCaptionFont.Size := 10; // iOS like font
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := clGrayText;
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True;
+          Self.HoverSettings.BackgroundColor := BlendColors(clWindow, clGray, 0.1);
+          Self.HoverSettings.BorderColor := TColor($FF34C759); // Border becomes green on hover/focus
+          Self.HoverSettings.FontColor := clBlack;
+        end;
+
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+          Self.OverallComponentBorder.Visible := False; // iOS controls typically no outer border, rely on spacing
+          Self.OverallComponentBorder.Color := clNone;
+          Self.OverallComponentBorder.Thickness := 0;
+          Self.OverallComponentBorder.CornerRadius := 0;
+          Self.OverallComponentBorder.RoundCornerType := rctNone;
+          Self.OverallComponentBorder.Style := psClear;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 20; // iOS indicators are often around 20-22px
+      end;
+      cbsWin11: begin
+        if not FUserOverrides.Transparent_IsSet then Self.Transparent := False;
+        if not FUserOverrides.BoxColorUnchecked_IsSet then Self.BoxColorUnchecked := TColor($FFF9F9F9); // Win11 light theme box
+        if not FUserOverrides.BoxColorChecked_IsSet then Self.BoxColorChecked := TColor($FF0078D4);   // Win11 accent blue
+        if not FUserOverrides.CheckMarkColor_IsSet then Self.CheckMarkColor := clWhite;
+
+        if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
+        begin
+          Self.IndicatorBorder.Color := TColor($FFACACAC); // Border for unchecked
+          Self.IndicatorBorder.Thickness := 1;
+          Self.IndicatorBorder.CornerRadius := 4; // Win11 uses slightly rounded corners
+          Self.IndicatorBorder.RoundCornerType := rctAll;
+          Self.IndicatorBorder.BackgroundColor := TColor($FFF3F3F3); // Win11 control background
+          Self.IndicatorBorder.Style := psSolid;
+        end;
+
+        if not FUserOverrides.CaptionSettings_IsCustomized then
+        begin
+          TempCaptionFont.Color := TColor($FF000000); TempCaptionFont.Name := 'Segoe UI Variable Text'; TempCaptionFont.Size := 9;
+          Self.CaptionSettings.Font.Assign(TempCaptionFont);
+          Self.CaptionSettings.DisabledColor := TColor($FF6A6A6A);
+        end;
+
+        if not FUserOverrides.HoverSettings_IsCustomized then
+        begin
+          Self.HoverSettings.Enabled := True;
+          Self.HoverSettings.BackgroundColor := TColor($FFEDEDED); // Hover fill for unchecked
+          Self.HoverSettings.BorderColor := TColor($FF005A9E);   // Darker blue for border on hover
+          Self.HoverSettings.FontColor := TColor($FF000000);
+        end;
+
+        if not FUserOverrides.OverallComponentBorder_IsCustomized then
+        begin
+          Self.OverallComponentBorder.Visible := False; // Win11 CheckBox usually no distinct overall border, but part of a list item or standalone
+          Self.OverallComponentBorder.Color := clNone;
+          Self.OverallComponentBorder.Thickness := 0;
+          Self.OverallComponentBorder.CornerRadius := 4;
+          Self.OverallComponentBorder.RoundCornerType := rctAll;
+          Self.OverallComponentBorder.Style := psClear;
+        end;
+        if not FUserOverrides.CheckedIndicatorPosition_IsSet then Self.CheckedIndicatorPosition := cipLeftCenter;
+        if not FUserOverrides.CheckedIndicatorSize_IsSet then Self.CheckedIndicatorSize := 20; // Win11 check indicators are around 20px
+      end;
     end;
   finally
     TempCaptionFont.Free;
@@ -540,7 +769,7 @@ begin
   if not FApplyingStyle then
   begin
     FCurrentStyle := cbsCustom;
-    if Sender = FBorderSettings then // This is for the check element's border
+    if Sender = FIndicatorBorderSettings then // This is for the check element's border
       FUserOverrides.BorderSettings_IsCustomized := True
     else if Sender = FCaptionSettings then
       FUserOverrides.CaptionSettings_IsCustomized := True;
@@ -569,9 +798,9 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.SetBorderSettings(const Value: TBorderSettings);
+procedure TANDMR_CCheckBox.SetIndicatorBorder(const Value: TBorderSettings);
 begin
-  FBorderSettings.Assign(Value); // For check element
+  FIndicatorBorderSettings.Assign(Value); // For check element
   if not FApplyingStyle then
   begin
     FCurrentStyle := cbsCustom;
@@ -732,8 +961,8 @@ begin
       var BackgroundBrush: TGPSolidBrush;
       var ComponentBGColor: TColor;
 
-      if FBorderSettings.BackgroundColor <> clNone then // Existing FBorderSettings.BackgroundColor is for component BG
-        ComponentBGColor := FBorderSettings.BackgroundColor
+      if FIndicatorBorderSettings.BackgroundColor <> clNone then // Existing FBorderSettings.BackgroundColor is for component BG
+        ComponentBGColor := FIndicatorBorderSettings.BackgroundColor
       else
         ComponentBGColor := Self.Color; // Fallback to control's Color if no specific BG is set
 
@@ -870,7 +1099,7 @@ begin
     LCurrentBoxColorUnchecked := FBoxColorUnchecked;
     LCurrentBoxColorChecked := FBoxColorChecked;
     LCurrentCheckMarkColor := FCheckMarkColor;
-    ActualCheckElementBorderColor := FBorderSettings.Color; // From existing BorderSettings for check element
+    ActualCheckElementBorderColor := FIndicatorBorderSettings.Color; // From existing BorderSettings for check element
 
     ActualCaptionFont := TFont.Create;
     LCaptionFont := TFont.Create;
@@ -925,7 +1154,7 @@ begin
     // Draw the check element using existing FBorderSettings for its border style
     ANDMR_ComponentUtils.DrawEditBox(
       LG, BoxDrawRect, LBoxFillColor, ActualCheckElementBorderColor,
-      FBorderSettings.Thickness, psSolid, FBorderSettings.CornerRadius, FBorderSettings.RoundCornerType, 255
+      FIndicatorBorderSettings.Thickness, psSolid, FIndicatorBorderSettings.CornerRadius, FIndicatorBorderSettings.RoundCornerType, 255
     );
 
     // Draw CheckMark or Indeterminate Mark

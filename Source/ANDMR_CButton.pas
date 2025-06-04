@@ -68,6 +68,7 @@ type
     FOriginalEnabledState: Boolean; // New field
     // End of new fields
 
+    procedure SetImageSettings(const Value: TImageSettings); // Added to fix E2168
     procedure SetProgressSettings(const Value: TProgressSettings); // Added
 
     procedure ProgressTimerHandler(Sender: TObject); // Added
@@ -175,7 +176,7 @@ type
     property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
     property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
     property TitleFont: TFont read GetTitleFont write SetTitleFont; // Changed
-    property Image: TPicture read GetImage write SetImage; // Changed
+    // Image, ImageMargins, ImageStretchMode removed from published
     property TextAlign: TAlignment read GetTextAlign write SetTextAlign default taCenter; // Changed
 
     property GradientEnabled: Boolean read GetGradientEnabled write SetGradientEnabled default False;
@@ -184,9 +185,10 @@ type
     property GradientEndColor: TColor read GetGradientEndColor write SetGradientEndColor; // Default clNone is handled by TGradientSettings
 
     property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
-    property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
+    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings; // Added
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
-    property ImageStretchMode: TImageStretchMode read GetImageStretchMode write SetImageStretchMode default ismProportional; // Changed
+    // ImageStretchMode removed (part of ImageSettings)
+    // ImageMargins removed (part of ImageSettings)
 
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
@@ -255,6 +257,12 @@ begin
 end;
 
 { TANDMR_CButton }
+
+procedure TANDMR_CButton.SetImageSettings(const Value: TImageSettings);
+begin
+  FImageSettings.Assign(Value);
+  SettingsChanged(Self); // Ensure repaint/update
+end;
 
 constructor TANDMR_CButton.Create(AOwner: TComponent);
 begin
@@ -1545,8 +1553,14 @@ begin
     LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
                               Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
                               Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
-    if LDrawBorder and (LActualBorderThickness > 0) then
-        InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
+
+    if FImageSettings.Placement = iplInsideBounds then // iplInsideBounds is the default historical behavior
+    begin
+      if LDrawBorder and (LActualBorderThickness > 0) then
+          InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
+    end;
+    // For iplOutsideBounds, LImageClipRect remains the full ButtonRectEffectiveF.
+    // Margins will then position the image within this full rect.
 
     // >>> START NEW PROGRESS ANIMATION LOGIC <<<
     if FProcessing and FProgressSettings.ShowProgress then

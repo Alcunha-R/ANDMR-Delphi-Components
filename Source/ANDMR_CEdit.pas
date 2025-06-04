@@ -538,11 +538,24 @@ begin
   else
     WorkArea := FullClientRect;
 
+  // ImagePlacementArea holds the WorkArea *before* border deflation
+  var ImagePlacementArea: TRect;
+  ImagePlacementArea := WorkArea;
+
+  // The main WorkArea for text and separator should always be inside borders
   InflateRect(WorkArea, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
+
+  // Now, determine the specific area for image placement
+  if FImageSettings.Placement = iplInsideBounds then
+  begin
+    // For iplInsideBounds, the image is constrained by the same area as text/separator.
+    ImagePlacementArea := WorkArea; // Use the border-deflated WorkArea
+  end;
+  // Else, for iplOutsideBounds, ImagePlacementArea remains the WorkArea before border deflation.
 
   outImgRect := Rect(0,0,0,0);
   outSepRect := Rect(0,0,0,0);
-  outTxtRect := WorkArea;
+  outTxtRect := WorkArea; // TextRect is based on the (potentially) border-deflated WorkArea
 
   ImgW := 0; ImgH := 0;
   if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
@@ -552,8 +565,9 @@ begin
 
     if (OriginalImgW > 0) and (OriginalImgH > 0) then
     begin
-      availWForImg := WorkArea.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right;
-      availHForImg := WorkArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
+      // Use ImagePlacementArea for image dimensioning
+      availWForImg := ImagePlacementArea.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right;
+      availHForImg := ImagePlacementArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
       availWForImg := Max(0, availWForImg);
       availHForImg := Max(0, availHForImg);
 
@@ -594,7 +608,7 @@ begin
             begin
               ImgW := OriginalImgW;
               ImgH := OriginalImgH;
-              // Image will be clipped by outImgRect calculation if larger than WorkArea margins
+              // Image will be clipped by outImgRect calculation if larger than ImagePlacementArea margins
             end;
           else // Default for AutoSize True if unknown draw mode
             ImgW := OriginalImgW; ImgH := OriginalImgH;
@@ -663,8 +677,8 @@ begin
   begin
     if FImageSettings.Position = ipsLeft then
     begin
-      slotStartX := WorkArea.Left + FImageSettings.Margins.Left;
-      slotAvailableWidth := availWForImg; // Calculated based on WorkArea and ImageSettings.Margins
+      slotStartX := ImagePlacementArea.Left + FImageSettings.Margins.Left;
+      slotAvailableWidth := availWForImg; // Calculated based on ImagePlacementArea and ImageSettings.Margins
       case FImageSettings.HorizontalAlign of
         ihaLeft:   outImgRect.Left := slotStartX;
         ihaCenter: outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2;
@@ -675,7 +689,7 @@ begin
     end
     else // ipsRight
     begin
-      slotEndX := WorkArea.Right - FImageSettings.Margins.Right;
+      slotEndX := ImagePlacementArea.Right - FImageSettings.Margins.Right;
       slotAvailableWidth := availWForImg;
       case FImageSettings.HorizontalAlign of
         ihaLeft:   outImgRect.Left := slotEndX - slotAvailableWidth;
@@ -686,20 +700,21 @@ begin
       outImgRect.Right := outImgRect.Left + ImgW;
     end;
 
-    AvailHForImgLayoutAdjusted := WorkArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
+    AvailHForImgLayoutAdjusted := ImagePlacementArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
     AvailHForImgLayoutAdjusted := Max(0, AvailHForImgLayoutAdjusted);
 
     case FImageSettings.AlignmentVertical of
-      iavTop:    outImgRect.Top := WorkArea.Top + FImageSettings.Margins.Top;
-      iavCenter: outImgRect.Top := WorkArea.Top + FImageSettings.Margins.Top + (AvailHForImgLayoutAdjusted - ImgH) div 2;
-      iavBottom: outImgRect.Top := WorkArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
+      iavTop:    outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top;
+      iavCenter: outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top + (AvailHForImgLayoutAdjusted - ImgH) div 2;
+      iavBottom: outImgRect.Top := ImagePlacementArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
     end;
     outImgRect.Bottom := outImgRect.Top + ImgH;
 
-    if outImgRect.Left < WorkArea.Left then outImgRect.Left := WorkArea.Left;
-    if outImgRect.Right > WorkArea.Right then outImgRect.Right := WorkArea.Right;
-    if outImgRect.Top < WorkArea.Top then outImgRect.Top := WorkArea.Top;
-    if outImgRect.Bottom > WorkArea.Bottom then outImgRect.Bottom := WorkArea.Bottom;
+    // Clip outImgRect against ImagePlacementArea
+    if outImgRect.Left < ImagePlacementArea.Left then outImgRect.Left := ImagePlacementArea.Left;
+    if outImgRect.Right > ImagePlacementArea.Right then outImgRect.Right := ImagePlacementArea.Right;
+    if outImgRect.Top < ImagePlacementArea.Top then outImgRect.Top := ImagePlacementArea.Top;
+    if outImgRect.Bottom > ImagePlacementArea.Bottom then outImgRect.Bottom := ImagePlacementArea.Bottom;
     if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
     if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
 
@@ -733,15 +748,18 @@ begin
     SepH := 0;
     case FSeparatorSettings.HeightMode of
       shmFull: SepH := WorkArea.Height;
-      shmAsText: SepH := outTxtRect.Height; // Note: outTxtRect height not yet defined here, might need adjustment or use WorkArea.Height
-      shmAsImage: if FImageSettings.Visible and (ImgH > 0) then SepH := ImgH else SepH := WorkArea.Height;
-      shmCustom: if FSeparatorSettings.CustomHeight > 0 then SepH := FSeparatorSettings.CustomHeight else SepH := WorkArea.Height;
+      shmAsText: SepH := outTxtRect.Height; // Note: outTxtRect height not yet defined here, might need adjustment or use WorkArea (border-deflated) height
+      shmAsImage: if FImageSettings.Visible and (ImgH > 0) then SepH := ImgH else SepH := WorkArea.Height; // WorkArea (border-deflated)
+      shmCustom: if FSeparatorSettings.CustomHeight > 0 then SepH := FSeparatorSettings.CustomHeight else SepH := WorkArea.Height; // WorkArea (border-deflated)
     end;
     SepH := Max(0, SepH);
-    outSepRect.Top := WorkArea.Top + (WorkArea.Height - SepH) div 2;
+    outSepRect.Top := WorkArea.Top + (WorkArea.Height - SepH) div 2; // Position within border-deflated WorkArea
     outSepRect.Bottom := outSepRect.Top + SepH;
 
-    if outSepRect.Left < WorkArea.Left then outSepRect.Left := WorkArea.Left; if outSepRect.Right > WorkArea.Right then outSepRect.Right := WorkArea.Right; if outSepRect.Top < WorkArea.Top then outSepRect.Top := WorkArea.Top; if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom; if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left; if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
+    // Clip separator against border-deflated WorkArea
+    if outSepRect.Left < WorkArea.Left then outSepRect.Left := WorkArea.Left; if outSepRect.Right > WorkArea.Right then outSepRect.Right := WorkArea.Right;
+    if outSepRect.Top < WorkArea.Top then outSepRect.Top := WorkArea.Top; if outSepRect.Bottom > WorkArea.Bottom then outSepRect.Bottom := WorkArea.Bottom;
+    if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left; if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
     SepW := outSepRect.Width;
   end
   else
@@ -782,7 +800,8 @@ var
   BGForDrawEditBox: TColor;
 begin
   FullClientRect := Self.ClientRect;
-  CalculateLayout(imgR, txtR, sepR); // txtR is the key rectangle for the bordered area
+  // FCaptionRect is calculated by CalculateLayout and is available as a field
+  CalculateLayout(imgR, txtR, sepR);
 
   Canvas.Lock;
   try
@@ -792,55 +811,69 @@ begin
       LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
       var LHoverProgress: Single := FHoverSettings.CurrentAnimationValue / 255.0;
-      var TrueBaseEditBG, HoverEditBGFromSettings, FocusEditBGFromSettings, DisabledEditBGForResolve: TColor;
+      var TrueBaseComponentBG, TrueBaseEditBG, HoverEditBGFromSettings, FocusEditBGFromSettings, DisabledEditBGForResolve: TColor;
       var TrueBaseBorderCol, HoverBorderColFromSettings, FocusBorderColFromSettings, DisabledBorderColForResolve: TColor;
       var TrueBaseTextCol, HoverTextColFromSettings, FocusTextColFromSettings, DisabledTextColForResolve: TColor;
       var TrueBaseCaptionCol, HoverCaptionColFromSettings, FocusCaptionColFromSettings, DisabledCaptionColForResolve: TColor;
-      var NonHoveredBGColor, TargetStateBGColor: TColor;
-      var NonHoveredBorderColor, TargetStateBorderColor: TColor;
-      var NonHoveredTextColor, TargetStateTextColor: TColor;
-      var NonHoveredCaptionColor, TargetStateCaptionColor: TColor;
 
-      TrueBaseEditBG := IfThen(FImageSettings.Placement = iplInsideBounds, FBorderSettings.BackgroundColor, clWindow);
+      var NonHoveredComponentBGColor, TargetStateComponentBGColor, ResolvedComponentFrameBG: TColor;
+      var NonHoveredTextAreaBGColor, TargetStateTextAreaBGColor, ActualTextAreaBGColor: TColor; // Renamed ActualEditBGColor
+      var NonHoveredBorderColor, TargetStateBorderColor, ActualEditBorderColor: TColor;
+      var NonHoveredTextColor, TargetStateTextColor, ActualEditTextColor: TColor;
+      var NonHoveredCaptionColor, TargetStateCaptionColor, ActualCaptionTextColor: TColor;
+
+      // Define base colors
+      TrueBaseComponentBG := FBorderSettings.BackgroundColor; // Background for the entire component frame
+      TrueBaseEditBG := IfThen(FImageSettings.Placement = iplInsideBounds, FBorderSettings.BackgroundColor, clWindow); // Background specific to text area
       TrueBaseBorderCol := FBorderSettings.Color;
       TrueBaseTextCol := Self.Font.Color;
       TrueBaseCaptionCol := IfThen(FCaptionSettings.Color = clDefault, Self.Font.Color, FCaptionSettings.Color);
 
-      HoverEditBGFromSettings := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
+      // Define hover state colors from settings
+      HoverEditBGFromSettings := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone); // This might apply to component or text area based on context
       HoverBorderColFromSettings := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
       HoverTextColFromSettings := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone);
       HoverCaptionColFromSettings := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
 
-      FocusEditBGFromSettings := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone);
-      FocusBorderColFromSettings := FFocusSettings.BorderColor; // Changed: FActiveColor removed, ResolveStateColor handles visibility
-      FocusTextColFromSettings := TrueBaseTextCol;
+      // Define focus state colors from settings
+      FocusEditBGFromSettings := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone); // This might apply to component or text area
+      FocusBorderColFromSettings := FFocusSettings.BorderColor;
+      FocusTextColFromSettings := TrueBaseTextCol; // Typically text color doesn't change on focus itself, but background/border do
       FocusCaptionColFromSettings := TrueBaseCaptionCol;
 
-      DisabledEditBGForResolve := TrueBaseEditBG;
+      // Define disabled state colors (these are usually fixed, not from settings directly)
+      DisabledEditBGForResolve := TrueBaseEditBG; // For text area
       DisabledBorderColForResolve := TrueBaseBorderCol;
       DisabledTextColForResolve := IfThen(TrueBaseTextCol = clWindowText, clGrayText, DarkerColor(TrueBaseTextCol, 50));
       DisabledCaptionColForResolve := IfThen(TrueBaseCaptionCol = clWindowText, clGrayText, DarkerColor(TrueBaseCaptionCol,50));
 
-      NonHoveredBGColor := ResolveStateColor(Self.Enabled, FALSE, Self.Focused, TrueBaseEditBG, clNone, FocusEditBGFromSettings, DisabledEditBGForResolve, FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
+      // Resolve Non-Hovered Colors
+      NonHoveredComponentBGColor := ResolveStateColor(Self.Enabled, FALSE, Self.Focused, TrueBaseComponentBG, clNone, IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone), TrueBaseComponentBG, FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
+      NonHoveredTextAreaBGColor := ResolveStateColor(Self.Enabled, FALSE, Self.Focused, TrueBaseEditBG, clNone, FocusEditBGFromSettings, DisabledEditBGForResolve, FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
       NonHoveredBorderColor := ResolveStateColor(Self.Enabled, FALSE, Self.Focused, TrueBaseBorderCol, clNone, FocusBorderColFromSettings, DisabledBorderColForResolve, FHoverSettings.Enabled, FFocusSettings.BorderColorVisible, False);
       NonHoveredTextColor := ResolveStateColor(Self.Enabled, FALSE, Self.Focused, TrueBaseTextCol, clNone, FocusTextColFromSettings, DisabledTextColForResolve, FHoverSettings.Enabled, False, False);
       NonHoveredCaptionColor := ResolveStateColor(Self.Enabled, FALSE, Self.Focused, TrueBaseCaptionCol, clNone, FocusCaptionColFromSettings, DisabledCaptionColForResolve, FHoverSettings.Enabled, False, False);
 
-      TargetStateBGColor := ResolveStateColor(Self.Enabled, FHovered, Self.Focused, TrueBaseEditBG, HoverEditBGFromSettings, FocusEditBGFromSettings, DisabledEditBGForResolve, FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
+      // Resolve Target State Colors (Hovered or Focused)
+      TargetStateComponentBGColor := ResolveStateColor(Self.Enabled, FHovered, Self.Focused, TrueBaseComponentBG, IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone), IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone), TrueBaseComponentBG, FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
+      TargetStateTextAreaBGColor := ResolveStateColor(Self.Enabled, FHovered, Self.Focused, TrueBaseEditBG, HoverEditBGFromSettings, FocusEditBGFromSettings, DisabledEditBGForResolve, FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
       TargetStateBorderColor := ResolveStateColor(Self.Enabled, FHovered, Self.Focused, TrueBaseBorderCol, HoverBorderColFromSettings, FocusBorderColFromSettings, DisabledBorderColForResolve, FHoverSettings.Enabled, FFocusSettings.BorderColorVisible, False);
       TargetStateTextColor := ResolveStateColor(Self.Enabled, FHovered, Self.Focused, TrueBaseTextCol, HoverTextColFromSettings, FocusTextColFromSettings, DisabledTextColForResolve, FHoverSettings.Enabled, False, False);
       TargetStateCaptionColor := ResolveStateColor(Self.Enabled, FHovered, Self.Focused, TrueBaseCaptionCol, HoverCaptionColFromSettings, FocusCaptionColFromSettings, DisabledCaptionColForResolve, FHoverSettings.Enabled, False, False);
 
+      // Blend for Hover Animation
       if (LHoverProgress > 0) and FHoverSettings.Enabled and (FHoverSettings.HoverEffect <> heNone) and FHovered then
       begin
-        ActualEditBGColor := BlendColors(NonHoveredBGColor, TargetStateBGColor, LHoverProgress);
+        ResolvedComponentFrameBG := BlendColors(NonHoveredComponentBGColor, TargetStateComponentBGColor, LHoverProgress);
+        ActualTextAreaBGColor := BlendColors(NonHoveredTextAreaBGColor, TargetStateTextAreaBGColor, LHoverProgress);
         ActualEditBorderColor := BlendColors(NonHoveredBorderColor, TargetStateBorderColor, LHoverProgress);
         ActualEditTextColor := BlendColors(NonHoveredTextColor, TargetStateTextColor, LHoverProgress);
         ActualCaptionTextColor := BlendColors(NonHoveredCaptionColor, TargetStateCaptionColor, LHoverProgress);
       end
       else
       begin
-        ActualEditBGColor := TargetStateBGColor;
+        ResolvedComponentFrameBG := TargetStateComponentBGColor;
+        ActualTextAreaBGColor := TargetStateTextAreaBGColor;
         ActualEditBorderColor := TargetStateBorderColor;
         ActualEditTextColor := TargetStateTextColor;
         ActualCaptionTextColor := TargetStateCaptionColor;
@@ -848,17 +881,46 @@ begin
 
       if FOpacity = 255 then
       begin
-        Canvas.Brush.Color := Self.Color; // Parent background color if not themed
+        Canvas.Brush.Color := Self.Color; // Parent background color
         Canvas.FillRect(FullClientRect);
       end;
 
-      // EditBoxDrawingRect is the rectangle that DrawEditBox will draw borders around.
-      // This should be txtR, as CalculateLayout prepares this rect for the content area,
-      // having already accounted for the caption and its offset.
-      EditBoxDrawingRect := txtR;
-      BGForDrawEditBox := ActualEditBGColor;
+      // Calculate OverallBorderedRect for drawing the main border
+      var OverallBorderedRect: TRect;
+      const CaptionLayoutOffsetConst = 2; // Match CalculateLayout
+      OverallBorderedRect := FullClientRect;
+      if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') then
+      begin
+        case FCaptionSettings.Position of
+          cpAbove: OverallBorderedRect.Top := FCaptionRect.Bottom + CaptionLayoutOffsetConst;
+          cpBelow: OverallBorderedRect.Bottom := FCaptionRect.Top - CaptionLayoutOffsetConst;
+          cpLeft:  OverallBorderedRect.Left := FCaptionRect.Right + CaptionLayoutOffsetConst;
+          cpRight: OverallBorderedRect.Right := FCaptionRect.Left - CaptionLayoutOffsetConst;
+        end;
+        if OverallBorderedRect.Bottom < OverallBorderedRect.Top then OverallBorderedRect.Bottom := OverallBorderedRect.Top;
+        if OverallBorderedRect.Right < OverallBorderedRect.Left then OverallBorderedRect.Right := OverallBorderedRect.Left;
+      end;
+      if FBorderSettings.Thickness > 0 then
+        InflateRect(OverallBorderedRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
 
-      DrawEditBox(LG, EditBoxDrawingRect, BGForDrawEditBox, ActualEditBorderColor, FBorderSettings.Thickness, FBorderSettings.Style, FBorderSettings.CornerRadius, FBorderSettings.RoundCornerType, FOpacity);
+      // Draw the main component border and background
+      DrawEditBox(LG, OverallBorderedRect, ResolvedComponentFrameBG, ActualEditBorderColor, FBorderSettings.Thickness, FBorderSettings.Style, FBorderSettings.CornerRadius, FBorderSettings.RoundCornerType, FOpacity);
+
+      // Fill the text area (txtR) if its background is different from the component frame's background
+      // This is especially true if iplOutsideBounds (clWindow based) or if themes cause divergence.
+      if (ActualTextAreaBGColor <> ResolvedComponentFrameBG) or (FImageSettings.Placement = iplOutsideBounds) then
+      begin
+        if (txtR.Width > 0) and (txtR.Height > 0) then
+        begin
+          var BrushTxt: TGPBrush;
+          BrushTxt := TGPSolidBrush.Create(ColorToARGB(ActualTextAreaBGColor, FOpacity));
+          try
+            LG.FillRectangle(BrushTxt, txtR.Left, txtR.Top, txtR.Width, txtR.Height);
+          finally
+            BrushTxt.Free;
+          end;
+        end;
+      end;
 
       if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
       begin

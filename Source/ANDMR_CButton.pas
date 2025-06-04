@@ -153,18 +153,6 @@ type
     procedure SetTagExtended(const Value: Extended);
     procedure SetPresetType(const Value: TPresetType);
 
-    // Getters and Setters for new ImageSettings properties
-    function GetImageAutoSize: Boolean;
-    procedure SetImageAutoSize(const Value: Boolean);
-    function GetImageTargetWidth: Integer;
-    procedure SetImageTargetWidth(const Value: Integer);
-    function GetImageTargetHeight: Integer;
-    procedure SetImageTargetHeight(const Value: Integer);
-    function GetImageHorizontalAlign: TImageHorizontalAlignment;
-    procedure SetImageHorizontalAlign(const Value: TImageHorizontalAlignment);
-    function GetImageVerticalAlign: TImageVerticalAlignment;
-    procedure SetImageVerticalAlign(const Value: TImageVerticalAlignment);
-
   protected
     procedure Paint; override;
     procedure Loaded; override;
@@ -199,11 +187,6 @@ type
     property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
     property ImageStretchMode: TImageStretchMode read GetImageStretchMode write SetImageStretchMode default ismProportional; // Changed
-    property ImageAutoSize: Boolean read GetImageAutoSize write SetImageAutoSize default True;
-    property ImageTargetWidth: Integer read GetImageTargetWidth write SetImageTargetWidth default 0;
-    property ImageTargetHeight: Integer read GetImageTargetHeight write SetImageTargetHeight default 0;
-    property ImageHorizontalAlign: TImageHorizontalAlignment read GetImageHorizontalAlign write SetImageHorizontalAlign default ihaCenter;
-    property ImageVerticalAlign: TImageVerticalAlignment read GetImageVerticalAlign write SetImageVerticalAlign default ivaCenter;
 
     property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
     property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
@@ -2047,58 +2030,6 @@ begin
   if Focused and TabStop and Enabled then
     DrawFocusRect(Canvas.Handle, ClientRect);
 
-end;
-
-{ Getters and Setters for new ImageSettings properties }
-
-function TANDMR_CButton.GetImageAutoSize: Boolean;
-begin
-  Result := FImageSettings.AutoSize;
-end;
-
-procedure TANDMR_CButton.SetImageAutoSize(const Value: Boolean);
-begin
-  FImageSettings.AutoSize := Value;
-end;
-
-function TANDMR_CButton.GetImageTargetWidth: Integer;
-begin
-  Result := FImageSettings.TargetWidth;
-end;
-
-procedure TANDMR_CButton.SetImageTargetWidth(const Value: Integer);
-begin
-  FImageSettings.TargetWidth := Value;
-end;
-
-function TANDMR_CButton.GetImageTargetHeight: Integer;
-begin
-  Result := FImageSettings.TargetHeight;
-end;
-
-procedure TANDMR_CButton.SetImageTargetHeight(const Value: Integer);
-begin
-  FImageSettings.TargetHeight := Value;
-end;
-
-function TANDMR_CButton.GetImageHorizontalAlign: TImageHorizontalAlignment;
-begin
-  Result := FImageSettings.HorizontalAlign;
-end;
-
-procedure TANDMR_CButton.SetImageHorizontalAlign(const Value: TImageHorizontalAlignment);
-begin
-  FImageSettings.HorizontalAlign := Value;
-end;
-
-function TANDMR_CButton.GetImageVerticalAlign: TImageVerticalAlignment;
-begin
-  Result := FImageSettings.VerticalAlign;
-end;
-
-procedure TANDMR_CButton.SetImageVerticalAlign(const Value: TImageVerticalAlignment);
-begin
-  FImageSettings.VerticalAlign := Value;
 end;
 
 procedure TANDMR_CButton.KeyDown(var Key: Word; Shift: TShiftState);

@@ -441,6 +441,7 @@ type
     FProgressColor: TColor;
     FHideCaptionWhileProcessing: Boolean;
     FAnimationTimerInterval: Integer;
+    FAnimationProgressStep: Integer;
     FOwnerControl: TWinControl; // Used to invalidate the control when a setting changes
     FOnChange: TNotifyEvent;
     FAnimationStyle: TProgressAnimationStyle;
@@ -451,6 +452,7 @@ type
     procedure SetProgressColor(const Value: TColor);
     procedure SetHideCaptionWhileProcessing(const Value: Boolean);
     procedure SetAnimationTimerInterval(const Value: Integer);
+    procedure SetAnimationProgressStep(const Value: Integer);
     procedure SetAnimationStyle(const Value: TProgressAnimationStyle);
     procedure SetProgressText(const Value: string);
     procedure SetShowProgressText(const Value: Boolean);
@@ -464,7 +466,8 @@ type
     property ShowProgress: Boolean read FShowProgress write SetShowProgress default True;
     property ProgressColor: TColor read FProgressColor write SetProgressColor default clGray;
     property HideCaptionWhileProcessing: Boolean read FHideCaptionWhileProcessing write SetHideCaptionWhileProcessing default True;
-    property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 100;
+    property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 40;
+    property AnimationProgressStep: Integer read FAnimationProgressStep write SetAnimationProgressStep default 5;
     property AnimationStyle: TProgressAnimationStyle read FAnimationStyle write SetAnimationStyle default pasRotatingSemiCircle;
     property ProgressText: string read FProgressText write SetProgressText;
     property ShowProgressText: Boolean read FShowProgressText write SetShowProgressText default False;
@@ -900,6 +903,15 @@ begin
   if FAnimationTimerInterval <> Max(10, Value) then
   begin
     FAnimationTimerInterval := Max(10, Value);
+    Changed;
+  end;
+end;
+
+procedure TProgressSettings.SetAnimationProgressStep(const Value: Integer);
+begin
+  if FAnimationProgressStep <> Max(10, Value) then
+  begin
+    FAnimationProgressStep := Max(10, Value);
     Changed;
   end;
 end;

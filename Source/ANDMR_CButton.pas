@@ -1524,78 +1524,12 @@ begin
                          Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width), Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
 
     var BgColorToUse: TColor;
-    var EffectiveGradientStartColor, EffectiveGradientEndColor: TColor;
-
-    // Determine Effective Gradient Colors
-    if LCurrentGradientEnabled and LDrawFill and not FTransparent then // Ensure gradient is applicable
-    begin
-      // Determine EffectiveGradientStartColor
-      if FGradientSettings.StartColor <> clNone then
-        EffectiveGradientStartColor := FGradientSettings.StartColor
-      else
-        EffectiveGradientStartColor := LActualFillColor; // LActualFillColor already considers button states for base color
-
-      // Determine EffectiveGradientEndColor
-      if FGradientSettings.EndColor <> clNone then
-        EffectiveGradientEndColor := FGradientSettings.EndColor
-      else
-      begin
-        // If StartColor was also clNone and became LActualFillColor,
-        // derive EndColor from this potentially state-modified LActualFillColor.
-        if FGradientSettings.StartColor = clNone then
-          EffectiveGradientEndColor := DarkerColor(LActualFillColor, GRADIENT_DARK_FACTOR)
-        else // Otherwise, derive from the specified FGradientSettings.StartColor
-          EffectiveGradientEndColor := DarkerColor(FGradientSettings.StartColor, GRADIENT_DARK_FACTOR);
-      end;
-
-      // --- BEGIN STATE-BASED GRADIENT ADJUSTMENTS ---
-      if not Enabled then // Disabled State
-      begin
-        if EffectiveGradientStartColor <> clNone then
-          EffectiveGradientStartColor := BlendColors(EffectiveGradientStartColor, clGray, 0.75);
-        if EffectiveGradientEndColor <> clNone then
-          EffectiveGradientEndColor := BlendColors(EffectiveGradientEndColor, clGray, 0.75);
-      end
-      else // Enabled States (Hover, Click)
-      begin
-        if (LHoverProgress > 0) and GetEnableHoverEffect then
-        begin
-          if EffectiveGradientStartColor <> clNone then
-            EffectiveGradientStartColor := LighterColor(EffectiveGradientStartColor, 15);
-          if EffectiveGradientEndColor <> clNone then
-            EffectiveGradientEndColor := LighterColor(EffectiveGradientEndColor, 15);
-        end;
-
-        if (LClickProgress > 0) and (FClickEffectDuration > 0) then
-        begin
-          if EffectiveGradientStartColor <> clNone then
-            EffectiveGradientStartColor := DarkerColor(EffectiveGradientStartColor, 15);
-          if EffectiveGradientEndColor <> clNone then
-            EffectiveGradientEndColor := DarkerColor(EffectiveGradientEndColor, 15);
-        end;
-      end;
-
-      if (EffectiveGradientStartColor = clNone) or (EffectiveGradientEndColor = clNone) then
-      begin
-          LCurrentGradientEnabled := False; // Explicitly disable gradient if colors become invalid
-      end;
-      // --- END STATE-BASED GRADIENT ADJUSTMENTS ---
-    end
-    else
-    begin
-      EffectiveGradientStartColor := clNone;
-      EffectiveGradientEndColor := clNone;
-    end;
-
-    // Determine BgColorToUse for DrawEditBox ABackgroundColor parameter
     if LDrawFill and not FTransparent then
     begin
-      // This logic is for the ABackgroundColor parameter of DrawEditBox,
-      // which acts as a solid fill if gradient isn't used by DrawEditBox.
-      if LCurrentGradientEnabled and (FGradientSettings.StartColor <> clNone) then
-         BgColorToUse := FGradientSettings.StartColor // If gradient is on and StartColor is explicit, use it as base for DrawEditBox
+      if LCurrentGradientEnabled then
+        BgColorToUse := IfThen(FGradientSettings.StartColor = clNone, LActualFillColor, FGradientSettings.StartColor)
       else
-         BgColorToUse := LActualFillColor; // Otherwise, LActualFillColor is the base
+        BgColorToUse := LActualFillColor;
     end
     else
       BgColorToUse := clNone;

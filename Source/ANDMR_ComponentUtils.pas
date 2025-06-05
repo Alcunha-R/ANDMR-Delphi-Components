@@ -18,7 +18,7 @@ type
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
 
-  TGradientType = (gtLinearVertical, gtLinearHorizontal);
+  TGradientType = (gtLinearVertical, gtLinearHorizontal, gtRadial, gtDiagonalForward, gtDiagonalBackward);
 
   TRoundCornerType = (
     rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight,
@@ -469,9 +469,33 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+procedure DrawGradientPath(
+  AGraphics: TGPGraphics;
+  APath: TGPGraphicsPath;
+  const ARect: TGPRectF; // Used for defining gradient geometry
+  AGradientSettings: TGradientSettings;
+  AEffectiveStartColor: TColor;
+  AEffectiveEndColor: TColor;
+  AOpacity: Byte
+);
+
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
+procedure DrawEditBox(
+  AGraphics: TGPGraphics;
+  const ADrawArea: TRect;
+  ABackgroundColor: TColor; // This will be the primary color for solid fill, or a fallback
+  ABorderColor: TColor;
+  ABorderThickness: Integer;
+  ABorderStyle: TPenStyle;
+  ACornerRadius: Integer;
+  ARoundCornerType: TRoundCornerType;
+  AOpacity: Byte;
+  // New parameters for gradient
+  AGradientSettings: TGradientSettings; // Can be nil if no gradient is intended
+  AEffectiveGradientStartColor: TColor; // Effective start color for gradient
+  AEffectiveGradientEndColor: TColor    // Effective end color for gradient
+);
 procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
 procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
@@ -1718,14 +1742,28 @@ begin
 end;
 
 { DrawEditBox }
-procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
+procedure DrawEditBox(
+  AGraphics: TGPGraphics;
+  const ADrawArea: TRect;
+  ABackgroundColor: TColor;
+  ABorderColor: TColor;
+  ABorderThickness: Integer;
+  ABorderStyle: TPenStyle;
+  ACornerRadius: Integer;
+  ARoundCornerType: TRoundCornerType;
+  AOpacity: Byte;
+  AGradientSettings: TGradientSettings;
+  AEffectiveGradientStartColor: TColor;
+  AEffectiveGradientEndColor: TColor
+);
 var
   LPath: TGPGraphicsPath;
-  LBrush: TGPBrush;
+  LBrush: TGPBrush; // Keep for solid fill fallback if needed
   LPen: TGPPen;
   LRectF: TGPRectF;
   LRadiusValue: Single;
   LBorderThicknessValue: Single;
+  LUseGradient: Boolean;
 begin
   if (AGraphics = nil) or (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) then
     Exit;
@@ -1764,7 +1802,18 @@ begin
 
     if LPath.GetPointCount > 0 then
     begin
-      if ABackgroundColor <> clNone then
+      // Determine if gradient should be used
+      LUseGradient := Assigned(AGradientSettings) and AGradientSettings.Enabled and
+                      (AEffectiveGradientStartColor <> clNone) and
+                      (AEffectiveGradientEndColor <> clNone);
+
+      if LUseGradient then
+      begin
+        // Use the new DrawGradientPath procedure
+        DrawGradientPath(AGraphics, LPath, LRectF, AGradientSettings,
+                         AEffectiveGradientStartColor, AEffectiveGradientEndColor, AOpacity);
+      end
+      else if ABackgroundColor <> clNone then // Fallback to solid fill
       begin
         LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor, AOpacity));
         try
@@ -1773,7 +1822,9 @@ begin
           LBrush.Free;
         end;
       end;
+      // else: No background fill if ABackgroundColor is clNone and not using gradient
 
+      // Border drawing logic remains the same
       if (LBorderThicknessValue > 0) and (ABorderColor <> clNone) and (ABorderStyle <> psClear) then
       begin
         LPen := TGPPen.Create(ColorToARGB(ABorderColor, AOpacity), LBorderThicknessValue);
@@ -2193,6 +2244,89 @@ begin
   else
   begin
     Result := ABaseColor;
+  end;
+end;
+
+procedure DrawGradientPath(
+  AGraphics: TGPGraphics;
+  APath: TGPGraphicsPath;
+  const ARect: TGPRectF; // Used for defining gradient geometry
+  AGradientSettings: TGradientSettings;
+  AEffectiveStartColor: TColor;
+  AEffectiveEndColor: TColor;
+  AOpacity: Byte
+);
+var
+  LGradientBrush: TGPBrush;
+  LStartColor, LEndColor: TGPColor;
+  LRect: TGPRectF;
+begin
+  if (AGraphics = nil) or (APath = nil) or (AGradientSettings = nil) or
+     (APath.GetPointCount = 0) or (ARect.Width <= 0) or (ARect.Height <= 0) or
+     (AEffectiveStartColor = clNone) or (AEffectiveEndColor = clNone) then
+    Exit;
+
+  LStartColor := ColorToARGB(AEffectiveStartColor, AOpacity);
+  LEndColor := ColorToARGB(AEffectiveEndColor, AOpacity);
+  LRect := ARect; // Use a local copy for modification if needed by specific types
+
+  LGradientBrush := nil;
+  try
+    case AGradientSettings.GradientType of
+      gtLinearVertical:
+        LGradientBrush := TGPLinearGradientBrush.Create(
+          MakePoint(LRect.X, LRect.Y),
+          MakePoint(LRect.X, LRect.Y + LRect.Height),
+          LStartColor,
+          LEndColor
+        );
+      gtLinearHorizontal:
+        LGradientBrush := TGPLinearGradientBrush.Create(
+          MakePoint(LRect.X, LRect.Y),
+          MakePoint(LRect.X + LRect.Width, LRect.Y),
+          LStartColor,
+          LEndColor
+        );
+      gtDiagonalForward: // Top-left to Bottom-right
+        LGradientBrush := TGPLinearGradientBrush.Create(
+          MakePoint(LRect.X, LRect.Y),
+          MakePoint(LRect.X + LRect.Width, LRect.Y + LRect.Height),
+          LStartColor,
+          LEndColor
+        );
+      gtDiagonalBackward: // Top-right to Bottom-left
+        LGradientBrush := TGPLinearGradientBrush.Create(
+          MakePoint(LRect.X + LRect.Width, LRect.Y),
+          MakePoint(LRect.X, LRect.Y + LRect.Height),
+          LStartColor,
+          LEndColor
+        );
+      gtRadial:
+      begin
+        var PathGradientBrush: TGPPathGradientBrush;
+        PathGradientBrush := TGPPathGradientBrush.Create(APath);
+        if PathGradientBrush = nil then Exit; // Could not create brush
+
+        PathGradientBrush.SetCenterColor(LStartColor);
+        var SurroundColors: array[0..0] of TGPColor; // Array with one color
+        SurroundColors[0] := LEndColor;
+        PathGradientBrush.SetSurroundColors(SurroundColors, 1); // Pass array and count
+
+        // Optional: Set center point explicitly if needed, default is geometric center of path
+        PathGradientBrush.SetCenterPoint(MakePoint(LRect.X + LRect.Width / 2, LRect.Y + LRect.Height / 2));
+
+        LGradientBrush := PathGradientBrush;
+      end;
+    else
+      // Default or unknown gradient type, fallback to solid fill with start color
+      LGradientBrush := TGPSolidBrush.Create(LStartColor);
+    end;
+
+    if LGradientBrush <> nil then
+      AGraphics.FillPath(LGradientBrush, APath);
+
+  finally
+    if LGradientBrush <> nil then LGradientBrush.Free;
   end;
 end;
 

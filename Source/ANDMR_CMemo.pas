@@ -10,6 +10,9 @@ uses
   System.Math;
 
 type
+  TScrollBarStyle = (sbsDefault, sbsThin, sbsModern);
+
+type
   TANDMR_CMemo = class(TCustomControl)
   private
     FBorderSettings: TBorderSettings;
@@ -24,6 +27,12 @@ type
     FHovered: Boolean;
     FOpacity: Byte;
     FInternalMemo: TMemo;
+    FScrollBarStyle: TScrollBarStyle;
+    FOriginalInternalScrollBars: TScrollStyle;
+    FIsDraggingThumb: Boolean;
+    FDragStartMouseY: Integer;
+    FDragStartScrollPos: Integer;
+    FCustomScrollBarRect: TRect;
 
     FOnChange: TNotifyEvent;
     FOnEnter: TNotifyEvent;
@@ -64,6 +73,7 @@ type
     procedure InternalMemoKeyPress(Sender: TObject; var Key: Char);
     procedure InternalMemoKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
 
+    procedure DrawCustomScrollBars(const AGraphics: TGPGraphics);
   protected
     procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
     procedure CMExit(var Message: TCMExit); message CM_EXIT;
@@ -71,6 +81,8 @@ type
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
     procedure CMFontChanged(var Message: TMessage); message CM_FONTCHANGED;
     procedure SetTabStop(Value: Boolean);
+    procedure WMVScroll(var Message: TWMVScroll); message WM_VSCROLL;
+    procedure WMHScroll(var Message: TWMHScroll); message WM_HSCROLL;
 
     procedure CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect); virtual;
     procedure UpdateInternalMemoBounds; virtual;
@@ -82,6 +94,9 @@ type
     destructor Destroy; override;
     procedure Paint; override;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure SetScrollBarStyle(const Value: TScrollBarStyle);
   published
     property Lines: TStrings read GetLines write SetLines;
     property ReadOnly: Boolean read GetReadOnly write SetReadOnly default False;
@@ -117,11 +132,18 @@ type
     property OnKeyDown: TKeyEvent read FOnKeyDown write FOnKeyDown;
     property OnKeyPress: TKeyPressEvent read FOnKeyPress write FOnKeyPress;
     property OnKeyUp: TKeyEvent read FOnKeyUp write FOnKeyUp;
+
+    property ScrollBarStyle: TScrollBarStyle read FScrollBarStyle write SetScrollBarStyle;
   end;
 
 procedure Register;
 
 implementation
+
+function GetScrollInfo(hwnd: HWND; fnBar: Integer; var lpsi: TScrollInfo): BOOL; stdcall; external 'user32.dll' name 'GetScrollInfo';
+function SetScrollInfo(hwnd: HWND; fnBar: Integer; const lpsi: TScrollInfo; fRedraw: BOOL): Integer; stdcall; external 'user32.dll' name 'SetScrollInfo';
+// We might need ShowScrollBar later, but GetScrollInfo is a start for Paint.
+// function ShowScrollBar(hWnd: HWND; wBar: Integer; bShow: BOOL): BOOL; stdcall; external 'user32.dll' name 'ShowScrollBar';
 
 procedure Register;
 begin
@@ -206,6 +228,10 @@ begin
   FInternalMemo.OnKeyDown := InternalMemoKeyDown;
   FInternalMemo.OnKeyPress := InternalMemoKeyPress;
   FInternalMemo.OnKeyUp := InternalMemoKeyUp;
+
+  FScrollBarStyle := sbsDefault;
+  FOriginalInternalScrollBars := FInternalMemo.ScrollBars;
+  FIsDraggingThumb := False;
 end;
 
 destructor TANDMR_CMemo.Destroy;
@@ -967,18 +993,85 @@ begin
 end;
 
 procedure TANDMR_CMemo.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  LocalPoint: TPoint;
+  ThumbRectGPR: TGPRectF; // For calculating thumb dimensions based on GDI+ values
+  ThumbRectVCL: TRect;   // For PtInRect check
+  scrollInfo: TScrollInfo;
+  ScrollBarWidth: Single;
+  ThumbHeight: Single;
+  ThumbPos: Single;
 begin
-  inherited MouseDown(Button, Shift, X, Y);
-  if Button = mbLeft then
+  LocalPoint := Point(X, Y);
+  if (Button = mbLeft) and (FScrollBarStyle <> sbsDefault) and Assigned(FInternalMemo) and FInternalMemo.HandleAllocated and PtInRect(FCustomScrollBarRect, LocalPoint) then
   begin
-    if CanFocus and (not Focused) and Assigned(FInternalMemo) then
+    SetFocus; // Focus the component when interacting with its custom scrollbar
+
+    FillChar(scrollInfo, SizeOf(TScrollInfo), 0);
+    scrollInfo.cbSize := SizeOf(TScrollInfo);
+    scrollInfo.fMask := SIF_ALL;
+
+    if GetScrollInfo(FInternalMemo.Handle, SB_VERT, scrollInfo) then
     begin
-       Self.SetFocus;
+      // Check new visibility condition
+      if ((scrollInfo.nMax - scrollInfo.nMin + 1) <= Integer(scrollInfo.nPage)) or (scrollInfo.nPage = 0) then
+      begin
+        // No scrollbar effectively, treat as inherited.
+        inherited MouseDown(Button, Shift, X, Y);
+        Exit;
+      end;
+
+      ScrollBarWidth := FCustomScrollBarRect.Width; // Taken from the stored rect
+
+      if scrollInfo.nPage = 0 then ThumbHeight := 0
+      else ThumbHeight := (scrollInfo.nPage / (scrollInfo.nMax - scrollInfo.nMin + 1)) * FCustomScrollBarRect.Height;
+      ThumbHeight := Max(ThumbHeight, ScrollBarWidth * 2);
+      ThumbHeight := Min(ThumbHeight, FCustomScrollBarRect.Height);
+
+
+      var scrollableContentRange := (scrollInfo.nMax - scrollInfo.nMin + 1) - scrollInfo.nPage;
+      if scrollableContentRange < 0 then scrollableContentRange := 0;
+
+      if scrollableContentRange = 0 then
+        ThumbPos := FCustomScrollBarRect.Top
+      else
+        ThumbPos := FCustomScrollBarRect.Top + (scrollInfo.nPos / scrollableContentRange) * (FCustomScrollBarRect.Height - ThumbHeight);
+
+      ThumbRectGPR.X := FCustomScrollBarRect.Left;
+      ThumbRectGPR.Y := ThumbPos;
+      ThumbRectGPR.Width := ScrollBarWidth;
+      ThumbRectGPR.Height := ThumbHeight;
+
+      if ThumbRectGPR.Y < FCustomScrollBarRect.Top then ThumbRectGPR.Y := FCustomScrollBarRect.Top;
+      if ThumbRectGPR.Y + ThumbRectGPR.Height > FCustomScrollBarRect.Top + FCustomScrollBarRect.Height then
+          ThumbRectGPR.Y := FCustomScrollBarRect.Top + FCustomScrollBarRect.Height - ThumbRectGPR.Height;
+
+      ThumbRectVCL := Rect(Round(ThumbRectGPR.X), Round(ThumbRectGPR.Y), Round(ThumbRectGPR.X + ThumbRectGPR.Width), Round(ThumbRectGPR.Y + ThumbRectGPR.Height));
+
+      if PtInRect(ThumbRectVCL, LocalPoint) then
+      begin
+        FIsDraggingThumb := True;
+        FDragStartMouseY := Y;
+        FDragStartScrollPos := scrollInfo.nPos;
+        SetCapture(Self.Handle);
+      end
+      else
+      begin
+        if Y < ThumbRectVCL.Top then
+          FInternalMemo.Perform(WM_VSCROLL, SB_PAGEUP, 0)
+        else if Y > ThumbRectVCL.Bottom then
+          FInternalMemo.Perform(WM_VSCROLL, SB_PAGEDOWN, 0);
+      end;
+      Invalidate;
     end
-    else if Focused and Assigned(FInternalMemo) and (FInternalMemo.Handle <> GetFocus) then
+    else
     begin
-       FInternalMemo.SetFocus;
+      inherited MouseDown(Button, Shift, X, Y);
     end;
+  end
+  else
+  begin
+    inherited MouseDown(Button, Shift, X, Y);
   end;
 end;
 
@@ -1187,8 +1280,247 @@ end;
         FCaptionSettings.WordWrap, FOpacity
       );
     end;
+
+    // Draw custom scrollbars if needed
+    if (FScrollBarStyle <> sbsDefault) and Assigned(FInternalMemo) and FInternalMemo.HandleAllocated then
+    begin
+      DrawCustomScrollBars(LG);
+    end;
+
   finally
     Canvas.Unlock;
+  end;
+end;
+
+procedure TANDMR_CMemo.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  if FIsDraggingThumb and (Button = mbLeft) then
+  begin
+    FIsDraggingThumb := False;
+    ReleaseCapture;
+    // Optional: Perform a final SB_THUMBPOSITION or SB_ENDSCROLL if needed,
+    // but SB_THUMBTRACK should have kept the memo updated.
+    // FInternalMemo.Perform(WM_VSCROLL, MakeWParam(SB_THUMBPOSITION, scrollInfo.nPos), 0);
+    Invalidate; // Redraw to show scrollbar in non-dragging state
+  end
+  else
+  begin
+    inherited MouseUp(Button, Shift, X, Y);
+  end;
+end;
+
+procedure TANDMR_CMemo.MouseMove(Shift: TShiftState; X, Y: Integer);
+var
+  scrollInfo: TScrollInfo;
+  DeltaY: Integer;
+  TrackPixelHeight: Single;
+  ThumbHeightRatio: Single;
+  ThumbPixelHeight: Single;
+  ScrollablePixelRange: Single;
+  ScrollableContentRange: Integer;
+  NewScrollPos: Integer;
+  OriginalPageSize: Cardinal; // To preserve nPage for calculations
+begin
+  if FIsDraggingThumb then
+  begin
+    if not Assigned(FInternalMemo) or not FInternalMemo.HandleAllocated then
+    begin
+      FIsDraggingThumb := False; // Should not happen if captured, but as safeguard
+      ReleaseCapture;
+      Exit;
+    end;
+
+    FillChar(scrollInfo, SizeOf(TScrollInfo), 0);
+    scrollInfo.cbSize := SizeOf(TScrollInfo);
+    scrollInfo.fMask := SIF_RANGE or SIF_PAGE; // Need range and page size
+    GetScrollInfo(FInternalMemo.Handle, SB_VERT, scrollInfo);
+
+    OriginalPageSize := scrollInfo.nPage;
+    if OriginalPageSize = 0 then Exit; // Avoid division by zero if page size is zero
+
+    ThumbPixelHeight := (OriginalPageSize / (scrollInfo.nMax - scrollInfo.nMin + 1)) * FCustomScrollBarRect.Height;
+    ThumbPixelHeight := Max(ThumbPixelHeight, FCustomScrollBarRect.Width * 2);
+    ThumbPixelHeight := Min(ThumbPixelHeight, FCustomScrollBarRect.Height);
+
+
+    TrackPixelHeight := FCustomScrollBarRect.Height;
+    ScrollablePixelRange := TrackPixelHeight - ThumbPixelHeight;
+
+    ScrollableContentRange := scrollInfo.nMax - scrollInfo.nMin - Cardinal(OriginalPageSize) + 1;
+    if ScrollableContentRange <= 0 then
+    begin
+        Exit;
+    end;
+
+    if ScrollablePixelRange <= 0 then
+    begin
+        Exit;
+    end;
+
+    DeltaY := Y - FDragStartMouseY;
+    NewScrollPos := FDragStartScrollPos + Round(DeltaY * (ScrollableContentRange / ScrollablePixelRange));
+
+    NewScrollPos := Max(scrollInfo.nMin, NewScrollPos);
+    NewScrollPos := Min(NewScrollPos, scrollInfo.nMax - Cardinal(OriginalPageSize) + 1);
+
+    if scrollInfo.nPos <> NewScrollPos then
+    begin
+      scrollInfo.nPos := NewScrollPos;
+      scrollInfo.fMask := SIF_POS;
+      SetScrollInfo(FInternalMemo.Handle, SB_VERT, scrollInfo, True);
+      FInternalMemo.Perform(WM_VSCROLL, MakeWParam(SB_THUMBTRACK, NewScrollPos), 0);
+      Self.Invalidate;
+    end;
+  end
+  else
+  begin
+    inherited MouseMove(Shift, X, Y);
+  end;
+end;
+
+procedure TANDMR_CMemo.DrawCustomScrollBars(const AGraphics: TGPGraphics);
+var
+  scrollInfo: TScrollInfo;
+  LScrollBarWidth: Single;
+  TrackRectF, ThumbRectF: TGPRectF; // Use TGPRectF for GDI+ drawing
+  ThumbHeightCalculated, ThumbPosCalculated: Single;
+  LTrackPath, LThumbPath: TGPGraphicsPath;
+  LTrackBrush, LThumbBrush: TGPSolidBrush;
+  TrackColor, ThumbColor: TColor;
+  ScrollBarCornerRadius: Single;
+begin
+  ScrollBarCornerRadius := 2.0;
+
+  if not Assigned(FInternalMemo) or not FInternalMemo.HandleAllocated then
+  begin
+    FCustomScrollBarRect := Rect(0,0,0,0);
+    Exit;
+  end;
+
+  LScrollBarWidth := 10.0;
+
+  TrackRectF.X := ClientRect.Right - LScrollBarWidth;
+  TrackRectF.Y := ClientRect.Top;
+  TrackRectF.Width := LScrollBarWidth;
+  TrackRectF.Height := ClientRect.Height;
+  FCustomScrollBarRect := Rect(Round(TrackRectF.X), Round(TrackRectF.Y), Round(TrackRectF.X + TrackRectF.Width), Round(TrackRectF.Y + TrackRectF.Height));
+
+  if (FCustomScrollBarRect.Width <= 0) or (FCustomScrollBarRect.Height <= 0) then
+  begin
+     Exit;
+  end;
+
+  FillChar(scrollInfo, SizeOf(TScrollInfo), 0);
+  scrollInfo.cbSize := SizeOf(TScrollInfo);
+  scrollInfo.fMask := SIF_ALL;
+
+  if not GetScrollInfo(FInternalMemo.Handle, SB_VERT, scrollInfo) then
+  begin
+    FCustomScrollBarRect := Rect(0,0,0,0);
+    Exit;
+  end;
+
+  // Corrected visibility condition
+  if ((scrollInfo.nMax - scrollInfo.nMin + 1) <= Integer(scrollInfo.nPage)) or (scrollInfo.nPage = 0) then
+  begin
+    FCustomScrollBarRect := Rect(0,0,0,0);
+    Exit;
+  end;
+
+  TrackColor := MakeColor(220, 220, 220);
+  ThumbColor := MakeColor(160, 160, 160);
+
+  if (TrackRectF.Width <=0) or (TrackRectF.Height <=0) then Exit;
+
+  if (scrollInfo.nMax - scrollInfo.nMin + 1) = 0 then
+  begin
+    FCustomScrollBarRect := Rect(0,0,0,0);
+    Exit;
+  end;
+
+  ThumbHeightCalculated := (scrollInfo.nPage / (scrollInfo.nMax - scrollInfo.nMin + 1)) * TrackRectF.Height;
+  ThumbHeightCalculated := Max(ThumbHeightCalculated, LScrollBarWidth * 2);
+  ThumbHeightCalculated := Min(ThumbHeightCalculated, TrackRectF.Height);
+
+  var scrollableContentUnits := (scrollInfo.nMax - scrollInfo.nMin + 1) - scrollInfo.nPage;
+  if scrollableContentUnits < 0 then scrollableContentUnits := 0;
+
+  if scrollableContentUnits = 0 then
+      ThumbPosCalculated := TrackRectF.Y
+  else
+      ThumbPosCalculated := TrackRectF.Y + (scrollInfo.nPos / scrollableContentUnits) * (TrackRectF.Height - ThumbHeightCalculated);
+
+  ThumbRectF.X := TrackRectF.X;
+  ThumbRectF.Y := ThumbPosCalculated;
+  ThumbRectF.Width := LScrollBarWidth;
+  ThumbRectF.Height := ThumbHeightCalculated;
+
+  if ThumbRectF.Y < TrackRectF.Y then ThumbRectF.Y := TrackRectF.Y;
+  if (ThumbRectF.Y + ThumbRectF.Height) > (TrackRectF.Y + TrackRectF.Height) then
+      ThumbRectF.Y := (TrackRectF.Y + TrackRectF.Height) - ThumbRectF.Height;
+
+  LTrackBrush := TGPSolidBrush.Create(TrackColor);
+  LThumbBrush := TGPSolidBrush.Create(ThumbColor);
+  LTrackPath := TGPGraphicsPath.Create;
+  LThumbPath := TGPGraphicsPath.Create;
+  try
+    CreateGPRoundedPath(LTrackPath, TrackRectF, ScrollBarCornerRadius, rctAll);
+    AGraphics.FillPath(LTrackBrush, LTrackPath);
+
+    if ThumbHeightCalculated > 0 then
+    begin
+      CreateGPRoundedPath(LThumbPath, ThumbRectF, ScrollBarCornerRadius, rctAll);
+      AGraphics.FillPath(LThumbBrush, LThumbPath);
+    end;
+  finally
+    LTrackPath.Free;
+    LThumbPath.Free;
+    LTrackBrush.Free;
+    LThumbBrush.Free;
+  end;
+end;
+
+procedure TANDMR_CMemo.SetScrollBarStyle(const Value: TScrollBarStyle);
+begin
+  if FScrollBarStyle <> Value then
+  begin
+    if (FScrollBarStyle = sbsDefault) and (Value <> sbsDefault) and Assigned(FInternalMemo) then
+    begin
+      FOriginalInternalScrollBars := FInternalMemo.ScrollBars;
+    end;
+
+    FScrollBarStyle := Value;
+
+    if Assigned(FInternalMemo) then
+    begin
+      if FScrollBarStyle = sbsDefault then
+      begin
+        FInternalMemo.ScrollBars := FOriginalInternalScrollBars;
+      end
+      else
+      begin
+        FInternalMemo.ScrollBars := ssNone;
+      end;
+    end;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CMemo.WMVScroll(var Message: TWMVScroll);
+begin
+  inherited;
+  if (FScrollBarStyle <> sbsDefault) and Assigned(FInternalMemo) and FInternalMemo.HandleAllocated then
+  begin
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CMemo.WMHScroll(var Message: TWMHScroll);
+begin
+  inherited;
+  if (FScrollBarStyle <> sbsDefault) and Assigned(FInternalMemo) and FInternalMemo.HandleAllocated then
+  begin
+    Invalidate;
   end;
 end;
 

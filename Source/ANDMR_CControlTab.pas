@@ -216,7 +216,7 @@ begin
   FHoverTabStyle := TBorderSettings.Create;
   FHoverTabStyle.OnChange := StyleChanged;
   FHoverTabStyle.BackgroundColor := LighterColor(clBtnFace, 10);
-  FHoverTabStyle.Color := clRed;
+  FHoverTabStyle.Color := clGreen;
   FHoverTabStyle.CornerRadius := 3;
   FHoverTabStyle.RoundCornerType := rctTop;
 
@@ -662,26 +662,15 @@ begin
         end;
       tpLeft, tpRight:
         begin
-          Canvas.Font.Assign(FTabCaptionSettings.Font); // Set font for accurate measurement
-          ButtonHeight := Canvas.TextHeight('Wg');     // Correctly call TextHeight with a string
+          // For L/R tabs, button width is fixed by FTabButtonWidth. Height is dynamic.
+//          ButtonHeight := Canvas.TextHeight; // Start with text height.
+          // If an icon is present, its height contributes. Assume icon is scaled to fit FTabButtonHeight.
+          if ButtonIconWidth > 0 then // Icon is present and its calculated width (which implies height too)
+             ButtonHeight := Max(ButtonHeight, Self.FTabButtonHeight - FTabButtonPadding.Top - FTabButtonPadding.Bottom);
+          ButtonHeight := ButtonHeight + FTabButtonPadding.Top + FTabButtonPadding.Bottom; // Add vertical padding.
+          ButtonHeight := Max(ButtonHeight, Self.FTabButtonHeight); // Ensure minimum height.
 
-          // Consider icon height contribution
-          var IconActualHeight: Integer := 0;
-          if ButtonIconWidth > 0 then // ButtonIconWidth implies an icon is present and its potential width was calculated earlier
-          begin
-            // For L/R tabs, an icon usually sits beside or above/below text.
-            // The FTabButtonHeight property sets a general height for the items in L/R mode.
-            // IconActualHeight represents the usable space for an icon within that FTabButtonHeight, after padding.
-            IconActualHeight := Self.FTabButtonHeight - FTabButtonPadding.Top - FTabButtonPadding.Bottom;
-            IconActualHeight := Max(0, IconActualHeight); // Ensure non-negative
-          end;
-
-          ButtonHeight := Max(ButtonHeight, IconActualHeight); // Max of text height or potential icon height area
-
-          ButtonHeight := ButtonHeight + FTabButtonPadding.Top + FTabButtonPadding.Bottom; // Add vertical padding
-          ButtonHeight := Max(ButtonHeight, Self.FTabButtonHeight); // Ensure minimum overall height for the tab item
-
-          ButtonWidth := Self.FTabButtonWidth; // Width is fixed by property for L/R tabs
+          ButtonWidth := Self.FTabButtonWidth; // Width is fixed by property.
           TempRect := System.Types.Rect(TabButtonsRegion.Left + FTabButtonPadding.Left, CurrentY, TabButtonsRegion.Left + FTabButtonPadding.Left + ButtonWidth, CurrentY + ButtonHeight);
           CurrentY := TempRect.Bottom + FTabButtonSpacing; // Advance for next button.
         end;
@@ -820,7 +809,7 @@ begin
 
     // Draw TabButtonsRegion background (can be styled further if desired)
     Canvas.Brush.Color := Color; // Use control's base color or a specific theme color
-    if Parent <> nil then Canvas.Brush.Color := Parent.Color; // Basic theming attempt
+//    if Parent <> nil then Canvas.Brush.Color := Parent.Color; // Basic theming attempt
     if csOpaque in ControlStyle then Canvas.FillRect(ClientRect); // Fill entire control if opaque
 
     // More specific background for the tab buttons area
@@ -873,8 +862,8 @@ begin
 
       // Prepare text rectangle, adjusted for button padding.
       TextRect := ButtonRect;
-      InflateRect(TextRect, -FTabButtonPadding.Left, -FTabButtonPadding.Right,
-                              -FTabButtonPadding.Top, -FTabButtonPadding.Bottom);
+//      InflateRect(TextRect, -FTabButtonPadding.Left, -FTabButtonPadding.Right,
+//                              -FTabButtonPadding.Top, -FTabButtonPadding.Bottom);
 
       IconWidth := 0; // Reset for each button
       IconHeight := 0;
@@ -900,12 +889,12 @@ begin
                 TextRect.Top + (TextRect.Height - IconHeight) div 2 + IconHeight);
 
               // Draw the icon (handle different graphic types).
-              if Sheet.Icon.Graphic is TBitmap then
-                 DrawNonPNGImageWithCanvas(Canvas, Sheet.Icon.Graphic, IconRect, idmProportional)
-              else if Sheet.Icon.Graphic is TPNGImage then
-                 DrawPNGImageWithGDI(LGraphics, TPNGImage(Sheet.Icon.Graphic), IconRect, idmProportional)
-              else if Sheet.Icon.Graphic is TJPEGImage then // Example for another type
-                 DrawNonPNGImageWithCanvas(Canvas, Sheet.Icon.Graphic, IconRect, idmProportional);
+//              if Sheet.Icon.Graphic is TBitmap then
+//                 DrawNonPNGImageWithCanvas(Canvas, Sheet.Icon.Graphic, IconRect, idmProportional)
+//              else if Sheet.Icon.Graphic is TPNGImage then
+//                 DrawPNGImageWithGDI(LGraphics, TPNGImage(Sheet.Icon.Graphic), IconRect, idmProportional)
+//              else if Sheet.Icon.Graphic is TJPEGImage then // Example for another type
+//                 DrawNonPNGImageWithCanvas(Canvas, Sheet.Icon.Graphic, IconRect, idmProportional);
               // TODO: Add support for other TGraphic descendants as needed.
 
               // Adjust TextRect to make space for the icon and its right margin.

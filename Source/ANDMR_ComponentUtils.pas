@@ -18,7 +18,7 @@ type
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
 
-  TGradientType = (gtLinearVertical, gtLinearHorizontal, gtRadial, gtDiagonalForward, gtDiagonalBackward);
+  TGradientType = (gtLinearVertical, gtLinearHorizontal);
 
   TRoundCornerType = (
     rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight,
@@ -190,6 +190,11 @@ type
     FEnabled: Boolean;
     FOnChange: TNotifyEvent;
 
+    FOpacity: Integer; // Changed to Integer to match subtask, though Byte (0-255) is typical for opacity. Will use Integer.
+    FInteractionBackgroundColor: TColor;
+    FInteractionBorderColor: TColor;
+    FInteractionOpacity: Integer; // Changed to Integer.
+
     FHoverEffect: THoverEffect;
     FAnimationTimerInterval: Integer;
     FAnimationStep: Integer;
@@ -208,6 +213,12 @@ type
     procedure SetAnimationTimerInterval(const Value: Integer);
     procedure SetAnimationStep(const Value: Integer);
     procedure DoAnimate(Sender: TObject);
+
+    // Setters for new fields
+    procedure SetOpacity(const Value: Integer);
+    procedure SetInteractionBorderColor(const Value: TColor);
+    procedure SetInteractionBackgroundColor(const Value: TColor);
+    procedure SetInteractionOpacity(const Value: Integer);
   protected
     procedure Changed; virtual;
   public
@@ -226,8 +237,14 @@ type
     property HoverEffect: THoverEffect read FHoverEffect write SetHoverEffect default heFade;
     property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 15;
     property AnimationStep: Integer read FAnimationStep write SetAnimationStep default 20;
-    property CurrentAnimationValue: Integer read FCurrentAnimationValue;
+    property CurrentAnimationValue: Integer read FCurrentAnimationValue; // Represents alpha for fade or progress for other effects
     property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
+
+    // Properties for ScrollBar hover/interaction states - Formalized as per subtask
+    property Opacity: Integer read FOpacity write SetOpacity default 255;
+    property InteractionBackgroundColor: TColor read FInteractionBackgroundColor write SetInteractionBackgroundColor default clNone;
+    property InteractionBorderColor: TColor read FInteractionBorderColor write SetInteractionBorderColor default clNone;
+    property InteractionOpacity: Integer read FInteractionOpacity write SetInteractionOpacity default 255;
   end;
 
   TImageSettings = class(TPersistent)
@@ -291,14 +308,25 @@ type
     FCornerRadius: Integer;
     FRoundCornerType: TRoundCornerType;
     FBackgroundColor: TColor;
+    // FGradientEndColor: TColor; // This was from previous attempt, formalizing now:
+    FGradientStartColor: TColor;
+    FGradientEndColor: TColor;
+    FGradientType: TGradientType;
+    FGradientEnabled: Boolean;
     FVisible: Boolean;
     FOnChange: TNotifyEvent;
+
     procedure SetColor(const Value: TColor);
     procedure SetThickness(const Value: Integer);
     procedure SetStyle(const Value: TPenStyle);
     procedure SetCornerRadius(const Value: Integer);
     procedure SetRoundCornerType(const Value: TRoundCornerType);
     procedure SetBackgroundColor(const Value: TColor);
+    // procedure SetGradientEndColor(const Value: TColor); // old one
+    procedure SetGradientStartColor(const Value: TColor);
+    procedure SetGradientEndColor(const Value: TColor);
+    procedure SetGradientType(const Value: TGradientType);
+    procedure SetGradientEnabled(const Value: Boolean);
     procedure SetVisible(const Value: Boolean);
   protected
     procedure Changed; virtual;
@@ -313,6 +341,11 @@ type
     property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 0;
     property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctNone;
     property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clNone;
+    // property GradientEndColor: TColor read FGradientEndColor write SetGradientEndColor default clNone; // old one
+    property GradientEnabled: Boolean read FGradientEnabled write SetGradientEnabled default False;
+    property GradientStartColor: TColor read FGradientStartColor write SetGradientStartColor default clNone;
+    property GradientEndColor: TColor read FGradientEndColor write SetGradientEndColor default clNone;
+    property GradientType: TGradientType read FGradientType write SetGradientType default gtLinearVertical;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
@@ -469,33 +502,9 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-procedure DrawGradientPath(
-  AGraphics: TGPGraphics;
-  APath: TGPGraphicsPath;
-  const ARect: TGPRectF; // Used for defining gradient geometry
-  AGradientSettings: TGradientSettings;
-  AEffectiveStartColor: TColor;
-  AEffectiveEndColor: TColor;
-  AOpacity: Byte
-);
-
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-procedure DrawEditBox(
-  AGraphics: TGPGraphics;
-  const ADrawArea: TRect;
-  ABackgroundColor: TColor; // This will be the primary color for solid fill, or a fallback
-  ABorderColor: TColor;
-  ABorderThickness: Integer;
-  ABorderStyle: TPenStyle;
-  ACornerRadius: Integer;
-  ARoundCornerType: TRoundCornerType;
-  AOpacity: Byte;
-  // New parameters for gradient
-  AGradientSettings: TGradientSettings; // Can be nil if no gradient is intended
-  AEffectiveGradientStartColor: TColor; // Effective start color for gradient
-  AEffectiveGradientEndColor: TColor    // Effective end color for gradient
-);
+procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
 procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
 procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
@@ -547,6 +556,11 @@ begin
   FCornerRadius := 0;
   FRoundCornerType := rctNone;
   FBackgroundColor := clNone;
+  // FGradientEndColor := clNone; // old one
+  FGradientStartColor := clNone;
+  FGradientEndColor := clNone;
+  FGradientType := gtLinearVertical;
+  FGradientEnabled := False;
   FVisible := True;
 end;
 
@@ -563,8 +577,13 @@ begin
     FCornerRadius := LSource.FCornerRadius;
     FRoundCornerType := LSource.FRoundCornerType;
     FBackgroundColor := LSource.FBackgroundColor;
-    FVisible := LSource.FVisible;
-    Changed;
+    // FGradientEndColor := LSource.FGradientEndColor; // old one
+    SetGradientEnabled(LSource.GradientEnabled); // Use setters to ensure Changed is called
+    SetGradientStartColor(LSource.GradientStartColor);
+    SetGradientEndColor(LSource.GradientEndColor);
+    SetGradientType(LSource.GradientType);
+    FVisible := LSource.FVisible; // Direct assignment for FVisible is fine if no specific logic in setter beyond Changed
+    Changed; // Call changed once after all assignments if setters are not used for all, or rely on individual setters
   end
   else
     inherited Assign(Source);
@@ -626,6 +645,51 @@ begin
   if FBackgroundColor <> Value then
   begin
     FBackgroundColor := Value;
+    Changed;
+  end;
+end;
+
+// procedure TBorderSettings.SetGradientEndColor(const Value: TColor); // old one
+// begin
+//   if FGradientEndColor <> Value then
+//   begin
+//     FGradientEndColor := Value;
+//     Changed;
+//   end;
+// end;
+
+procedure TBorderSettings.SetGradientStartColor(const Value: TColor);
+begin
+  if FGradientStartColor <> Value then
+  begin
+    FGradientStartColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetGradientEndColor(const Value: TColor);
+begin
+  if FGradientEndColor <> Value then
+  begin
+    FGradientEndColor := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetGradientType(const Value: TGradientType);
+begin
+  if FGradientType <> Value then
+  begin
+    FGradientType := Value;
+    Changed;
+  end;
+end;
+
+procedure TBorderSettings.SetGradientEnabled(const Value: Boolean);
+begin
+  if FGradientEnabled <> Value then
+  begin
+    FGradientEnabled := Value;
     Changed;
   end;
 end;
@@ -1323,6 +1387,13 @@ begin
   FAnimationStep := 20;
   FCurrentAnimationValue := 0;
   FAnimationDirection := 0;
+
+  // Initialize new fields
+  FOpacity := 128; // Default to 50% opacity for non-animated hover background
+  FInteractionBorderColor := clNone;       // As per new default
+  FInteractionBackgroundColor := clNone; // As per new default
+  FInteractionOpacity := 255;          // As per new default (was 200, Byte)
+
   FAnimationTimer := TTimer.Create(nil);
   FAnimationTimer.Interval := FAnimationTimerInterval;
   FAnimationTimer.OnTimer := DoAnimate;
@@ -1351,6 +1422,11 @@ begin
     SetHoverEffect(LSource.HoverEffect);
     SetAnimationTimerInterval(LSource.AnimationTimerInterval);
     SetAnimationStep(LSource.AnimationStep);
+    // Assign new fields
+    SetOpacity(LSource.Opacity);
+    SetInteractionBorderColor(LSource.InteractionBorderColor);       // Ensure these are called
+    SetInteractionBackgroundColor(LSource.InteractionBackgroundColor); // to trigger Changed if values differ
+    SetInteractionOpacity(LSource.InteractionOpacity);             // from new defaults.
   end
   else
     inherited Assign(Source);
@@ -1414,6 +1490,43 @@ begin
   if FAnimationStep <> Value then
   begin
     FAnimationStep := Max(1, Value);
+    Changed;
+  end;
+end;
+
+// Setters for new Opacity and Interaction Color properties (changed Byte to Integer)
+procedure THoverSettings.SetOpacity(const Value: Integer);
+begin
+  if FOpacity <> Value then
+  begin
+    FOpacity := Value; // Value typically 0-255
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.SetInteractionBorderColor(const Value: TColor);
+begin
+  if FInteractionBorderColor <> Value then
+  begin
+    FInteractionBorderColor := Value;
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.SetInteractionBackgroundColor(const Value: TColor);
+begin
+  if FInteractionBackgroundColor <> Value then
+  begin
+    FInteractionBackgroundColor := Value;
+    Changed;
+  end;
+end;
+
+procedure THoverSettings.SetInteractionOpacity(const Value: Integer);
+begin
+  if FInteractionOpacity <> Value then
+  begin
+    FInteractionOpacity := Value; // Value typically 0-255
     Changed;
   end;
 end;
@@ -1742,28 +1855,14 @@ begin
 end;
 
 { DrawEditBox }
-procedure DrawEditBox(
-  AGraphics: TGPGraphics;
-  const ADrawArea: TRect;
-  ABackgroundColor: TColor;
-  ABorderColor: TColor;
-  ABorderThickness: Integer;
-  ABorderStyle: TPenStyle;
-  ACornerRadius: Integer;
-  ARoundCornerType: TRoundCornerType;
-  AOpacity: Byte;
-  AGradientSettings: TGradientSettings;
-  AEffectiveGradientStartColor: TColor;
-  AEffectiveGradientEndColor: TColor
-);
+procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
 var
   LPath: TGPGraphicsPath;
-  LBrush: TGPBrush; // Keep for solid fill fallback if needed
+  LBrush: TGPBrush;
   LPen: TGPPen;
   LRectF: TGPRectF;
   LRadiusValue: Single;
   LBorderThicknessValue: Single;
-  LUseGradient: Boolean;
 begin
   if (AGraphics = nil) or (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) then
     Exit;
@@ -1802,18 +1901,7 @@ begin
 
     if LPath.GetPointCount > 0 then
     begin
-      // Determine if gradient should be used
-      LUseGradient := Assigned(AGradientSettings) and AGradientSettings.Enabled and
-                      (AEffectiveGradientStartColor <> clNone) and
-                      (AEffectiveGradientEndColor <> clNone);
-
-      if LUseGradient then
-      begin
-        // Use the new DrawGradientPath procedure
-        DrawGradientPath(AGraphics, LPath, LRectF, AGradientSettings,
-                         AEffectiveGradientStartColor, AEffectiveGradientEndColor, AOpacity);
-      end
-      else if ABackgroundColor <> clNone then // Fallback to solid fill
+      if ABackgroundColor <> clNone then
       begin
         LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor, AOpacity));
         try
@@ -1822,9 +1910,7 @@ begin
           LBrush.Free;
         end;
       end;
-      // else: No background fill if ABackgroundColor is clNone and not using gradient
 
-      // Border drawing logic remains the same
       if (LBorderThicknessValue > 0) and (ABorderColor <> clNone) and (ABorderStyle <> psClear) then
       begin
         LPen := TGPPen.Create(ColorToARGB(ABorderColor, AOpacity), LBorderThicknessValue);
@@ -2244,89 +2330,6 @@ begin
   else
   begin
     Result := ABaseColor;
-  end;
-end;
-
-procedure DrawGradientPath(
-  AGraphics: TGPGraphics;
-  APath: TGPGraphicsPath;
-  const ARect: TGPRectF; // Used for defining gradient geometry
-  AGradientSettings: TGradientSettings;
-  AEffectiveStartColor: TColor;
-  AEffectiveEndColor: TColor;
-  AOpacity: Byte
-);
-var
-  LGradientBrush: TGPBrush;
-  LStartColor, LEndColor: TGPColor;
-  LRect: TGPRectF;
-begin
-  if (AGraphics = nil) or (APath = nil) or (AGradientSettings = nil) or
-     (APath.GetPointCount = 0) or (ARect.Width <= 0) or (ARect.Height <= 0) or
-     (AEffectiveStartColor = clNone) or (AEffectiveEndColor = clNone) then
-    Exit;
-
-  LStartColor := ColorToARGB(AEffectiveStartColor, AOpacity);
-  LEndColor := ColorToARGB(AEffectiveEndColor, AOpacity);
-  LRect := ARect; // Use a local copy for modification if needed by specific types
-
-  LGradientBrush := nil;
-  try
-    case AGradientSettings.GradientType of
-      gtLinearVertical:
-        LGradientBrush := TGPLinearGradientBrush.Create(
-          MakePoint(LRect.X, LRect.Y),
-          MakePoint(LRect.X, LRect.Y + LRect.Height),
-          LStartColor,
-          LEndColor
-        );
-      gtLinearHorizontal:
-        LGradientBrush := TGPLinearGradientBrush.Create(
-          MakePoint(LRect.X, LRect.Y),
-          MakePoint(LRect.X + LRect.Width, LRect.Y),
-          LStartColor,
-          LEndColor
-        );
-      gtDiagonalForward: // Top-left to Bottom-right
-        LGradientBrush := TGPLinearGradientBrush.Create(
-          MakePoint(LRect.X, LRect.Y),
-          MakePoint(LRect.X + LRect.Width, LRect.Y + LRect.Height),
-          LStartColor,
-          LEndColor
-        );
-      gtDiagonalBackward: // Top-right to Bottom-left
-        LGradientBrush := TGPLinearGradientBrush.Create(
-          MakePoint(LRect.X + LRect.Width, LRect.Y),
-          MakePoint(LRect.X, LRect.Y + LRect.Height),
-          LStartColor,
-          LEndColor
-        );
-      gtRadial:
-      begin
-        var PathGradientBrush: TGPPathGradientBrush;
-        PathGradientBrush := TGPPathGradientBrush.Create(APath);
-        if PathGradientBrush = nil then Exit; // Could not create brush
-
-        PathGradientBrush.SetCenterColor(LStartColor);
-        var SurroundColors: array[0..0] of TGPColor; // Array with one color
-        SurroundColors[0] := LEndColor;
-        PathGradientBrush.SetSurroundColors(SurroundColors, 1); // Pass array and count
-
-        // Optional: Set center point explicitly if needed, default is geometric center of path
-        PathGradientBrush.SetCenterPoint(MakePoint(LRect.X + LRect.Width / 2, LRect.Y + LRect.Height / 2));
-
-        LGradientBrush := PathGradientBrush;
-      end;
-    else
-      // Default or unknown gradient type, fallback to solid fill with start color
-      LGradientBrush := TGPSolidBrush.Create(LStartColor);
-    end;
-
-    if LGradientBrush <> nil then
-      AGraphics.FillPath(LGradientBrush, APath);
-
-  finally
-    if LGradientBrush <> nil then LGradientBrush.Free;
   end;
 end;
 

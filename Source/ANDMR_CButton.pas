@@ -783,6 +783,8 @@ var
   LProgressText: string;
   LShowProgressText: Boolean;
   DotYOffset: array[0..2] of Integer;
+  SurroundColorArray: PARGB; // Changed declaration
+  CenterColorGDI: TGPColor;
 
 const
   SHADOW_ALPHA = 50;
@@ -796,6 +798,7 @@ const
 begin
   inherited Paint;
 
+  SurroundColorArray := nil; // Initialize to nil
   LPresetDefaultCaption := '';
   if FPresetType <> cptNone then
   begin
@@ -1199,10 +1202,14 @@ begin
           begin
             if LCurrentGradientEnabled and FGradientSettings.Enabled then
             begin
-              var GradientBrush: TGPLinearGradientBrush;
-              var ResolvedStartColor, ResolvedEndColor: TColor;
-              var GradRect: TGPRectF;
-              var LinGradMode: Integer;
+              var
+                LinearGradientBrush: TGPLinearGradientBrush;
+                PathGradientBrush: TGPPathGradientBrush;
+                ResolvedStartColor, ResolvedEndColor: TColor;
+                GradRect: TGPRectF;
+                LinGradMode: Integer;
+                // SurroundColorArray: array[0..0] of TGPColor; // Moved to main var block
+                // CenterColorGDI: TGPColor;                   // Moved to main var block
 
               ResolvedStartColor := FGradientSettings.StartColor;
               if ResolvedStartColor = clNone then
@@ -1212,20 +1219,101 @@ begin
               if ResolvedEndColor = clNone then
                 ResolvedEndColor := DarkerColor(ResolvedStartColor, GRADIENT_DARK_FACTOR);
 
-              GradRect := PathRectF;
+              GradRect := PathRectF; // Used by Linear gradients
+
+              // Allocate memory for SurroundColorArray if radial/centerburst will be used
+              if FGradientSettings.GradientType in [gtRadial, gtCenterBurst] then
+              begin
+                GetMem(SurroundColorArray, SizeOf(TGPColor));
+                // Value assignment will happen inside the case
+              end
+              // Note: No 'else SurroundColorArray := nil;' here, already nil from start of Paint
+              // or will be set to nil after FreeMem if it was used.
 
               case FGradientSettings.GradientType of
-                gtLinearVertical: LinGradMode := 1;
-                gtLinearHorizontal: LinGradMode := 0;
-              else
-                LinGradMode := 1;
+                gtLinearVertical:
+                begin
+                  LinGradMode := 1; // LinearGradientModeVertical
+                  LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+                  try
+                    LG.FillPath(LinearGradientBrush, ButtonBodyPath);
+                  finally
+                    LinearGradientBrush.Free;
+                  end;
+                end;
+                gtLinearHorizontal:
+                begin
+                  LinGradMode := 0; // LinearGradientModeHorizontal
+                  LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+                  try
+                    LG.FillPath(LinearGradientBrush, ButtonBodyPath);
+                  finally
+                    LinearGradientBrush.Free;
+                  end;
+                end;
+                gtRadial, gtCenterBurst:
+                begin
+                  // Ensure SurroundColorArray is allocated (already done before case)
+                  if Assigned(SurroundColorArray) then
+                  begin
+                    SurroundColorArray^ := ColorToARGB(ResolvedEndColor); // Assign to the pointed memory
+                  end
+                  else
+                  begin
+                    // Handle error or skip gradient if memory wasn't allocated - though it should have been.
+                    // For now, proceed assuming it's allocated if we reach here for these types.
+                    // If not, SetSurroundColors might crash. A more robust solution might return/exit.
+                  end;
+                  CenterColorGDI := ColorToARGB(ResolvedStartColor); // This is fine, CenterColorGDI is from main var block
+
+                  PathGradientBrush := TGPPathGradientBrush.Create(ButtonBodyPath);
+                  try
+                    PathGradientBrush.SetCenterColor(CenterColorGDI);
+                    PathGradientBrush.SetSurroundColors(SurroundColorArray, 1); // Pass PARGB directly
+                    PathGradientBrush.SetCenterPoint(MakePoint((PathRectF.X + PathRectF.Width / 2), (PathRectF.Y + PathRectF.Height / 2)));
+                    LG.FillPath(PathGradientBrush, ButtonBodyPath);
+                  finally
+                    PathGradientBrush.Free;
+                  end;
+                end;
+                gtDiagonalDown:
+                begin
+                  LinGradMode := 2; // LinearGradientModeForwardDiagonal
+                  LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+                  try
+                    LG.FillPath(LinearGradientBrush, ButtonBodyPath);
+                  finally
+                    LinearGradientBrush.Free;
+                  end;
+                end;
+                gtDiagonalUp:
+                begin
+                  LinGradMode := 3; // LinearGradientModeBackwardDiagonal
+                  LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+                  try
+                    LG.FillPath(LinearGradientBrush, ButtonBodyPath);
+                  finally
+                    LinearGradientBrush.Free;
+                  end;
+                end;
+              else // Default to Solid Fill if unknown gradient type or if something went wrong
+                var FillBrushElse: TGPSolidBrush;
+                FillBrushElse := TGPSolidBrush.Create(ColorToARGB(LActualFillColor));
+                try
+                  LG.FillPath(FillBrushElse, ButtonBodyPath);
+                finally
+                  FillBrushElse.Free;
+                end;
               end;
 
-              GradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
-              try
-                LG.FillPath(GradientBrush, ButtonBodyPath);
-              finally
-                GradientBrush.Free;
+              // Free memory for SurroundColorArray if it was allocated
+              if FGradientSettings.GradientType in [gtRadial, gtCenterBurst] then
+              begin
+                if Assigned(SurroundColorArray) then
+                begin
+                  FreeMem(SurroundColorArray);
+                  SurroundColorArray := nil; // Good practice after freeing
+                end;
               end;
             end
             else // Solid Fill

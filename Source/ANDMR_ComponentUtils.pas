@@ -18,7 +18,7 @@ type
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
 
-  TGradientType = (gtLinearVertical, gtLinearHorizontal);
+  TGradientType = (gtLinearVertical, gtLinearHorizontal, gtRadial, gtDiagonalDown, gtDiagonalUp, gtCenterBurst);
 
   TRoundCornerType = (
     rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight,

@@ -60,6 +60,7 @@ type
     FHoverTabStyle: TBorderSettings;    // Visual style for a tab button when the mouse is hovering over it.
     FTabCaptionSettings: TCaptionSettings; // Text style for captions on inactive/hovered tab buttons.
     FActiveTabCaptionSettings: TCaptionSettings; // Text style for the caption on the active tab button.
+    FContentBorder: TBorderSettings; // Style for the border around the tab content area.
 
     FHoveredTabIndex: Integer; // Index of the tab button currently under the mouse cursor (-1 if none).
     FTabButtonRects: array of TRect; // Array storing the calculated screen rectangles for each tab button. Used for hit-testing and painting.
@@ -79,6 +80,7 @@ type
     procedure SetHoverTabStyle(Value: TBorderSettings);
     procedure SetTabCaptionSettings(Value: TCaptionSettings);
     procedure SetActiveTabCaptionSettings(Value: TCaptionSettings);
+    procedure SetContentBorder(Value: TBorderSettings); // Setter for FContentBorder
     procedure StyleChanged(Sender: TObject); // Common OnChange handler for TBorderSettings and TCaptionSettings style objects.
     procedure SetActiveTabSheetIndex(Value: Integer); // Sets the currently active/visible tab sheet by its index.
 
@@ -151,14 +153,17 @@ type
     property TabCaptionSettings: TCaptionSettings read FTabCaptionSettings write SetTabCaptionSettings;
     // Defines the text appearance for the caption on the currently active tab button.
     property ActiveTabCaptionSettings: TCaptionSettings read FActiveTabCaptionSettings write SetActiveTabCaptionSettings;
+    // Defines the visual style for the border around the content area.
+    property ContentBorder: TBorderSettings read FContentBorder write SetContentBorder;
   end;
 
 procedure Register;
 
 implementation
 
-uses Vcl.Themes, // For StyleServices (themed text drawing)
-     Vcl.Imaging.jpeg; // Example: if TJPEGImage might be used in TPicture for icons
+uses Vcl.Themes,      // For StyleServices (themed text drawing)
+     Vcl.Imaging.jpeg,  // For TJPEGImage support
+     Vcl.Imaging.pngimage; // For TPNGImage support
 
 { TANDMR_CTabSheet }
 
@@ -195,28 +200,31 @@ begin
   FTabButtonWidth := 100;
   FTabButtonPadding := TANDMR_Margins.Create;
   FTabButtonPadding.OnChange := TabButtonPaddingChanged; // Hook up OnChange for padding.
-//  FTabButtonPadding.SetBounds(4, 4, 4, 4);
+  FTabButtonPadding.Left := 8;
+  FTabButtonPadding.Top := 6;
+  FTabButtonPadding.Right := 8;
+  FTabButtonPadding.Bottom := 6;
   FTabButtonSpacing := 4;
 
   // Initialize Styling Properties with default values
   FInactiveTabStyle := TBorderSettings.Create;
   FInactiveTabStyle.OnChange := StyleChanged;
-  FInactiveTabStyle.BackgroundColor := clBtnFace;
-  FInactiveTabStyle.Color := clGrayText;
+  FInactiveTabStyle.BackgroundColor := TColor($00F0F0F0); // Modernized: light gray
+  FInactiveTabStyle.Color := TColor($00D0D0D0);           // Modernized: lighter gray border
   FInactiveTabStyle.CornerRadius := 3;
   FInactiveTabStyle.RoundCornerType := rctTop;
 
   FActiveTabStyle := TBorderSettings.Create;
   FActiveTabStyle.OnChange := StyleChanged;
   FActiveTabStyle.BackgroundColor := clWindow;
-  FActiveTabStyle.Color := clHighlight;
+  FActiveTabStyle.Color := TColor($00AECAF0); // Modernized: softer blue border
   FActiveTabStyle.CornerRadius := 3;
   FActiveTabStyle.RoundCornerType := rctTop;
 
   FHoverTabStyle := TBorderSettings.Create;
   FHoverTabStyle.OnChange := StyleChanged;
-  FHoverTabStyle.BackgroundColor := LighterColor(clBtnFace, 10);
-  FHoverTabStyle.Color := clRed;
+  FHoverTabStyle.BackgroundColor := LighterColor(FInactiveTabStyle.BackgroundColor, 15); // Modernized & slightly more blend
+  FHoverTabStyle.Color := FActiveTabStyle.Color; // Modernized: Use active tab's border color
   FHoverTabStyle.CornerRadius := 3;
   FHoverTabStyle.RoundCornerType := rctTop;
 
@@ -228,9 +236,16 @@ begin
 
   FActiveTabCaptionSettings := TCaptionSettings.Create(Self);
   FActiveTabCaptionSettings.OnChange := StyleChanged;
-  FActiveTabCaptionSettings.Font.Color := clHighlightText;
+  FActiveTabCaptionSettings.Font.Color := clWindowText; // Modernized for better contrast with clWindow background
   FActiveTabCaptionSettings.Alignment := taCenter;
   FActiveTabCaptionSettings.VerticalAlignment := cvaCenter;
+
+  // [FIX] Initialize the FContentBorder property
+  FContentBorder := TBorderSettings.Create;
+  FContentBorder.OnChange := StyleChanged;
+  FContentBorder.Assign(FInactiveTabStyle); // Start with inactive style as a base
+  FContentBorder.RoundCornerType := rctNone;  // But no rounded corners for the content panel itself
+  FContentBorder.CornerRadius := 0;
 
   FHoveredTabIndex := -1; // No tab hovered initially.
 
@@ -253,6 +268,10 @@ begin
   FTabCaptionSettings.Free;
   FActiveTabCaptionSettings.OnChange := nil;
   FActiveTabCaptionSettings.Free;
+
+  // [FIX] Unhook and free the FContentBorder property
+  FContentBorder.OnChange := nil;
+  FContentBorder.Free;
 
   FTabSheets.Free; // Frees the list and all TANDMR_CTabSheet instances it owns.
   SetLength(FTabButtonRects, 0); // Clear the array of button rectangles.
@@ -342,8 +361,14 @@ end;
 procedure TANDMR_CControlTab.SetActiveTabCaptionSettings(Value: TCaptionSettings);
 begin
   FActiveTabCaptionSettings.Assign(Value);
-  // OnChange event (StyleChanged) will trigger RecalculateTabButtonRects and Invalidate.
 end;
+
+// [FIX] Implement the setter for the ContentBorder property
+procedure TANDMR_CControlTab.SetContentBorder(Value: TBorderSettings);
+begin
+    FContentBorder.Assign(Value);
+end;
+
 
 // Sets the currently active/visible tab sheet by its index.
 // Updates UI and visibility accordingly.
@@ -357,18 +382,14 @@ begin
       FActiveTabSheetIndex := Value;
       UpdateTabSheetBounds; // Update visibility and bounds of tab sheets.
       Invalidate; // Repaint to reflect changes in tab button styles (active vs. inactive).
-      // TODO: Consider adding an OnChange event here for external notification.
     end;
   end
   // Special case: if there are no tabs, ensure index is -1.
-  else if (FTabSheets.Count = 0) and (Value = -1) then
+  else if (FTabSheets.Count = 0) and (FActiveTabSheetIndex <> -1) then
   begin
-     if FActiveTabSheetIndex <> Value then // Though it should already be -1 if count is 0 due to RemoveTab logic
-     begin
-        FActiveTabSheetIndex := Value;
-        UpdateTabSheetBounds; // Should effectively do nothing but good for consistency.
-        Invalidate;
-     end;
+      FActiveTabSheetIndex := -1;
+      UpdateTabSheetBounds;
+      Invalidate;
   end;
 end;
 
@@ -402,7 +423,7 @@ begin
       end;
     end;
     RecalculateTabButtonRects; // Tab position drastically changes layout.
-    UpdateTabSheetBounds;    // Content area also changes.
+    UpdateTabSheetBounds;     // Content area also changes.
     Invalidate;
   end;
 end;
@@ -442,12 +463,6 @@ begin
   if idx <> -1 then
   begin
     ATabSheet.Free; // Freeing the component will trigger Notification(opRemove).
-  end
-  else
-  begin
-    // Optionally raise an exception or log if the sheet is not part of this control.
-    // For now, do nothing if not found in the internal list, as it might have been
-    // parented to something else or already freed.
   end;
 end;
 
@@ -461,10 +476,6 @@ begin
   begin
     Sheet := TANDMR_CTabSheet(FTabSheets[AIndex]);
     Sheet.Free; // This will trigger Notification(opRemove).
-  end
-  else
-  begin
-    // Optionally raise an exception for invalid index (e.g., EListError.Create('Index out of bounds')).
   end;
 end;
 
@@ -479,20 +490,14 @@ begin
     TANDMR_CTabSheet(FTabSheets[0]).Free;
   end;
 
-  // FActiveTabSheetIndex should be -1 after all sheets are removed due to Notification logic.
-  // This is a safeguard. SetActiveTabSheetIndex handles Invalidate and UpdateTabSheetBounds.
   if FActiveTabSheetIndex <> -1 then
-     SetActiveTabSheetIndex(-1);
+    SetActiveTabSheetIndex(-1);
 
-  // Explicitly recalculate and invalidate in case no tabs were present to begin with
-  // or if SetActiveTabSheetIndex(-1) didn't trigger it because it was already -1.
   RecalculateTabButtonRects;
   Invalidate;
 end;
 
-// Handles being notified when components (specifically TANDMR_CTabSheet) are added or removed from this control
-// (e.g., at design-time or runtime by changing Parent property).
-// This method manages the internal FTabSheets list accordingly.
+// Manages the internal FTabSheets list when TANDMR_CTabSheet components are added or removed.
 procedure TANDMR_CControlTab.Notification(AComponent: TComponent; Operation: TOperation);
 var
   Sheet: TANDMR_CTabSheet;
@@ -503,353 +508,272 @@ begin
   begin
     Sheet := TANDMR_CTabSheet(AComponent);
     case Operation of
-      opInsert: // A component is being added (e.g., Parent property set to Self)
+      opInsert:
         begin
-          if FTabSheets.IndexOf(Sheet) = -1 then // Only add if not already in our list
+          if FTabSheets.IndexOf(Sheet) = -1 then
           begin
-            // Sheet.Parent should already be Self if opInsert is for this control.
-            // If Parent is not Self, it's an error or unexpected state.
-            // For robustness, one might check Sheet.Parent = Self here.
-            FTabSheets.Add(Sheet); // Add to our internal list of managed sheets.
-
-            // If it's the first tab added, or no tab is currently active, make this new one active.
+            FTabSheets.Add(Sheet);
             if (FTabSheets.Count = 1) or (FActiveTabSheetIndex = -1) then
             begin
-              SetActiveTabSheetIndex(FTabSheets.Count - 1); // Activates and makes visible.
+              SetActiveTabSheetIndex(FTabSheets.Count - 1);
             end
-            else // Otherwise, the new tab is added but not active by default.
+            else
             begin
-              Sheet.Visible := False; // Ensure it's not visible if not active.
+              Sheet.Visible := False;
             end;
-            RecalculateTabButtonRects; // Update button layout.
-            Invalidate; // Repaint the control.
+            RecalculateTabButtonRects;
+            Invalidate;
           end;
         end;
-      opRemove: // A component is being removed (e.g., being freed or Parent changed)
+      opRemove:
         begin
           RemovedIndex := FTabSheets.IndexOf(Sheet);
-          if RemovedIndex <> -1 then // Only act if it was in our list
+          if RemovedIndex <> -1 then
           begin
-            FTabSheets.Remove(Sheet); // Remove from our internal list.
+            FTabSheets.Remove(Sheet);
 
-            if FActiveTabSheetIndex = RemovedIndex then // If the active tab was removed
+            if FActiveTabSheetIndex = RemovedIndex then
             begin
               if FTabSheets.Count > 0 then
-                SetActiveTabSheetIndex(0) // Make the first tab active (index 0).
+                // Adjust index to stay valid, clamping at the new last index
+                SetActiveTabSheetIndex(Min(RemovedIndex, FTabSheets.Count - 1))
               else
-                SetActiveTabSheetIndex(-1); // No tabs left, set index to -1.
+                SetActiveTabSheetIndex(-1);
             end
-            else if FActiveTabSheetIndex > RemovedIndex then // If a tab before the active one was removed
+            else if FActiveTabSheetIndex > RemovedIndex then
             begin
-               // The active tab's index has shifted down by one.
-               SetActiveTabSheetIndex(FActiveTabSheetIndex - 1);
+              SetActiveTabSheetIndex(FActiveTabSheetIndex - 1);
             end;
-            // If a tab after the active one was removed, FActiveTabSheetIndex remains correct.
 
-            RecalculateTabButtonRects; // Update button layout.
-            Invalidate; // Repaint the control.
+            RecalculateTabButtonRects;
+            Invalidate;
           end;
         end;
     end;
   end;
 end;
 
-// Calculates the bounding rectangles for the tab button area and the content display area
-// based on the current TabPosition and various button metric properties.
+// Calculates the bounding rectangles for the tab button area and the content display area.
 procedure TANDMR_CControlTab.CalculateLayout(var TabButtonsRegion: TRect; var ContentRegion: TRect);
-var
-  EffectiveTabButtonSize: Integer;
 begin
-  TabButtonsRegion := ClientRect; // Start with the whole client area.
-  ContentRegion := ClientRect;    // Same for content initially.
+  TabButtonsRegion := ClientRect;
+  ContentRegion := ClientRect;
 
-  // Adjust regions based on tab position.
   case FTabPosition of
     tpTop:
       begin
-        EffectiveTabButtonSize := FTabButtonHeight + FTabButtonPadding.Top + FTabButtonPadding.Bottom;
-        TabButtonsRegion.Bottom := TabButtonsRegion.Top + EffectiveTabButtonSize;
-        ContentRegion.Top := TabButtonsRegion.Bottom; // Content area is below tab buttons.
+        TabButtonsRegion.Bottom := TabButtonsRegion.Top + FTabButtonHeight;
+        ContentRegion.Top := TabButtonsRegion.Bottom;
       end;
     tpBottom:
       begin
-        EffectiveTabButtonSize := FTabButtonHeight + FTabButtonPadding.Top + FTabButtonPadding.Bottom;
-        TabButtonsRegion.Top := TabButtonsRegion.Bottom - EffectiveTabButtonSize;
-        ContentRegion.Bottom := TabButtonsRegion.Top; // Content area is above tab buttons.
+        TabButtonsRegion.Top := TabButtonsRegion.Bottom - FTabButtonHeight;
+        ContentRegion.Bottom := TabButtonsRegion.Top;
       end;
     tpLeft:
       begin
-        EffectiveTabButtonSize := FTabButtonWidth + FTabButtonPadding.Left + FTabButtonPadding.Right;
-        TabButtonsRegion.Right := TabButtonsRegion.Left + EffectiveTabButtonSize;
-        ContentRegion.Left := TabButtonsRegion.Right; // Content area is to the right of tab buttons.
+        TabButtonsRegion.Right := TabButtonsRegion.Left + FTabButtonWidth;
+        ContentRegion.Left := TabButtonsRegion.Right;
       end;
     tpRight:
       begin
-        EffectiveTabButtonSize := FTabButtonWidth + FTabButtonPadding.Left + FTabButtonPadding.Right;
-        TabButtonsRegion.Left := TabButtonsRegion.Right - EffectiveTabButtonSize;
-        ContentRegion.Right := TabButtonsRegion.Left; // Content area is to the left of tab buttons.
+        TabButtonsRegion.Left := TabButtonsRegion.Right - FTabButtonWidth;
+        ContentRegion.Right := TabButtonsRegion.Left;
       end;
   end;
 end;
 
 // Updates the stored FTabButtonRects for each tab button.
-// This is crucial for hit-testing (mouse clicks) and for painting each button in the correct location.
-// It should be called whenever the control is resized, tabs are added/removed,
-// or any property affecting tab button size or layout changes (e.g., padding, spacing, font).
 procedure TANDMR_CControlTab.RecalculateTabButtonRects;
 var
   TabButtonsRegion, ContentRegion: TRect;
   I: Integer;
-  CurrentX, CurrentY: Integer; // Current drawing origin for the next tab button.
+  CurrentX, CurrentY: Integer;
   Sheet: TANDMR_CTabSheet;
   ButtonTextWidth, ButtonIconWidth, ButtonWidth, ButtonHeight: Integer;
   TempRect: TRect;
 begin
-  CalculateLayout(TabButtonsRegion, ContentRegion); // First, get the overall region for tab buttons.
-  SetLength(FTabButtonRects, FTabSheets.Count); // Ensure array is sized correctly.
+  CalculateLayout(TabButtonsRegion, ContentRegion);
+  SetLength(FTabButtonRects, FTabSheets.Count);
 
-  // Initialize drawing position based on TabPosition
   CurrentX := TabButtonsRegion.Left;
   CurrentY := TabButtonsRegion.Top;
-  if FTabPosition in [tpTop, tpBottom] then
-    CurrentX := CurrentX + FTabButtonPadding.Left // Start with left padding for horizontal tabs.
-  else // tpLeft, tpRight
-    CurrentY := CurrentY + FTabButtonPadding.Top;  // Start with top padding for vertical tabs.
 
   for I := 0 to FTabSheets.Count - 1 do
   begin
     Sheet := TANDMR_CTabSheet(FTabSheets[I]);
-    ButtonIconWidth := 0; // Reset for current tab.
+    ButtonIconWidth := 0;
 
-    // Calculate width needed for the icon, if present.
-    if Assigned(Sheet.Icon) and (Sheet.Icon.Graphic <> nil) and (Sheet.Icon.Width > 0) and (Sheet.Icon.Height > 0) then
+    if Assigned(Sheet.Icon) and (Sheet.Icon.Graphic <> nil) and not Sheet.Icon.Graphic.Empty then
     begin
-      var MaxIconDim, IconSourceWidth, IconSourceHeight: Integer;
-      IconSourceWidth := Sheet.Icon.Width;
-      IconSourceHeight := Sheet.Icon.Height;
-
-      if FTabPosition in [tpTop, tpBottom] then // Icon height is constrained by tab button height.
-      begin
-        MaxIconDim := Self.FTabButtonHeight - FTabButtonPadding.Top - FTabButtonPadding.Bottom;
-        if (IconSourceHeight > 0) and (MaxIconDim > 0) then
-          ButtonIconWidth := MulDiv(IconSourceWidth, MaxIconDim, IconSourceHeight)
+        var IconAvailableSpace := 0;
+        if FTabPosition in [tpTop, tpBottom] then
+            IconAvailableSpace := FTabButtonHeight - FTabButtonPadding.Top - FTabButtonPadding.Bottom
         else
-          ButtonIconWidth := IconSourceWidth; // Fallback if calculation isn't possible.
-      end
-      else // tpLeft, tpRight. Icon width is constrained by overall tab button width.
-      begin
-         MaxIconDim := Self.FTabButtonHeight - FTabButtonPadding.Top - FTabButtonPadding.Bottom; // Icon height constraint
-         if (IconSourceHeight > 0) and (MaxIconDim > 0) then
-             ButtonIconWidth := MulDiv(IconSourceWidth, MaxIconDim, IconSourceHeight)
-         else ButtonIconWidth := IconSourceWidth;
-      end;
-      ButtonIconWidth := ButtonIconWidth + FTabButtonPadding.Left; // Add left padding for icon within button.
+            IconAvailableSpace := FTabButtonWidth - FTabButtonPadding.Left - FTabButtonPadding.Right;
+
+        if (Sheet.Icon.Height > 0) and (IconAvailableSpace > 0) then
+            ButtonIconWidth := MulDiv(Sheet.Icon.Width, IconAvailableSpace, Sheet.Icon.Height)
+        else
+            ButtonIconWidth := Sheet.Icon.Width;
+
+        ButtonIconWidth := ButtonIconWidth + 4; // Add spacing between icon and text
     end;
 
-    // Calculate width needed for the caption text.
-    Canvas.Font.Assign(FTabCaptionSettings.Font); // Use base caption style for measurement.
+    Canvas.Font.Assign(FTabCaptionSettings.Font);
     ButtonTextWidth := Canvas.TextWidth(Sheet.Caption);
 
-    // Calculate actual button dimensions based on content and TabPosition.
     case FTabPosition of
       tpTop, tpBottom:
         begin
           ButtonWidth := ButtonTextWidth + ButtonIconWidth + FTabButtonPadding.Left + FTabButtonPadding.Right;
-          ButtonWidth := Max(ButtonWidth, Self.FTabButtonWidth); // Ensure minimum width.
-          ButtonHeight := Self.FTabButtonHeight; // Height is fixed by property.
-          TempRect := System.Types.Rect(CurrentX, TabButtonsRegion.Top + FTabButtonPadding.Top, CurrentX + ButtonWidth, TabButtonsRegion.Top + FTabButtonPadding.Top + ButtonHeight);
-          CurrentX := TempRect.Right + FTabButtonSpacing; // Advance for next button.
+          ButtonWidth := Max(ButtonWidth, Self.FTabButtonWidth);
+          ButtonHeight := Self.FTabButtonHeight;
+          TempRect := System.Types.Rect(CurrentX, TabButtonsRegion.Top, CurrentX + ButtonWidth, TabButtonsRegion.Top + ButtonHeight);
+          CurrentX := TempRect.Right + FTabButtonSpacing;
         end;
       tpLeft, tpRight:
         begin
-          Canvas.Font.Assign(FTabCaptionSettings.Font); // Set font for accurate measurement
-          ButtonHeight := Canvas.TextHeight('Wg');     // Correctly call TextHeight with a string
-
-          // Consider icon height contribution
-          var IconActualHeight: Integer := 0;
-          if ButtonIconWidth > 0 then // ButtonIconWidth implies an icon is present and its potential width was calculated earlier
-          begin
-            // For L/R tabs, an icon usually sits beside or above/below text.
-            // The FTabButtonHeight property sets a general height for the items in L/R mode.
-            // IconActualHeight represents the usable space for an icon within that FTabButtonHeight, after padding.
-            IconActualHeight := Self.FTabButtonHeight - FTabButtonPadding.Top - FTabButtonPadding.Bottom;
-            IconActualHeight := Max(0, IconActualHeight); // Ensure non-negative
-          end;
-
-          ButtonHeight := Max(ButtonHeight, IconActualHeight); // Max of text height or potential icon height area
-
-          ButtonHeight := ButtonHeight + FTabButtonPadding.Top + FTabButtonPadding.Bottom; // Add vertical padding
-          ButtonHeight := Max(ButtonHeight, Self.FTabButtonHeight); // Ensure minimum overall height for the tab item
-
-          ButtonWidth := Self.FTabButtonWidth; // Width is fixed by property for L/R tabs
-          TempRect := System.Types.Rect(TabButtonsRegion.Left + FTabButtonPadding.Left, CurrentY, TabButtonsRegion.Left + FTabButtonPadding.Left + ButtonWidth, CurrentY + ButtonHeight);
-          CurrentY := TempRect.Bottom + FTabButtonSpacing; // Advance for next button.
+          ButtonWidth := Self.FTabButtonWidth;
+          ButtonHeight := Canvas.TextHeight('Wg') + FTabButtonPadding.Top + FTabButtonPadding.Bottom;
+          ButtonHeight := Max(ButtonHeight, Self.FTabButtonHeight);
+          TempRect := System.Types.Rect(TabButtonsRegion.Left, CurrentY, TabButtonsRegion.Left + ButtonWidth, CurrentY + ButtonHeight);
+          CurrentY := TempRect.Bottom + FTabButtonSpacing;
         end;
-    else // Should not happen
+    else
       TempRect := System.Types.Rect(0,0,0,0);
     end;
-    FTabButtonRects[I] := TempRect; // Store calculated rectangle.
+    FTabButtonRects[I] := TempRect;
   end;
 end;
 
 // Updates the visibility and bounds of all managed TANDMR_CTabSheet instances.
-// Only the active tab sheet is made visible and sized to the content region.
 procedure TANDMR_CControlTab.UpdateTabSheetBounds;
 var
   TabButtonsRegion, ContentRegion: TRect;
   I: Integer;
   Sheet: TANDMR_CTabSheet;
 begin
-  CalculateLayout(TabButtonsRegion, ContentRegion); // Determine content area first.
+  if not (csDesigning in ComponentState) then
+    CalculateLayout(TabButtonsRegion, ContentRegion)
+  else
+    ContentRegion := ClientRect; // In designer, just use client rect to avoid hiding sheets
 
   for I := 0 to FTabSheets.Count - 1 do
   begin
     Sheet := TANDMR_CTabSheet(FTabSheets[I]);
-    if I = FActiveTabSheetIndex then // If this is the active sheet
+    if I = FActiveTabSheetIndex then
     begin
-      Sheet.BoundsRect := ContentRegion; // Set its bounds to the calculated content region.
-      Sheet.Visible := True;             // Make it visible.
-      if Sheet.Parent = Self then        // Ensure it's our direct child before BringToFront.
-         Sheet.BringToFront;             // Bring to front to ensure it's not obscured.
+      Sheet.BoundsRect := ContentRegion;
+      Sheet.Visible := True;
+      if Sheet.Parent = Self then
+        Sheet.BringToFront;
     end
-    else // For all other (inactive) sheets
+    else
     begin
-      Sheet.Visible := False; // Make them invisible.
-      // Optionally, move inactive tabs off-screen, though Visible := False is usually sufficient
-      // and more performant than changing bounds frequently.
-      // Sheet.SetBounds(-Sheet.Width-10, -Sheet.Height-10, Sheet.Width, Sheet.Height);
+      Sheet.Visible := False;
     end;
   end;
 end;
 
-// Handles mouse entering the control area.
-// Currently used to trigger hover animations/styles if implemented (not fully in this version for CMMouseEnter itself).
-// Actual hover index update is primarily done in MouseMove.
 procedure TANDMR_CControlTab.CMMouseEnter(var Message: TMessage);
 begin
-  // inherited; // TCustomControl doesn't have CMMouseEnter/Leave by default.
   // MouseMove will handle setting FHoveredTabIndex.
 end;
 
-// Handles mouse leaving the control area.
-// Resets the hovered tab index and invalidates the control to remove hover styling.
 procedure TANDMR_CControlTab.CMMouseLeave(var Message: TMessage);
 var
   OldHoveredTabIndex: Integer;
 begin
-  // inherited;
   OldHoveredTabIndex := FHoveredTabIndex;
-  FHoveredTabIndex := -1; // Mouse left the control, so no tab is hovered.
-  if OldHoveredTabIndex <> FHoveredTabIndex then // Repaint only if hover state changed.
+  FHoveredTabIndex := -1;
+  if OldHoveredTabIndex <> FHoveredTabIndex then
     Invalidate;
 end;
 
-// Tracks mouse movement to update hover effects on tab buttons.
-// Determines which tab is under the cursor and invalidates if hover state changes.
 procedure TANDMR_CControlTab.MouseMove(Shift: TShiftState; X, Y: Integer);
 var
   OldHoveredTabIndex: Integer;
 begin
-  inherited; // Important for general mouse processing like hints, drag operations.
+  inherited;
   OldHoveredTabIndex := FHoveredTabIndex;
-  FHoveredTabIndex := GetTabButtonAt(X,Y); // Determine which tab (if any) is under cursor.
-  if OldHoveredTabIndex <> FHoveredTabIndex then // Repaint only if hover state changed.
+  FHoveredTabIndex := GetTabButtonAt(X,Y);
+  if OldHoveredTabIndex <> FHoveredTabIndex then
     Invalidate;
 end;
 
-// Determines which tab button (if any) is at the given client coordinates.
-// Returns the index of the tab sheet or -1 if no button is at these coordinates.
+// Determines which tab button is at the given client coordinates.
 function TANDMR_CControlTab.GetTabButtonAt(X, Y: Integer): Integer;
 var
   I: Integer;
   P: TPoint;
 begin
-  Result := -1; // Default to no tab found.
+  Result := -1;
   P := Point(X,Y);
 
-  // Ensure FTabButtonRects is up-to-date before hit-testing.
-  // This is a defensive call; RecalculateTabButtonRects should ideally be called
-  // by methods that change layout, making this check rarely necessary.
   if (Length(FTabButtonRects) <> FTabSheets.Count) and (FTabSheets.Count > 0) then
-     RecalculateTabButtonRects;
+    RecalculateTabButtonRects;
 
-  if FTabSheets.Count = 0 then Exit; // No tabs, no buttons to find.
+  if FTabSheets.Count = 0 then Exit;
 
-  // Iterate through pre-calculated button rectangles.
-  for I := 0 to High(FTabButtonRects) do // Use High for safety; FTabButtonRects should be sized correctly.
+  for I := 0 to High(FTabButtonRects) do
   begin
-    if PtInRect(FTabButtonRects[I], P) then // Check if point is within the current button's rectangle.
+    if PtInRect(FTabButtonRects[I], P) then
     begin
-      Result := I; // Tab button found.
-      Exit;      // Exit immediately.
+      Result := I;
+      Exit;
     end;
   end;
 end;
 
 // Handles all custom painting for the TANDMR_CControlTab.
-// This includes drawing the tab bar background, individual tab buttons (with icons and text),
-// and the border around the content area where the active tab sheet is displayed.
 procedure TANDMR_CControlTab.Paint;
 var
-  TabButtonsRegion, ContentRegion: TRect; // Rectangles for tab bar and content display area.
+  TabButtonsRegion, ContentRegion: TRect;
   I: Integer;
-  ButtonRect, TextRect, IconRect: TRect; // Rectangles for individual button, text, and icon.
+  ButtonRect, TextRect, IconRect: TRect;
   Sheet: TANDMR_CTabSheet;
-  CurrentStyle: TBorderSettings;       // Holds style for the current button being drawn.
-  CurrentCaptionStyle: TCaptionSettings; // Holds caption style for the current button.
-  LGraphics: TGPGraphics;              // GDI+ graphics object for advanced drawing.
-  IconWidth, IconHeight, ActualIconWidth: Integer; // Variables for icon dimension calculations.
+  CurrentStyle: TBorderSettings;
+  CurrentCaptionStyle: TCaptionSettings;
+  LGraphics: TGPGraphics;
+  IconWidth, IconHeight, ActualIconWidth: Integer;
 begin
-  inherited Paint; // Call ancestor's Paint method.
-  LGraphics := TGPGraphics.Create(Canvas.Handle); // Create GDI+ graphics object.
+  inherited Paint;
+  LGraphics := TGPGraphics.Create(Canvas.Handle);
   try
-    LGraphics.SetSmoothingMode(SmoothingModeAntiAlias); // Enable anti-aliasing for smoother drawing.
-    LGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic); // Use high-quality image scaling.
+    LGraphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    LGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
 
-    CalculateLayout(TabButtonsRegion, ContentRegion); // Determine layout areas.
+    CalculateLayout(TabButtonsRegion, ContentRegion);
 
-    // Ensure FTabButtonRects is valid and sized.
-    // It should be calculated by RecalculateTabButtonRects before Paint is called if layout changed.
     if (Length(FTabButtonRects) <> FTabSheets.Count) then
     begin
       if FTabSheets.Count = 0 then
-        SetLength(FTabButtonRects, 0) // Clear rects if no tabs
+        SetLength(FTabButtonRects, 0)
       else
-        RecalculateTabButtonRects; // Recalculate if mismatched and tabs exist
+        RecalculateTabButtonRects;
     end;
 
-    // Draw TabButtonsRegion background (can be styled further if desired)
-    Canvas.Brush.Color := Color; // Use control's base color or a specific theme color
-    if Parent <> nil then Canvas.Brush.Color := Parent.Color; // Basic theming attempt
-    if csOpaque in ControlStyle then Canvas.FillRect(ClientRect); // Fill entire control if opaque
+    if csOpaque in ControlStyle then Canvas.FillRect(ClientRect);
 
-    // More specific background for the tab buttons area
-    Canvas.Brush.Color := clBtnFace; // Example, could be from a style property
+    Canvas.Brush.Color := clBtnFace;
     Canvas.FillRect(TabButtonsRegion);
 
-    // Draw ContentRegion border
-    // Uses FInactiveTabStyle for the content area border by default, or a dedicated style could be added.
-    if FInactiveTabStyle.Visible then
+    // [FIX] Use the dedicated FContentBorder property to draw the content area border
+    if FContentBorder.Visible then
     begin
-       DrawEditBox(LGraphics, ContentRegion, FInactiveTabStyle.BackgroundColor, FInactiveTabStyle.Color,
-                   FInactiveTabStyle.Thickness, FInactiveTabStyle.Style, 0, rctNone, 255); // No radius for content area border
-    end else
-    begin // Fallback simple border if InactiveTabStyle is not visible
-        Canvas.Brush.Style := bsClear;
-        Canvas.Pen.Color := clGray;
-        Canvas.Rectangle(ContentRegion);
-        Canvas.Brush.Style := bsSolid;
+      DrawEditBox(LGraphics, ContentRegion, FContentBorder.BackgroundColor, FContentBorder.Color,
+        FContentBorder.Thickness, FContentBorder.Style, FContentBorder.CornerRadius,
+        FContentBorder.RoundCornerType, 255);
     end;
 
-    // Draw each tab button
     for I := 0 to FTabSheets.Count - 1 do
     begin
-      if I >= Length(FTabButtonRects) then continue; // Safety: Should not happen if RecalculateTabButtonRects is correct
+      if I >= Length(FTabButtonRects) then continue;
 
       Sheet := TANDMR_CTabSheet(FTabSheets[I]);
-      ButtonRect := FTabButtonRects[I]; // Use pre-calculated rectangle for the current button.
+      ButtonRect := FTabButtonRects[I];
 
-      // Determine current style based on state (active, hover, or inactive)
       if I = FActiveTabSheetIndex then
       begin
         CurrentStyle := FActiveTabStyle;
@@ -858,7 +782,7 @@ begin
       else if I = FHoveredTabIndex then
       begin
         CurrentStyle := FHoverTabStyle;
-        CurrentCaptionStyle := FTabCaptionSettings; // Could also have a specific FHoverCaptionSettings
+        CurrentCaptionStyle := FTabCaptionSettings;
       end
       else
       begin
@@ -866,99 +790,77 @@ begin
         CurrentCaptionStyle := FTabCaptionSettings;
       end;
 
-      // Draw the tab button's background and border using DrawEditBox utility function.
       DrawEditBox(LGraphics, ButtonRect, CurrentStyle.BackgroundColor, CurrentStyle.Color,
                   CurrentStyle.Thickness, CurrentStyle.Style, CurrentStyle.CornerRadius,
-                  CurrentStyle.RoundCornerType, 255); // Assuming full opacity (255).
+                  CurrentStyle.RoundCornerType, 255);
 
-      // Prepare text rectangle, adjusted for button padding.
       TextRect := ButtonRect;
-      InflateRect(TextRect, -FTabButtonPadding.Left, -FTabButtonPadding.Right,
-                              -FTabButtonPadding.Top, -FTabButtonPadding.Bottom);
+      InflateRect(TextRect, -FTabButtonPadding.Left, -FTabButtonPadding.Top);
 
-      IconWidth := 0; // Reset for each button
-      IconHeight := 0;
       ActualIconWidth := 0;
 
-      // Draw Icon if present and valid.
-      if Assigned(Sheet.Icon) and (Sheet.Icon.Graphic <> nil) and (Sheet.Icon.Width > 0) and (Sheet.Icon.Height > 0) then
+      if Assigned(Sheet.Icon) and (Sheet.Icon.Graphic <> nil) and not Sheet.Icon.Graphic.Empty then
       begin
-          // Calculate available height for icon within the padded TextRect.
-          IconHeight := Max(0, TextRect.Height - CurrentCaptionStyle.Margins.Top - CurrentCaptionStyle.Margins.Bottom);
-          if IconHeight > 0 then // Only proceed if there's vertical space for the icon.
+        IconHeight := Max(0, TextRect.Height);
+        if IconHeight > 0 then
+        begin
+          ActualIconWidth := MulDiv(Sheet.Icon.Width, IconHeight, Sheet.Icon.Height);
+          if ActualIconWidth > 0 then
           begin
-            ActualIconWidth := MulDiv(Sheet.Icon.Width, IconHeight, Sheet.Icon.Height); // Calculate width maintaining aspect ratio.
-            ActualIconWidth := Min(ActualIconWidth, TextRect.Width div 2); // Limit icon width to half of available text area.
+            IconRect := System.Types.Rect(
+              TextRect.Left,
+              TextRect.Top + (TextRect.Height - IconHeight) div 2,
+              TextRect.Left + ActualIconWidth,
+              TextRect.Top + (TextRect.Height - IconHeight) div 2 + IconHeight);
 
-            if ActualIconWidth > 0 then // Only draw if calculated width is positive.
-            begin
-              // Position icon (e.g., left of text, vertically centered within available icon space).
-              IconRect := System.Types.Rect(
-                TextRect.Left + CurrentCaptionStyle.Margins.Left,
-                TextRect.Top + (TextRect.Height - IconHeight) div 2, // Center vertically in the space made for text
-                TextRect.Left + CurrentCaptionStyle.Margins.Left + ActualIconWidth,
-                TextRect.Top + (TextRect.Height - IconHeight) div 2 + IconHeight);
+            // [FIX] Use fully qualified class names to resolve ambiguity and prevent E2015 error.
+            if (Sheet.Icon.Graphic is Vcl.Graphics.TBitmap) then
+                DrawNonPNGImageWithCanvas(Canvas, Sheet.Icon.Graphic, IconRect, idmProportional)
+            else if (Sheet.Icon.Graphic is Vcl.Imaging.pngimage.TPNGImage) then
+                DrawPNGImageWithGDI(LGraphics, Vcl.Imaging.pngimage.TPNGImage(Sheet.Icon.Graphic), IconRect, idmProportional)
+            else if (Sheet.Icon.Graphic is Vcl.Imaging.jpeg.TJPEGImage) then
+                DrawNonPNGImageWithCanvas(Canvas, Sheet.Icon.Graphic, IconRect, idmProportional);
 
-              // Draw the icon (handle different graphic types).
-              if Sheet.Icon.Graphic is TBitmap then
-                 DrawNonPNGImageWithCanvas(Canvas, Sheet.Icon.Graphic, IconRect, idmProportional)
-              else if Sheet.Icon.Graphic is TPNGImage then
-                 DrawPNGImageWithGDI(LGraphics, TPNGImage(Sheet.Icon.Graphic), IconRect, idmProportional)
-              else if Sheet.Icon.Graphic is TJPEGImage then // Example for another type
-                 DrawNonPNGImageWithCanvas(Canvas, Sheet.Icon.Graphic, IconRect, idmProportional);
-              // TODO: Add support for other TGraphic descendants as needed.
-
-              // Adjust TextRect to make space for the icon and its right margin.
-              IconWidth := ActualIconWidth + CurrentCaptionStyle.Margins.Right + CurrentCaptionStyle.Margins.Left; // Total horizontal space used by icon and its margins.
-              TextRect.Left := TextRect.Left + IconWidth;
-            end;
+            TextRect.Left := TextRect.Left + ActualIconWidth + 4; // Add 4px spacing between icon and text
           end;
+        end;
       end;
 
-      // Draw Caption Text, if space remains and caption is visible and not empty.
       if Assigned(CurrentCaptionStyle) and CurrentCaptionStyle.Visible and (Sheet.Caption <> '') and (TextRect.Width > 0) then
       begin
         DrawComponentCaption(Canvas, TextRect, Sheet.Caption, CurrentCaptionStyle.Font,
                              CurrentCaptionStyle.Color, CurrentCaptionStyle.Alignment,
-                             CurrentCaptionStyle.VerticalAlignment, CurrentCaptionStyle.WordWrap, 255); // Full opacity.
+                             CurrentCaptionStyle.VerticalAlignment, CurrentCaptionStyle.WordWrap, 255);
       end;
     end;
   finally
-    LGraphics.Free; // Free the GDI+ graphics object.
+    LGraphics.Free;
   end;
-
-  UpdateTabSheetBounds; // Final adjustment of active sheet visibility and bounds.
 end;
 
-// Handles mouse clicks to activate tab sheets.
+
 procedure TANDMR_CControlTab.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   ClickedTabIndex: Integer;
 begin
-  inherited MouseDown(Button, Shift, X, Y); // Call ancestor's method.
+  inherited MouseDown(Button, Shift, X, Y);
 
-  if Button = mbLeft then // Process only left mouse button clicks.
+  if Button = mbLeft then
   begin
-    ClickedTabIndex := GetTabButtonAt(X, Y); // Determine which tab button was clicked.
-    // If a valid tab button was clicked and it's not already the active one:
+    ClickedTabIndex := GetTabButtonAt(X, Y);
     if (ClickedTabIndex <> -1) and (ClickedTabIndex <> FActiveTabSheetIndex) then
     begin
-      SetActiveTabSheetIndex(ClickedTabIndex); // Activate the clicked tab.
-      // FHoveredTabIndex might also need to be updated here if the mouse remains over the clicked tab.
-      // However, SetActiveTabSheetIndex calls Invalidate, which will repaint with the new active style.
-      // MouseMove will eventually correct FHoveredTabIndex if needed and mouse is still moving.
+      SetActiveTabSheetIndex(ClickedTabIndex);
     end;
   end;
 end;
 
-// Called when the control is resized.
-// Recalculates layout of tab buttons and content area, then repaints.
 procedure TANDMR_CControlTab.Resize;
 begin
   inherited Resize;
-  RecalculateTabButtonRects; // Recalculate positions and sizes of tab buttons.
-  UpdateTabSheetBounds;    // Update bounds of the active tab sheet.
-  Invalidate;              // Force a repaint of the control.
+  RecalculateTabButtonRects;
+  UpdateTabSheetBounds;
+  Invalidate;
 end;
 
 procedure Register;

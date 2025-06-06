@@ -542,9 +542,9 @@ begin
       cptSave:     begin BaseColor := TColor($00F39621); PresetCaption := 'Salvar';    NewTitleColor := clWhite; end;
       cptEdit:     begin BaseColor := TColor($000098FF); PresetCaption := 'Editar';    NewTitleColor := clBlack; end;
       cptDelete:   begin BaseColor := TColor($003643F4); PresetCaption := 'Excluir';   NewTitleColor := clWhite; end;
-      cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'Avan√ßar';   NewTitleColor := clWhite; end;
+      cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'AvanÁar';   NewTitleColor := clWhite; end;
       cptPrevious: begin BaseColor := TColor($009E9E9E); PresetCaption := 'Voltar';    NewTitleColor := clBlack; end;
-      cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'Informa√ß√£o';NewTitleColor := clBlack; end;
+      cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'InformaÁ„o';NewTitleColor := clBlack; end;
       cptWarning:  begin BaseColor := TColor($003BEBFF); PresetCaption := 'Aviso';     NewTitleColor := clBlack; end;
       cptHelp:     begin BaseColor := TColor($008B7D60); PresetCaption := 'Ajuda';     NewTitleColor := clWhite; end;
     else
@@ -808,9 +808,9 @@ begin
       cptSave: LPresetDefaultCaption := 'Salvar';
       cptEdit: LPresetDefaultCaption := 'Editar';
       cptDelete: LPresetDefaultCaption := 'Excluir';
-      cptNext: LPresetDefaultCaption := 'Avan√ßar';
+      cptNext: LPresetDefaultCaption := 'AvanÁar';
       cptPrevious: LPresetDefaultCaption := 'Voltar';
-      cptInfo: LPresetDefaultCaption := 'Informa√ß√£o';
+      cptInfo: LPresetDefaultCaption := 'InformaÁ„o';
       cptWarning: LPresetDefaultCaption := 'Aviso';
       cptHelp: LPresetDefaultCaption := 'Ajuda';
     end;
@@ -1251,7 +1251,7 @@ begin
                    PathGradientBrush := TGPPathGradientBrush.Create(ButtonBodyPath);
                    try
                      PathGradientBrush.SetCenterColor(CenterColorGDI);
-                     // *** CORRE√á√ÉO: Removido o typecast PGPColor() que estava causando o erro. ***
+                     // *** CORRE«√O: Removido o typecast PGPColor() que estava causando o erro. ***
                      PathGradientBrush.SetSurroundColors(@SurroundColorArray[0], SurroundColorCount);
                      PathGradientBrush.SetCenterPoint(MakePoint((PathRectF.X + PathRectF.Width / 2), (PathRectF.Y + PathRectF.Height / 2)));
                      LG.FillPath(PathGradientBrush, ButtonBodyPath);

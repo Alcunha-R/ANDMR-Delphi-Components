@@ -14,7 +14,7 @@ type
   TANDMR_CCheckBoxStyle = (cbsCustom, cbsLight, cbsDark, cbsMaterial, cbsFlat, cbsModern,
                           cbsGhost, cbsFaded, cbsBordered, cbsIOS, cbsWin11);
 
-  // EnumeraÃ§Ã£o para a posiÃ§Ã£o do indicador de "marcado" (o elemento de check)
+  // Enumeração para a posição do indicador de "marcado" (o elemento de check)
   TCheckBoxIndicatorPosition = (
     cipLeftTop, cipLeftCenter, cipLeftBottom,
     cipTopLeft, cipTopCenter, cipTopRight,
@@ -606,7 +606,7 @@ begin
 
         if not FUserOverrides.BorderSettings_IsCustomized then // For IndicatorBorder
         begin
-          Self.IndicatorBorder.Color := clGray; // Visible border for the check box
+          Self.IndicatorBorder.Color := clGray;       // Check element's border - Modernized
           Self.IndicatorBorder.Thickness := 2;
           Self.IndicatorBorder.CornerRadius := 1;
           Self.IndicatorBorder.RoundCornerType := rctNone; // Square corners for indicator

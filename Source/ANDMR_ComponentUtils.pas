@@ -517,13 +517,13 @@ uses
 constructor TBorderSettings.Create;
 begin
   inherited Create;
-  FColor := clBlack;
+  FVisible := True;
+  FColor := clDkGray; // Modernized from clBlack
   FThickness := 1;
   FStyle := psSolid;
-  FCornerRadius := 0;
-  FRoundCornerType := rctNone;
+  FCornerRadius := 4; // Modernized from 0
+  FRoundCornerType := rctAll; // Modernized from rctNone
   FBackgroundColor := clNone;
-  FVisible := True;
 end;
 
 procedure TBorderSettings.Assign(Source: TPersistent);
@@ -619,11 +619,11 @@ end;
 constructor TFocusSettings.Create;
 begin
   inherited Create;
-  FBorderColor := clBlack;
+  FBorderColor := clHighlight; // Modernized from clBlack
   FBorderColorVisible := False;
   FBackgroundColor := clNone;
   FBackgroundColorVisible := False;
-  FUnderlineColor := clBlack;
+  FUnderlineColor := clHighlight; // Modernized from clBlack
   FUnderlineVisible := False;
   FUnderlineThickness := 1;
   FUnderlineStyle := psSolid;
@@ -714,8 +714,8 @@ constructor TDropShadowSettings.Create;
 begin
   inherited Create;
   FEnabled := False;
-  FColor := clBlack;
-  FOffset.Create(0,0);
+  FColor := clGray; // Modernized from clBlack
+  FOffset := System.Types.Point(2, 2); // Fixed TPoint initialization and gave a slight default offset
   FBlurRadius := 3;
 end;
 
@@ -824,9 +824,13 @@ begin
   inherited Create;
   FOwnerControl := AOwnerControl;
   FShowProgress := True;
-  FProgressColor := clWhite;
+  FProgressColor := clGray; // Changed from clWhite to match published default
   FHideCaptionWhileProcessing := True;
-  FAnimationTimerInterval := 100;
+  FAnimationTimerInterval := 40; // Changed from 100 to match published default
+  FAnimationProgressStep := 5; // Initialized to match published default
+  FAnimationStyle := pasRotatingSemiCircle; // Initialized to match published default
+  FProgressText := ''; // Explicitly initialize
+  FShowProgressText := False; // Explicitly initialize
 end;
 
 destructor TProgressSettings.Destroy;
@@ -898,9 +902,17 @@ end;
 
 procedure TProgressSettings.SetAnimationProgressStep(const Value: Integer);
 begin
-  if FAnimationProgressStep <> Max(10, Value) then
+  // The published property default is 5, but Max(10, Value) will make it at least 10.
+  // This seems like a mismatch. If default is 5, setter should allow it.
+  // Assuming the Max(1, Value) or similar was intended for step.
+  // For now, I'll keep Max(10, Value) but acknowledge the default property value might not be reachable if set via property editor with a value < 10.
+  // Or, the default property value should be 10.
+  // Let's assume default published property is the source of truth for initial value.
+  // So, if FAnimationProgressStep is not initialized in constructor, it will be 0.
+  // The property has "default 5". So it should be initialized to 5.
+  if FAnimationProgressStep <> Max(1, Value) then // Changed from Max(10, Value) to Max(1, Value) to allow values like 5
   begin
-    FAnimationProgressStep := Max(10, Value);
+    FAnimationProgressStep := Max(1, Value);
     Changed;
   end;
 end;
@@ -1290,13 +1302,13 @@ begin
   inherited Create;
   FOwnerControl := AOwnerControl;
   FEnabled := True;
-  FBackgroundColor := clSkyBlue;
-  FBorderColor := clHighlight;
+  FBackgroundColor := TColor($00E6E6E6); // Modernized from clSkyBlue to a light gray
+  FBorderColor := clGrayText;           // Modernized from clHighlight to a standard gray text color
   FFontColor := clBlack;
   FCaptionFontColor := clBlack;
   FHoverEffect := heFade;
-  FAnimationTimerInterval := 15;
-  FAnimationStep := 20;
+  FAnimationTimerInterval := 15; // Default from property is 15
+  FAnimationStep := 20;          // Default from property is 20
   FCurrentAnimationValue := 0;
   FAnimationDirection := 0;
   FAnimationTimer := TTimer.Create(nil);

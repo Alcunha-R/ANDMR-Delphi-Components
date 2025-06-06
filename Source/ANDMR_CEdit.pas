@@ -168,12 +168,12 @@ begin
   // Instantiate new settings objects
   FBorderSettings := TBorderSettings.Create;
   FBorderSettings.OnChange := SettingsChanged;
-  FBorderSettings.CornerRadius := 8;
+  FBorderSettings.CornerRadius := 4;
   FBorderSettings.RoundCornerType := rctAll;
-  FBorderSettings.Color := clBlack;
+  FBorderSettings.Color := clSilver;
   FBorderSettings.Thickness := 1;
   FBorderSettings.Style := psSolid;
-  FBorderSettings.BackgroundColor := clBtnFace; // Default for InactiveColor (background of border area)
+  FBorderSettings.BackgroundColor := clWindow; // Default for InactiveColor (background of border area)
 
   FFocusSettings := TFocusSettings.Create;
   FFocusSettings.OnChange := SettingsChanged;
@@ -182,7 +182,7 @@ begin
   FFocusSettings.BackgroundColorVisible := False;
   FFocusSettings.BackgroundColor := clWindow;
   FFocusSettings.UnderlineVisible := False;
-  FFocusSettings.UnderlineColor := clBlack;
+  FFocusSettings.UnderlineColor := clHighlight;
   FFocusSettings.UnderlineThickness := 1;
   FFocusSettings.UnderlineStyle := psSolid;
 
@@ -215,6 +215,8 @@ begin
   FRawText := '';
   FCaptionSettings := TCaptionSettings.Create(Self);
   FCaptionSettings.OnChange := CaptionSettingsChanged;
+  FCaptionSettings.Font.Style := [fsBold];
+  FCaptionSettings.Font.Color := clGrayText;
   FCaptionRect := Rect(0,0,0,0);
   FHoverSettings := THoverSettings.Create(Self);
   FHoverSettings.OnChange := HoverSettingsChanged;

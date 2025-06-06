@@ -57,30 +57,11 @@ type
     destructor Destroy; override;
 
   published
-    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings; // New
-    (* property Color: TColor read GetColor write SetColor default clBtnFace;
-    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
-    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 0;
-    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctNone; *)
-    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings; // New
-    (* property Caption: string read GetCaption write SetCaption;
-    property CaptionAlignment: System.Classes.TAlignment read GetCaptionAlignment write SetCaptionAlignment default taCenter;
-    property CaptionVerticalAlignment: TCaptionVerticalAlignment read GetCaptionVerticalAlignment write SetCaptionVerticalAlignment default cvaCenter;
-    property CaptionWordWrap: Boolean read GetCaptionWordWrap write SetCaptionWordWrap default False;
-    property CaptionOffsetX: Integer read GetCaptionOffsetX write SetCaptionOffsetX default 0;
-    property CaptionOffsetY: Integer read GetCaptionOffsetY write SetCaptionOffsetY default 0;
-    property DisabledFontColor: TColor read GetDisabledFontColor write SetDisabledFontColor default clGrayText;
-    property Font: TFont read GetFont write SetFont; *)
+    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
+    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property TransparentChildren: Boolean read FTransparentChildren write SetTransparentChildren default False;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
-    property DropShadowSettings: TDropShadowSettings read FDropShadowSettings write SetDropShadowSettings; // New
-
-    (* property DropShadowEnabled: Boolean read GetDropShadowEnabled write SetDropShadowEnabled default False;
-    property DropShadowColor: TColor read GetDropShadowColor write SetDropShadowColor default clBlack;
-    property DropShadowOffset: TPoint read GetDropShadowOffset write SetDropShadowOffset;
-    property DropShadowBlurRadius: Integer read GetDropShadowBlurRadius write SetDropShadowBlurRadius default 3; *)
+    property DropShadowSettings: TDropShadowSettings read FDropShadowSettings write SetDropShadowSettings;
     property Opacity: Byte read FOpacity write SetOpacity default 255;
 
     property Align;
@@ -130,35 +111,35 @@ begin
   // Instantiate new settings objects and set their defaults
   FBorderSettings := TBorderSettings.Create;
   FBorderSettings.OnChange := SettingsChanged;
-  FBorderSettings.BackgroundColor := clBtnFace;
-  FBorderSettings.Color := clBlack;
+  FBorderSettings.BackgroundColor := clWhite; // Modernized
+  FBorderSettings.Color := clSilver; // Modernized
   FBorderSettings.Thickness := 1;
   FBorderSettings.Style := psSolid;
-  FBorderSettings.CornerRadius := 0;
-  FBorderSettings.RoundCornerType := rctNone;
+  FBorderSettings.CornerRadius := 6; // Modernized
+  FBorderSettings.RoundCornerType := rctAll; // Modernized
 
   FDropShadowSettings := TDropShadowSettings.Create;
   FDropShadowSettings.OnChange := SettingsChanged;
   FDropShadowSettings.Enabled := False;
-  FDropShadowSettings.Color := clBlack;
-  FDropShadowSettings.Offset := Point(2, 2);
-  FDropShadowSettings.BlurRadius := 3;
+  FDropShadowSettings.Color := clGray; // Modernized
+  FDropShadowSettings.Offset := Point(3, 3); // Modernized
+  FDropShadowSettings.BlurRadius := 8; // Modernized
 
   FCaptionSettings := TCaptionSettings.Create(Self); // Owner is Self
   FCaptionSettings.OnChange := SettingsChanged;
   FCaptionSettings.Text := '';
   FCaptionSettings.Font.Name := 'Segoe UI';
   FCaptionSettings.Font.Size := 9;
-  FCaptionSettings.Font.Color := clWindowText;
-  FCaptionSettings.Alignment := taCenter;
+  FCaptionSettings.Font.Color := clGrayText; // Modernized
+  FCaptionSettings.Font.Style := [fsBold]; // Modernized
+  FCaptionSettings.Alignment := taLeftJustify; // Modernized
   FCaptionSettings.VerticalAlignment := cvaCenter;
-  FCaptionSettings.WordWrap := False;
-  FCaptionSettings.Offset := Point(0,0); // Initialize TPoint offset
+  FCaptionSettings.Offset := Point(4,0); // Modernized for taLeftJustify
   FCaptionSettings.DisabledColor := clGrayText;
 
   FHoverSettings := THoverSettings.Create(Self);
   FHoverSettings.OnChange := HoverSettingsChanged;
-  // Defaults for FHoverSettings are set within THoverSettings.Create
+  // Defaults for FHoverSettings are set within THoverSettings.Create (already modernized)
 
   Width := 185;
   Height := 85;

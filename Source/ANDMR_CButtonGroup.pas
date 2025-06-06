@@ -195,7 +195,7 @@ begin
       if FBorderSettings.BackgroundColor <> clNone then
       begin
         var FillBrush: TGPSolidBrush;
-        FillBrush := TGPSolidBrush.Create(ColorToARGB(FBorderSettings.BackgroundColor, IfThen(Self.Transparent, 0, 255))));
+        FillBrush := TGPSolidBrush.Create(ColorToARGB(FBorderSettings.BackgroundColor, IfThen(Self.Transparent, 0, 255)));
         try
           LG.FillPath(FillBrush, Path);
         finally
@@ -220,18 +220,18 @@ begin
     // Draw Separators
     if FSeparatorSettings.Visible and (FSeparatorSettings.Thickness > 0) and (FButtons.Count > 1) then
     begin
-      var // Local variables for separator drawing
-        SepPenObj: TGPPen;
-        BtnBefore: TANDMR_CButton;
-        i: Integer;
-        SepX, ActualSepTop, ActualSepBottom: Single; // For Horizontal orientation
-        SepY, ActualSepLeft, ActualSepRight: Single; // For Vertical orientation
+      // Local variables for separator drawing
+      var   SepPenObj: TGPPen;
+      var   BtnBefore: TANDMR_CButton;
+      var   o: Integer;
+      var   SepX, ActualSepTop, ActualSepBottom: Single; // For Horizontal orientation
+      var   SepY, ActualSepLeft, ActualSepRight: Single; // For Vertical orientation
 
       SepPenObj := TGPPen.Create(ColorToARGB(FSeparatorSettings.Color, 255), FSeparatorSettings.Thickness);
       try
-        for i := 0 to FButtons.Count - 2 do // Iterate up to the second-to-last button
+        for o := 0 to FButtons.Count - 2 do // Iterate up to the second-to-last button
         begin
-          BtnBefore := TANDMR_CButton(FButtons[i]);
+          BtnBefore := TANDMR_CButton(FButtons[o]);
 
           if FOrientation = bgoHorizontal then
           begin
@@ -432,6 +432,15 @@ procedure TANDMR_CButtonGroup.SettingsChanged(Sender: TObject);
 begin
   Resize; // Some settings might affect layout
   Repaint;
+end;
+
+procedure TANDMR_CButtonGroup.SetTransparent(const Value: Boolean);
+begin
+  if FTransparent <> Value then
+  begin
+    FTransparent := Value;
+    Repaint;
+  end;
 end;
 
 procedure TANDMR_CButtonGroup.ButtonClickHandler(Sender: TObject);

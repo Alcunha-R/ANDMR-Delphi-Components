@@ -783,7 +783,8 @@ var
   LProgressText: string;
   LShowProgressText: Boolean;
   DotYOffset: array[0..2] of Integer;
-  SurroundColorArray: PARGB; // Changed declaration
+  SurroundColorArray: array[0..0] of TGPColor;
+  SurroundColorCount: Integer;
   CenterColorGDI: TGPColor;
 
 const
@@ -798,7 +799,6 @@ const
 begin
   inherited Paint;
 
-  SurroundColorArray := nil; // Initialize to nil
   LPresetDefaultCaption := '';
   if FPresetType <> cptNone then
   begin
@@ -1163,8 +1163,8 @@ begin
 
     var  ButtonBodyPath: TGPGraphicsPath;
     var  PathRectF: TGPRectF; // This will be the rect for CreateGPRoundedPath
-      // LRadiusValue is already declared and calculated before the original DrawEditBox
-      // LPathInset is already declared
+         // LRadiusValue is already declared and calculated before the original DrawEditBox
+         // LPathInset is already declared
 
     // Define PathRectF based on ButtonRectEffectiveF, adjusted for border thickness
     if LActualBorderThickness > 0 then
@@ -1202,119 +1202,92 @@ begin
           begin
             if LCurrentGradientEnabled and FGradientSettings.Enabled then
             begin
-              var
-                LinearGradientBrush: TGPLinearGradientBrush;
-                PathGradientBrush: TGPPathGradientBrush;
-                ResolvedStartColor, ResolvedEndColor: TColor;
-                GradRect: TGPRectF;
-                LinGradMode: Integer;
-                // SurroundColorArray: array[0..0] of TGPColor; // Moved to main var block
-                // CenterColorGDI: TGPColor;                   // Moved to main var block
 
-              ResolvedStartColor := FGradientSettings.StartColor;
-              if ResolvedStartColor = clNone then
-                ResolvedStartColor := LActualFillColor;
+                var LinearGradientBrush: TGPLinearGradientBrush;
+                var PathGradientBrush: TGPPathGradientBrush;
+                var ResolvedStartColor, ResolvedEndColor: TColor;
+                var GradRect: TGPRectF;
+                var LinGradMode: Integer;
+                 // SurroundColorArray: array[0..0] of TGPColor; // Moved to main var block
+                 // CenterColorGDI: TGPColor;                 // Moved to main var block
 
-              ResolvedEndColor := FGradientSettings.EndColor;
-              if ResolvedEndColor = clNone then
-                ResolvedEndColor := DarkerColor(ResolvedStartColor, GRADIENT_DARK_FACTOR);
+               ResolvedStartColor := FGradientSettings.StartColor;
+               if ResolvedStartColor = clNone then
+                 ResolvedStartColor := LActualFillColor;
 
-              GradRect := PathRectF; // Used by Linear gradients
+               ResolvedEndColor := FGradientSettings.EndColor;
+               if ResolvedEndColor = clNone then
+                 ResolvedEndColor := DarkerColor(ResolvedStartColor, GRADIENT_DARK_FACTOR);
 
-              // Allocate memory for SurroundColorArray if radial/centerburst will be used
-              if FGradientSettings.GradientType in [gtRadial, gtCenterBurst] then
-              begin
-                GetMem(SurroundColorArray, SizeOf(TGPColor));
-                // Value assignment will happen inside the case
-              end
-              // Note: No 'else SurroundColorArray := nil;' here, already nil from start of Paint
-              // or will be set to nil after FreeMem if it was used.
+               GradRect := PathRectF; // Used by Linear gradients
 
-              case FGradientSettings.GradientType of
-                gtLinearVertical:
-                begin
-                  LinGradMode := 1; // LinearGradientModeVertical
-                  LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
-                  try
-                    LG.FillPath(LinearGradientBrush, ButtonBodyPath);
-                  finally
-                    LinearGradientBrush.Free;
-                  end;
-                end;
-                gtLinearHorizontal:
-                begin
-                  LinGradMode := 0; // LinearGradientModeHorizontal
-                  LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
-                  try
-                    LG.FillPath(LinearGradientBrush, ButtonBodyPath);
-                  finally
-                    LinearGradientBrush.Free;
-                  end;
-                end;
-                gtRadial, gtCenterBurst:
-                begin
-                  // Ensure SurroundColorArray is allocated (already done before case)
-                  if Assigned(SurroundColorArray) then
-                  begin
-                    SurroundColorArray^ := ColorToARGB(ResolvedEndColor); // Assign to the pointed memory
-                  end
-                  else
-                  begin
-                    // Handle error or skip gradient if memory wasn't allocated - though it should have been.
-                    // For now, proceed assuming it's allocated if we reach here for these types.
-                    // If not, SetSurroundColors might crash. A more robust solution might return/exit.
-                  end;
-                  CenterColorGDI := ColorToARGB(ResolvedStartColor); // This is fine, CenterColorGDI is from main var block
+               case FGradientSettings.GradientType of
+                 gtLinearVertical:
+                 begin
+                   LinGradMode := 1; // LinearGradientModeVertical
+                   LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+                   try
+                     LG.FillPath(LinearGradientBrush, ButtonBodyPath);
+                   finally
+                     LinearGradientBrush.Free;
+                   end;
+                 end;
+                 gtLinearHorizontal:
+                 begin
+                   LinGradMode := 0; // LinearGradientModeHorizontal
+                   LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+                   try
+                     LG.FillPath(LinearGradientBrush, ButtonBodyPath);
+                   finally
+                     LinearGradientBrush.Free;
+                   end;
+                 end;
+                 gtRadial, gtCenterBurst:
+                 begin
+                   CenterColorGDI := ColorToARGB(ResolvedStartColor);
+                   SurroundColorArray[0] := ColorToARGB(ResolvedEndColor);
+                   SurroundColorCount := 1;
 
-                  PathGradientBrush := TGPPathGradientBrush.Create(ButtonBodyPath);
-                  try
-                    PathGradientBrush.SetCenterColor(CenterColorGDI);
-                    PathGradientBrush.SetSurroundColors(SurroundColorArray, 1); // Pass PARGB directly
-                    PathGradientBrush.SetCenterPoint(MakePoint((PathRectF.X + PathRectF.Width / 2), (PathRectF.Y + PathRectF.Height / 2)));
-                    LG.FillPath(PathGradientBrush, ButtonBodyPath);
-                  finally
-                    PathGradientBrush.Free;
-                  end;
-                end;
-                gtDiagonalDown:
-                begin
-                  LinGradMode := 2; // LinearGradientModeForwardDiagonal
-                  LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
-                  try
-                    LG.FillPath(LinearGradientBrush, ButtonBodyPath);
-                  finally
-                    LinearGradientBrush.Free;
-                  end;
-                end;
-                gtDiagonalUp:
-                begin
-                  LinGradMode := 3; // LinearGradientModeBackwardDiagonal
-                  LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
-                  try
-                    LG.FillPath(LinearGradientBrush, ButtonBodyPath);
-                  finally
-                    LinearGradientBrush.Free;
-                  end;
-                end;
-              else // Default to Solid Fill if unknown gradient type or if something went wrong
-                var FillBrushElse: TGPSolidBrush;
-                FillBrushElse := TGPSolidBrush.Create(ColorToARGB(LActualFillColor));
-                try
-                  LG.FillPath(FillBrushElse, ButtonBodyPath);
-                finally
-                  FillBrushElse.Free;
-                end;
-              end;
-
-              // Free memory for SurroundColorArray if it was allocated
-              if FGradientSettings.GradientType in [gtRadial, gtCenterBurst] then
-              begin
-                if Assigned(SurroundColorArray) then
-                begin
-                  FreeMem(SurroundColorArray);
-                  SurroundColorArray := nil; // Good practice after freeing
-                end;
-              end;
+                   PathGradientBrush := TGPPathGradientBrush.Create(ButtonBodyPath);
+                   try
+                     PathGradientBrush.SetCenterColor(CenterColorGDI);
+                     // *** CORREÇÃO: Removido o typecast PGPColor() que estava causando o erro. ***
+                     PathGradientBrush.SetSurroundColors(@SurroundColorArray[0], SurroundColorCount);
+                     PathGradientBrush.SetCenterPoint(MakePoint((PathRectF.X + PathRectF.Width / 2), (PathRectF.Y + PathRectF.Height / 2)));
+                     LG.FillPath(PathGradientBrush, ButtonBodyPath);
+                   finally
+                     PathGradientBrush.Free;
+                   end;
+                 end;
+                 gtDiagonalDown:
+                 begin
+                   LinGradMode := 2; // LinearGradientModeForwardDiagonal
+                   LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+                   try
+                     LG.FillPath(LinearGradientBrush, ButtonBodyPath);
+                   finally
+                     LinearGradientBrush.Free;
+                   end;
+                 end;
+                 gtDiagonalUp:
+                 begin
+                   LinGradMode := 3; // LinearGradientModeBackwardDiagonal
+                   LinearGradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+                   try
+                     LG.FillPath(LinearGradientBrush, ButtonBodyPath);
+                   finally
+                     LinearGradientBrush.Free;
+                   end;
+                 end;
+               else // Default to Solid Fill if unknown gradient type or if something went wrong
+                 var FillBrushElse: TGPSolidBrush;
+                 FillBrushElse := TGPSolidBrush.Create(ColorToARGB(LActualFillColor));
+                 try
+                   LG.FillPath(FillBrushElse, ButtonBodyPath);
+                 finally
+                   FillBrushElse.Free;
+                 end;
+               end;
             end
             else // Solid Fill
             begin
@@ -1335,10 +1308,10 @@ begin
             BorderPen := TGPPen.Create(ColorToARGB(LActualBorderColor), LActualBorderThickness);
             try
               case BorderSettings.Style of
-                psSolid:      BorderPen.SetDashStyle(DashStyleSolid);
-                psDash:       BorderPen.SetDashStyle(DashStyleDash);
-                psDot:        BorderPen.SetDashStyle(DashStyleDot);
-                psDashDot:    BorderPen.SetDashStyle(DashStyleDashDot);
+                psSolid:     BorderPen.SetDashStyle(DashStyleSolid);
+                psDash:      BorderPen.SetDashStyle(DashStyleDash);
+                psDot:       BorderPen.SetDashStyle(DashStyleDot);
+                psDashDot:   BorderPen.SetDashStyle(DashStyleDashDot);
                 psDashDotDot: BorderPen.SetDashStyle(DashStyleDashDotDot);
               else
                 BorderPen.SetDashStyle(DashStyleSolid);
@@ -1356,8 +1329,8 @@ begin
     // ===== NEW GRADIENT/SOLID FILL AND BORDER LOGIC END =====
 
     LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
-                              Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
-                              Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
+                           Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
+                           Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
 
     if ImageSettings.Placement = iplInsideBounds then
     begin
@@ -1398,13 +1371,13 @@ begin
       begin
         if LProgressRect.Width > LProgressRect.Height then
         begin
-            LProgressRect.Left := LProgressRect.Left + (LProgressRect.Width - LProgressRect.Height) div 2;
-            LProgressRect.Width := LProgressRect.Height;
+           LProgressRect.Left := LProgressRect.Left + (LProgressRect.Width - LProgressRect.Height) div 2;
+           LProgressRect.Width := LProgressRect.Height;
         end
         else
         begin
-            LProgressRect.Top := LProgressRect.Top + (LProgressRect.Height - LProgressRect.Width) div 2;
-            LProgressRect.Height := LProgressRect.Width;
+           LProgressRect.Top := LProgressRect.Top + (LProgressRect.Height - LProgressRect.Width) div 2;
+           LProgressRect.Height := LProgressRect.Width;
         end;
         InflateRect(LProgressRect, -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)), -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)));
       end;
@@ -1726,9 +1699,9 @@ begin
                               LImageClipRect.Right - CaptionSettings.Margins.Right, LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
         else
            LTextArea := Rect(LImgX + LDrawW + ImageSettings.Margins.Right + CaptionSettings.Margins.Left,
-                              LImageClipRect.Top + CaptionSettings.Margins.Top,
-                              LImageClipRect.Right - CaptionSettings.Margins.Right,
-                              LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
+                             LImageClipRect.Top + CaptionSettings.Margins.Top,
+                             LImageClipRect.Right - CaptionSettings.Margins.Right,
+                             LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
         end;
         LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
 

@@ -829,7 +829,6 @@ begin
   else if Value = ismFlat then
     FImageSettings.DrawMode := idmStretch;
   // Repaint is handled by FImageSettings.OnChange via SettingsChanged
-  Repaint; // Keep repaint for safety
 end;
 
 function TANDMR_CButton.GetImageMargins: TANDMR_Margins;
@@ -841,7 +840,6 @@ procedure TANDMR_CButton.SetImageMargins(const Value: TANDMR_Margins);
 begin
   FImageSettings.Margins.Assign(Value);
   // Repaint is handled by FImageSettings.OnChange via SettingsChanged
-  Repaint; // Keep repaint for safety
 end;
 
 procedure TANDMR_CButton.SetTextMargins(const Value: TANDMR_Margins);

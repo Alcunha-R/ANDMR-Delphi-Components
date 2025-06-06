@@ -3,93 +3,210 @@ unit ANDMR_CButtonGroup;
 interface
 
 uses
-  System.SysUtils, System.Classes, System.Contnrs, // Added System.Contnrs
-  Vcl.Controls, Vcl.Graphics, Winapi.Windows,
-  Vcl.ExtCtrls, Winapi.Messages, Vcl.Forms, Vcl.StdCtrls, System.Types, System.UITypes,
-  System.Math, Winapi.GDIPOBJ, Winapi.GDIPAPI,
-  ANDMR_CButton, ANDMR_ComponentUtils;
+  System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
+  Vcl.ExtCtrls, Winapi.Messages, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
+  System.Types, System.Math, Vcl.Imaging.pngimage, Vcl.GraphUtil, System.UITypes,
+  ANDMR_ComponentUtils, Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Winapi.ActiveX;
 
 type
-  TANDMR_ButtonGroupOrientation = (bgoHorizontal, bgoVertical);
+  TANDMR_CButtonGroup = class; // Forward declaration
+
+  TANDMR_CGroupButtonItem = class(TCollectionItem)
+  private
+    FCaption: string;
+    FFont: TFont;
+    FColor: TColor;
+    FBorderColor: TColor;
+    FBorderWidth: Integer;
+    FCornerRadius: Integer;
+    FHoverColor: TColor;
+    FHoverFontColor: TColor;
+    FClickColor: TColor;
+    FOnClick: TNotifyEvent;
+    FTag: Integer;
+    FVisible: Boolean;
+    FEnabled: Boolean;
+    FWidth: Integer; // Specific width for this button item
+
+    procedure SetCaption(const Value: string);
+    procedure SetFont(const Value: TFont);
+    procedure SetColor(const Value: TColor);
+    procedure SetBorderColor(const Value: TColor);
+    procedure SetBorderWidth(const Value: Integer);
+    procedure SetCornerRadius(const Value: Integer);
+    procedure SetHoverColor(const Value: TColor);
+    procedure SetHoverFontColor(const Value: TColor);
+    procedure SetClickColor(const Value: TColor);
+    procedure SetTag(const Value: Integer);
+    procedure SetVisible(const Value: Boolean);
+    procedure SetEnabled(const Value: Boolean);
+    procedure SetWidth(const Value: Integer);
+    procedure FontChanged(Sender: TObject);
+  protected
+    function GetDisplayName: string; override;
+    procedure AssignTo(Dest: TPersistent); override;
+  public
+    constructor Create(Collection: TCollection); override;
+    destructor Destroy; override;
+    procedure Click;
+  published
+    property Caption: string read FCaption write SetCaption;
+    property Font: TFont read FFont write SetFont;
+    property Color: TColor read FColor write SetColor default clTeal;
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
+    property BorderWidth: Integer read FBorderWidth write SetBorderWidth default 1;
+    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 12;
+    property HoverColor: TColor read FHoverColor write SetHoverColor default clNone;
+    property HoverFontColor: TColor read FHoverFontColor write SetHoverFontColor default clNone;
+    property ClickColor: TColor read FClickColor write SetClickColor default clNone;
+    property OnClick: TNotifyEvent read FOnClick write FOnClick;
+    property Tag: Integer read FTag write SetTag default 0;
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property Enabled: Boolean read FEnabled write SetEnabled default True;
+    property Width: Integer read FWidth write SetWidth default 100; // Default width
+  end;
+
+  TANDMR_CGroupButtonItems = class(TCollection)
+  private
+    FOwner: TANDMR_CButtonGroup;
+    function GetItem(Index: Integer): TANDMR_CGroupButtonItem;
+    procedure SetItem(Index: Integer; const Value: TANDMR_CGroupButtonItem);
+  protected
+    function GetOwner: TPersistent; override;
+    procedure Update(Item: TCollectionItem); override;
+  public
+    constructor Create(AOwner: TANDMR_CButtonGroup);
+    function Add: TANDMR_CGroupButtonItem;
+    property Items[Index: Integer]: TANDMR_CGroupButtonItem read GetItem write SetItem; default;
+  end;
 
   TANDMR_CButtonGroup = class(TCustomControl)
   private
-    FButtons: TObjectList;
-    FOrientation: TANDMR_ButtonGroupOrientation;
-    FButtonSpacing: Integer;
-    FSelectedButton: TANDMR_CButton;
-    FBorderSettings: TBorderSettings;
-    FHoverSettings: THoverSettings;
-    FSeparatorSettings: TSeparatorSettings;
-    FAllowMultiSelect: Boolean; // Added
-    FActiveButtonColor: TColor;
-    FInactiveButtonColor: TColor;
-    FActiveButtonFontColor: TColor;
-    FInactiveButtonFontColor: TColor;
-    FTransparent: Boolean;
+    FItems: TANDMR_CGroupButtonItems;
+    FHoveredItem: TANDMR_CGroupButtonItem;
+    FClickedItem: TANDMR_CGroupButtonItem;
+    FSelectedItem: TANDMR_CGroupButtonItem;
+    FSpacing: Integer;
+    FAutoSize: Boolean;
+    FAllowDeselection: Boolean;
 
+    // Group Border Properties
+    FGroupBorderVisible: Boolean;
+    FGroupBorderColor: TColor;
+    FGroupBorderWidth: Integer;
+    FGroupCornerRadius: Integer;
 
-    procedure SetOrientation(const Value: TANDMR_ButtonGroupOrientation);
-    procedure SetButtonSpacing(const Value: Integer);
-    procedure SetBorderSettings(const Value: TBorderSettings);
-    procedure SetHoverSettings(const Value: THoverSettings);
-    procedure SetSeparatorSettings(const Value: TSeparatorSettings);
-    procedure SetAllowMultiSelect(const Value: Boolean); // Added
-    procedure SetActiveButtonColor(const Value: TColor);
-    procedure SetInactiveButtonColor(const Value: TColor);
-    procedure SetActiveButtonFontColor(const Value: TColor);
-    procedure SetInactiveButtonFontColor(const Value: TColor);
-    procedure SetTransparent(const Value: Boolean);
+    // Selection Properties
+    FSelectedColor: TColor;
+    FSelectedFontColor: TColor;
 
+    // Global Properties
+    FGlobalFont: TFont;
+    FGlobalColor: TColor;
+    FGlobalBorderColor: TColor;
+    FGlobalBorderWidth: Integer;
+    FGlobalCornerRadius: Integer;
+    FGlobalHoverColor: TColor;
+    FGlobalHoverFontColor: TColor;
+    FGlobalClickColor: TColor;
 
-    procedure ButtonClickHandler(Sender: TObject);
-    procedure SettingsChanged(Sender: TObject);
-    procedure UpdateButtonsStyle;
+    procedure SetItems(const Value: TANDMR_CGroupButtonItems);
+    procedure SetSpacing(const Value: Integer);
+    procedure SetAutoSize(const Value: Boolean);
+    procedure UpdateWidth;
+    procedure SetSelectedItemIndex(const Value: Integer);
+    function GetSelectedItemIndex: Integer;
+    procedure SetSelectedColor(const Value: TColor);
+    procedure SetSelectedFontColor(const Value: TColor);
 
+    // Group Border Setters
+    procedure SetGroupBorderVisible(const Value: Boolean);
+    procedure SetGroupBorderColor(const Value: TColor);
+    procedure SetGroupBorderWidth(const Value: Integer);
+    procedure SetGroupCornerRadius(const Value: Integer);
 
+    // Global Property Setters
+    procedure SetGlobalFont(const Value: TFont);
+    procedure SetGlobalColor(const Value: TColor);
+    procedure SetGlobalBorderColor(const Value: TColor);
+    procedure SetGlobalBorderWidth(const Value: Integer);
+    procedure SetGlobalCornerRadius(const Value: Integer);
+    procedure SetGlobalHoverColor(const Value: TColor);
+    procedure SetGlobalHoverFontColor(const Value: TColor);
+    procedure SetGlobalClickColor(const Value: TColor);
+    procedure GlobalFontChanged(Sender: TObject);
+
+    procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
+    procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+
+    function GetItemAt(X, Y: Integer): TANDMR_CGroupButtonItem;
   protected
     procedure Paint; override;
     procedure Loaded; override;
-    procedure Notification(AComponent: TComponent; Operation: TOperation); override;
-    procedure Resize; override;
-
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-
-    function AddButton(ACaption: string = ''; AImage: TPicture = nil): TANDMR_CButton;
-    procedure RemoveButton(AButton: TANDMR_CButton);
-    procedure ClearButtons;
-    procedure SelectButton(AButton: TANDMR_CButton);
-    // Add public methods as needed
-
+    property SelectedItem: TANDMR_CGroupButtonItem read FSelectedItem;
   published
-    property Orientation: TANDMR_ButtonGroupOrientation read FOrientation write SetOrientation default bgoHorizontal;
-    property ButtonSpacing: Integer read FButtonSpacing write SetButtonSpacing default 5;
-    property SelectedButton: TANDMR_CButton read FSelectedButton write SelectButton;
+    // Properties for individual item management
+    property Items: TANDMR_CGroupButtonItems read FItems write SetItems;
+    property Spacing: Integer read FSpacing write SetSpacing default 5;
+    property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
 
-    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
-    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings; // Group hover, not button hover
-    property SeparatorSettings: TSeparatorSettings read FSeparatorSettings write SetSeparatorSettings;
-    property AllowMultiSelect: Boolean read FAllowMultiSelect write SetAllowMultiSelect default False; // Added
+    // Group Border Properties
+    property GroupBorderVisible: Boolean read FGroupBorderVisible write SetGroupBorderVisible default False;
+    property GroupBorderColor: TColor read FGroupBorderColor write SetGroupBorderColor default clBlack;
+    property GroupBorderWidth: Integer read FGroupBorderWidth write SetGroupBorderWidth default 1;
+    property GroupCornerRadius: Integer read FGroupCornerRadius write SetGroupCornerRadius default 12;
 
-    property ActiveButtonColor: TColor read FActiveButtonColor write SetActiveButtonColor default clHighlight;
-    property InactiveButtonColor: TColor read FInactiveButtonColor write SetInactiveButtonColor default clBtnFace;
-    property ActiveButtonFontColor: TColor read FActiveButtonFontColor write SetActiveButtonFontColor default clWhite;
-    property InactiveButtonFontColor: TColor read FInactiveButtonFontColor write SetInactiveButtonFontColor default clBlack;
+    // Selection Properties
+    property SelectedItemIndex: Integer read GetSelectedItemIndex write SetSelectedItemIndex default -1;
+    property SelectedColor: TColor read FSelectedColor write SetSelectedColor;
+    property SelectedFontColor: TColor read FSelectedFontColor write SetSelectedFontColor;
+    property AllowDeselection: Boolean read FAllowDeselection write FAllowDeselection default True;
+
+    // Global properties to apply to all items
+    property GlobalFont: TFont read FGlobalFont write SetGlobalFont;
+    property GlobalColor: TColor read FGlobalColor write SetGlobalColor;
+    property GlobalBorderColor: TColor read FGlobalBorderColor write SetGlobalBorderColor;
+    property GlobalBorderWidth: Integer read FGlobalBorderWidth write SetGlobalBorderWidth;
+    property GlobalCornerRadius: Integer read FGlobalCornerRadius write SetGlobalCornerRadius;
+    property GlobalHoverColor: TColor read FGlobalHoverColor write SetGlobalHoverColor;
+    property GlobalHoverFontColor: TColor read FGlobalHoverFontColor write SetGlobalHoverFontColor;
+    property GlobalClickColor: TColor read FGlobalClickColor write SetGlobalClickColor;
+
 
     property Align;
     property Enabled;
-    property Visible;
-    property OnClick;
-    property OnDblClick;
     property Font;
     property ParentShowHint;
     property PopupMenu;
     property ShowHint;
     property TabOrder;
-    property TabStop default True;
-    property Transparent: Boolean read FTransparent write SetTransparent default False;
+    property TabStop;
+    property Visible;
+    property OnContextPopup;
+    property OnDblClick;
+    property OnDragDrop;
+    property OnDragOver;
+    property OnEndDock;
+    property OnEndDrag;
+    property OnEnter;
+    property OnExit;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnResize;
+    property OnStartDock;
+    property OnStartDrag;
   end;
 
 procedure Register;
@@ -101,575 +218,762 @@ begin
   RegisterComponents('ANDMR', [TANDMR_CButtonGroup]);
 end;
 
+// Utility function to draw on the button
+procedure DrawButton(Canvas: TCanvas; const ARect: TRect; const AText: string; AFont: TFont; AColor, ABorderColor, AFontColor: TColor; ABorderWidth, ACornerRadius: Integer; AGraphics: TGPGraphics);
+var
+  LPath: TGPGraphicsPath;
+  LRectF: TGPRectF;
+  LBrush: TGPBrush;
+  LPen: TGPPen;
+  LTextRect: TRect; // Local copy for DrawText
+begin
+  // Create a TGPRectF from the TRect. Note that TRect has no Width/Height properties.
+  // We use floating point values to call the correct MakeRect overload.
+  LRectF := MakeRect(Single(ARect.Left), Single(ARect.Top), Single(ARect.Right - ARect.Left), Single(ARect.Bottom - ARect.Top));
+
+  LPath := TGPGraphicsPath.Create;
+  try
+    // Use the custom utility to create a rounded rectangle path
+    CreateGPRoundedPath(LPath, LRectF, ACornerRadius, rctAll);
+
+    // Fill the button background
+    LBrush := TGPSolidBrush.Create(ColorToARGB(AColor));
+    try
+      AGraphics.FillPath(LBrush, LPath);
+    finally
+      LBrush.Free;
+    end;
+
+    // Draw the button border if it has a width
+    if ABorderWidth > 0 then
+    begin
+      LPen := TGPPen.Create(ColorToARGB(ABorderColor), ABorderWidth);
+      try
+        AGraphics.DrawPath(LPen, LPath);
+      finally
+        LPen.Free;
+      end;
+    end;
+  finally
+    LPath.Free;
+  end;
+
+  // Draw the button caption
+  // Make a mutable copy of ARect because DrawText modifies its rect parameter
+  LTextRect := ARect;
+  Canvas.Font.Assign(AFont);
+  Canvas.Font.Color := AFontColor;
+  Canvas.Brush.Style := bsClear; // Make sure text background is transparent
+  DrawText(Canvas.Handle, PChar(AText), Length(AText), LTextRect, DT_CENTER or DT_VCENTER or DT_SINGLELINE);
+end;
+
+{ TANDMR_CGroupButtonItem }
+
+constructor TANDMR_CGroupButtonItem.Create(Collection: TCollection);
+begin
+  inherited;
+  FVisible := True;
+  FEnabled := True;
+  FColor := clTeal;
+  FBorderColor := clBlack;
+  FBorderWidth := 1;
+  FCornerRadius := 12;
+  FHoverColor := clNone;
+  FClickColor := clNone;
+  FHoverFontColor := clNone;
+  FWidth := 100;
+
+  FFont := TFont.Create;
+  FFont.Name := 'Segoe UI';
+  FFont.Size := 9;
+  FFont.Style := [fsBold];
+  FFont.OnChange := FontChanged;
+end;
+
+destructor TANDMR_CGroupButtonItem.Destroy;
+begin
+  FFont.Free;
+  inherited;
+end;
+
+procedure TANDMR_CGroupButtonItem.AssignTo(Dest: TPersistent);
+begin
+  if Dest is TANDMR_CGroupButtonItem then
+  begin
+    with TANDMR_CGroupButtonItem(Dest) do
+    begin
+      Self.FCaption := FCaption;
+      Self.FFont.Assign(FFont);
+      Self.FColor := FColor;
+      Self.FBorderColor := FBorderColor;
+      Self.FBorderWidth := FBorderWidth;
+      Self.FCornerRadius := FCornerRadius;
+      Self.FHoverColor := FHoverColor;
+      Self.FHoverFontColor := FHoverFontColor;
+      Self.FClickColor := FClickColor;
+      Self.FOnClick := FOnClick;
+      Self.FTag := FTag;
+      Self.FVisible := FVisible;
+      Self.FEnabled := FEnabled;
+      Self.FWidth := FWidth;
+    end;
+  end
+  else
+    inherited;
+end;
+
+procedure TANDMR_CGroupButtonItem.Click;
+begin
+  if Assigned(FOnClick) then
+    FOnClick(Self);
+end;
+
+procedure TANDMR_CGroupButtonItem.FontChanged(Sender: TObject);
+begin
+  Changed(False);
+end;
+
+function TANDMR_CGroupButtonItem.GetDisplayName: string;
+begin
+  if FCaption <> '' then
+    Result := FCaption
+  else
+    Result := inherited GetDisplayName;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetBorderColor(const Value: TColor);
+begin
+  if FBorderColor <> Value then
+  begin
+    FBorderColor := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetBorderWidth(const Value: Integer);
+begin
+  if FBorderWidth <> Value then
+  begin
+    FBorderWidth := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetCaption(const Value: string);
+begin
+  if FCaption <> Value then
+  begin
+    FCaption := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetClickColor(const Value: TColor);
+begin
+  if FClickColor <> Value then
+  begin
+    FClickColor := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetColor(const Value: TColor);
+begin
+  if FColor <> Value then
+  begin
+    FColor := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetCornerRadius(const Value: Integer);
+begin
+  if FCornerRadius <> Value then
+  begin
+    FCornerRadius := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetEnabled(const Value: Boolean);
+begin
+  if FEnabled <> Value then
+  begin
+    FEnabled := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetFont(const Value: TFont);
+begin
+  FFont.Assign(Value);
+end;
+
+procedure TANDMR_CGroupButtonItem.SetHoverColor(const Value: TColor);
+begin
+  if FHoverColor <> Value then
+  begin
+    FHoverColor := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetHoverFontColor(const Value: TColor);
+begin
+  if FHoverFontColor <> Value then
+  begin
+    FHoverFontColor := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetTag(const Value: Integer);
+begin
+  FTag := Value;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetVisible(const Value: Boolean);
+begin
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetWidth(const Value: Integer);
+begin
+  if FWidth <> Value then
+  begin
+    FWidth := Value;
+    Changed(False);
+  end;
+end;
+
+{ TANDMR_CGroupButtonItems }
+
+function TANDMR_CGroupButtonItems.Add: TANDMR_CGroupButtonItem;
+begin
+  Result := TANDMR_CGroupButtonItem(inherited Add);
+end;
+
+constructor TANDMR_CGroupButtonItems.Create(AOwner: TANDMR_CButtonGroup);
+begin
+  inherited Create(TANDMR_CGroupButtonItem);
+  FOwner := AOwner;
+end;
+
+function TANDMR_CGroupButtonItems.GetItem(Index: Integer): TANDMR_CGroupButtonItem;
+begin
+  Result := TANDMR_CGroupButtonItem(inherited GetItem(Index));
+end;
+
+function TANDMR_CGroupButtonItems.GetOwner: TPersistent;
+begin
+  Result := FOwner;
+end;
+
+procedure TANDMR_CGroupButtonItems.SetItem(Index: Integer; const Value: TANDMR_CGroupButtonItem);
+begin
+  inherited SetItem(Index, Value);
+end;
+
+procedure TANDMR_CGroupButtonItems.Update(Item: TCollectionItem);
+begin
+  inherited;
+  if not (csLoading in FOwner.ComponentState) then
+  begin
+    FOwner.UpdateWidth;
+    FOwner.Invalidate;
+  end;
+end;
+
 { TANDMR_CButtonGroup }
 
 constructor TANDMR_CButtonGroup.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  ControlStyle := ControlStyle + [csOpaque, csAcceptsControls, csCaptureMouse, csClickEvents, csSetCaption, csDoubleClicks, csReplicatable];
-  Width := 200;
-  Height := 50;
-  TabStop := True;
+  ControlStyle := ControlStyle + [csOpaque, csReplicatable, csPannable];
+  Width := 300;
+  Height := 45;
 
-  FButtons := TObjectList.Create(True);
-  FTransparent := False; // Default value
-  ControlStyle := ControlStyle - [csParentBackground];
-  FOrientation := bgoHorizontal;
-  FButtonSpacing := 5;
-  FSelectedButton := nil;
-  FAllowMultiSelect := False; // Initialize new field
+  FItems := TANDMR_CGroupButtonItems.Create(Self);
+  FSpacing := 5;
+  FHoveredItem := nil;
+  FClickedItem := nil;
+  FSelectedItem := nil;
+  FAutoSize := True;
+  FAllowDeselection := True;
+  DoubleBuffered := True;
 
-  FActiveButtonColor := clHighlight;
-  FInactiveButtonColor := clBtnFace;
-  FActiveButtonFontColor := clWhite;
-  FInactiveButtonFontColor := clBlack;
+  // Initialize Group Border
+  FGroupBorderVisible := False;
+  FGroupBorderColor := clBlack;
+  FGroupBorderWidth := 1;
+  FGroupCornerRadius := 12;
 
+  FSelectedColor := clHighlight;
+  FSelectedFontColor := clHighlightText;
 
-  FBorderSettings := TBorderSettings.Create;
-  FBorderSettings.OnChange := SettingsChanged;
-  FBorderSettings.CornerRadius := 8;
-  FBorderSettings.BackgroundColor := clNone; // Group background should be transparent or none
-  FBorderSettings.Color := clGray;
-  FBorderSettings.Thickness := 1;
-
-  // Group's own hover settings, not for individual buttons directly unless explicitly propagated
-  FHoverSettings := THoverSettings.Create(Self);
-  FHoverSettings.OnChange := SettingsChanged;
-  FHoverSettings.Enabled := False; // Typically, hover is on buttons, not the group itself
-
-  FSeparatorSettings := TSeparatorSettings.Create;
-  FSeparatorSettings.OnChange := SettingsChanged;
-  FSeparatorSettings.Visible := True;
-  FSeparatorSettings.Color := clMedGray;
-  FSeparatorSettings.Thickness := 1;
-  FSeparatorSettings.Padding := 0; // Separators are between buttons
-
-  Font.Name := 'Segoe UI';
-  Font.Size := 9;
+  FGlobalFont := TFont.Create;
+  FGlobalFont.OnChange := GlobalFontChanged;
 end;
 
 destructor TANDMR_CButtonGroup.Destroy;
 begin
-  FButtons.Free;
-  FBorderSettings.Free;
-  FHoverSettings.Free;
-  FSeparatorSettings.Free;
-  inherited Destroy;
-end;
-
-procedure TANDMR_CButtonGroup.Paint;
-var
-  i: Integer;
-  ButtonRect: TRect;
-  CurrentPos: Integer;
-  Btn: TANDMR_CButton;
-  SepRect: TRect;
-  Path: TGPGraphicsPath;
-  LRectF: TGPRectF;
-  LRadiusValue : Single;
-  LG: TGPGraphics;
-begin
-  inherited Paint;
-
-  LG := TGPGraphics.Create(Canvas.Handle);
-  try
-    LG.SetSmoothingMode(SmoothingModeAntiAlias);
-    LRectF.X := 0.0;
-    LRectF.Y := 0.0;
-    LRectF.Width := Self.Width; // Self.Width is Integer, implicitly converted to Single
-    LRectF.Height := Self.Height; // Self.Height is Integer, implicitly converted to Single
-    if FBorderSettings.Thickness > 0 then
-    begin
-        LRectF.X := FBorderSettings.Thickness / 2;
-        LRectF.Y := FBorderSettings.Thickness / 2;
-        LRectF.Width := Width - FBorderSettings.Thickness;
-        LRectF.Height := Height - FBorderSettings.Thickness;
-    end;
-    LRadiusValue := Min(FBorderSettings.CornerRadius, Min(LRectF.Width, LRectF.Height) / 2.0);
-    LRadiusValue := Max(0, LRadiusValue);
-
-    Path := TGPGraphicsPath.Create;
-    try
-      CreateGPRoundedPath(Path, LRectF, LRadiusValue, FBorderSettings.RoundCornerType);
-      // Fill background of the group if specified
-      if FBorderSettings.BackgroundColor <> clNone then
-      begin
-        var FillBrush: TGPSolidBrush;
-        FillBrush := TGPSolidBrush.Create(ColorToARGB(FBorderSettings.BackgroundColor, IfThen(Self.Transparent, 0, 255)));
-        try
-          LG.FillPath(FillBrush, Path);
-        finally
-          FillBrush.Free;
-        end;
-      end;
-      // Draw group border
-      if FBorderSettings.Visible and (FBorderSettings.Thickness > 0) then
-      begin
-        var Pen: TGPPen;
-        Pen := TGPPen.Create(ColorToARGB(FBorderSettings.Color), FBorderSettings.Thickness);
-        try
-          LG.DrawPath(Pen, Path);
-        finally
-          Pen.Free;
-        end;
-      end;
-    finally
-      Path.Free;
-    end;
-
-    // Draw Separators
-    if FSeparatorSettings.Visible and (FSeparatorSettings.Thickness > 0) and (FButtons.Count > 1) then
-    begin
-      // Local variables for separator drawing
-      var   SepPenObj: TGPPen;
-      var   BtnBefore: TANDMR_CButton;
-      var   o: Integer;
-      var   SepX, ActualSepTop, ActualSepBottom: Single; // For Horizontal orientation
-      var   SepY, ActualSepLeft, ActualSepRight: Single; // For Vertical orientation
-
-      SepPenObj := TGPPen.Create(ColorToARGB(FSeparatorSettings.Color, 255), FSeparatorSettings.Thickness);
-      try
-        for o := 0 to FButtons.Count - 2 do // Iterate up to the second-to-last button
-        begin
-          BtnBefore := TANDMR_CButton(FButtons[o]);
-
-          if FOrientation = bgoHorizontal then
-          begin
-            SepX := BtnBefore.Left + BtnBefore.Width + (FButtonSpacing / 2.0);
-            ActualSepTop := BtnBefore.Top + FSeparatorSettings.Padding;
-            ActualSepBottom := BtnBefore.Top + BtnBefore.Height - FSeparatorSettings.Padding;
-
-            if ActualSepBottom > ActualSepTop then
-            begin
-              LG.DrawLine(SepPenObj, SepX, ActualSepTop, SepX, ActualSepBottom);
-            end;
-          end
-          else // bgoVertical
-          begin
-            SepY := BtnBefore.Top + BtnBefore.Height + (FButtonSpacing / 2.0);
-            ActualSepLeft := BtnBefore.Left + FSeparatorSettings.Padding;
-            ActualSepRight := BtnBefore.Left + BtnBefore.Width - FSeparatorSettings.Padding;
-
-            if ActualSepRight > ActualSepLeft then
-            begin
-              LG.DrawLine(SepPenObj, ActualSepLeft, SepY, ActualSepRight, SepY);
-            end;
-          end;
-        end;
-      finally
-        SepPenObj.Free;
-      end;
-    end;
-
-  finally
-    LG.Free;
-  end;
-
-
-  // Button layout and separator drawing logic will be called from Resize or when buttons change
-  // For now, this Paint focuses on the group's own border/background
+  FGlobalFont.Free;
+  FItems.Free;
+  inherited;
 end;
 
 procedure TANDMR_CButtonGroup.Loaded;
 begin
   inherited Loaded;
-  UpdateButtonsStyle;
-  Resize; // Initial layout
-end;
-
-procedure TANDMR_CButtonGroup.Notification(AComponent: TComponent; Operation: TOperation);
-begin
-  inherited Notification(AComponent, Operation);
-  if (Operation = opRemove) and (AComponent is TANDMR_CButton) then
-  begin
-    if FButtons.IndexOf(AComponent as TANDMR_CButton) <> -1 then
-      RemoveButton(AComponent as TANDMR_CButton); // This will also update layout via Resize
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.Resize;
-var
-  i: Integer;
-  CurrentPos, TotalButtonSize, TotalSpacing, ButtonSize, StartPos: Integer;
-  Btn: TANDMR_CButton;
-begin
-  inherited Resize;
-
-  if FButtons.Count = 0 then Exit;
-
-  TotalSpacing := FButtonSpacing * (FButtons.Count - 1);
-  if TotalSpacing < 0 then TotalSpacing := 0;
-
-  if FOrientation = bgoHorizontal then
-  begin
-    TotalButtonSize := Width - TotalSpacing - FBorderSettings.Thickness * 2 - FSeparatorSettings.Padding * 2;
-    if TotalButtonSize < 0 then TotalButtonSize := 0;
-    ButtonSize := IfThen(FButtons.Count > 0, TotalButtonSize div FButtons.Count, 0);
-    StartPos := FBorderSettings.Thickness + FSeparatorSettings.Padding;
-    CurrentPos := StartPos;
-
-    for i := 0 to FButtons.Count - 1 do
-    begin
-      Btn := TANDMR_CButton(FButtons[i]);
-      Btn.SetBounds(CurrentPos, FBorderSettings.Thickness + FSeparatorSettings.Padding, ButtonSize, Height - (FBorderSettings.Thickness * 2) - (FSeparatorSettings.Padding * 2));
-      CurrentPos := CurrentPos + ButtonSize + FButtonSpacing;
-    end;
-  end
-  else // bgoVertical
-  begin
-    TotalButtonSize := Height - TotalSpacing - FBorderSettings.Thickness * 2 - FSeparatorSettings.Padding * 2;
-    if TotalButtonSize < 0 then TotalButtonSize := 0;
-    ButtonSize := IfThen(FButtons.Count > 0, TotalButtonSize div FButtons.Count, 0);
-    StartPos := FBorderSettings.Thickness + FSeparatorSettings.Padding;
-    CurrentPos := StartPos;
-
-    for i := 0 to FButtons.Count - 1 do
-    begin
-      Btn := TANDMR_CButton(FButtons[i]);
-      Btn.SetBounds(FBorderSettings.Thickness + FSeparatorSettings.Padding, CurrentPos, Width - (FBorderSettings.Thickness * 2) - (FSeparatorSettings.Padding * 2), ButtonSize);
-      CurrentPos := CurrentPos + ButtonSize + FButtonSpacing;
-    end;
-  end;
-  UpdateButtonsStyle; // Ensure styles are reapplied after resize/reposition
+  UpdateWidth;
   Invalidate;
 end;
 
-
-procedure TANDMR_CButtonGroup.SetOrientation(const Value: TANDMR_ButtonGroupOrientation);
-begin
-  if FOrientation <> Value then
-  begin
-    FOrientation := Value;
-    Resize; // Re-layout buttons
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.SetButtonSpacing(const Value: Integer);
-begin
-  if FButtonSpacing <> Max(0, Value) then
-  begin
-    FButtonSpacing := Max(0, Value);
-    Resize; // Re-layout buttons
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.SetBorderSettings(const Value: TBorderSettings);
-begin
-  FBorderSettings.Assign(Value);
-  Resize; // Border thickness might change layout
-  Repaint;
-end;
-
-procedure TANDMR_CButtonGroup.SetHoverSettings(const Value: THoverSettings);
-begin
-  FHoverSettings.Assign(Value); // Group hover, not directly applied to buttons here
-  Repaint;
-end;
-
-procedure TANDMR_CButtonGroup.SetSeparatorSettings(const Value: TSeparatorSettings);
-begin
-  FSeparatorSettings.Assign(Value);
-  Resize; // Separator padding might change layout
-  Repaint;
-end;
-
-procedure TANDMR_CButtonGroup.SetAllowMultiSelect(const Value: Boolean);
-begin
-  if FAllowMultiSelect <> Value then
-  begin
-    FAllowMultiSelect := Value;
-    if not FAllowMultiSelect and Assigned(FSelectedButton) then
-    begin
-      // If switching to single select, ensure only FSelectedButton is "active"
-      // No specific action needed here if SelectButton already handles single selection logic
-    end;
-    UpdateButtonsStyle; // Re-apply styles based on new selection mode
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.SetActiveButtonColor(const Value: TColor);
-begin
-  if FActiveButtonColor <> Value then
-  begin
-    FActiveButtonColor := Value;
-    UpdateButtonsStyle;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.SetInactiveButtonColor(const Value: TColor);
-begin
-  if FInactiveButtonColor <> Value then
-  begin
-    FInactiveButtonColor := Value;
-    UpdateButtonsStyle;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.SetActiveButtonFontColor(const Value: TColor);
-begin
-  if FActiveButtonFontColor <> Value then
-  begin
-    FActiveButtonFontColor := Value;
-    UpdateButtonsStyle;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.SetInactiveButtonFontColor(const Value: TColor);
-begin
-  if FInactiveButtonFontColor <> Value then
-  begin
-    FInactiveButtonFontColor := Value;
-    UpdateButtonsStyle;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.SettingsChanged(Sender: TObject);
-begin
-  Resize; // Some settings might affect layout
-  Repaint;
-end;
-
-procedure TANDMR_CButtonGroup.SetTransparent(const Value: Boolean);
-begin
-  if FTransparent <> Value then
-  begin
-    FTransparent := Value;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.ButtonClickHandler(Sender: TObject);
-var
-  ClickedButton: TANDMR_CButton;
-begin
-  if Sender is TANDMR_CButton then
-  begin
-    ClickedButton := TANDMR_CButton(Sender);
-    if FAllowMultiSelect then
-    begin
-      // Toggle selection for multi-select mode (not fully implemented yet)
-      // For now, just call SelectButton which will behave as single select
-      SelectButton(ClickedButton);
-    end
-    else
-    begin
-      SelectButton(ClickedButton);
-    end;
-
-    if Assigned(OnClick) then
-      OnClick(Self);
-  end;
-end;
-
-function TANDMR_CButtonGroup.AddButton(ACaption: string = ''; AImage: TPicture = nil): TANDMR_CButton;
-var
-  NewButton: TANDMR_CButton;
-begin
-  NewButton := TANDMR_CButton.Create(Self);
-  NewButton.Parent := Self;
-  NewButton.Caption := ACaption;
-  if AImage <> nil then
-    NewButton.ImageSettings.Picture.Assign(AImage);
-
-  NewButton.ControlStyle := NewButton.ControlStyle - [csSetCaption]; // Group manages caption implications
-  NewButton.OnClick := ButtonClickHandler;
-  NewButton.Visible := True;
-  NewButton.TabStop := False; // Group is the TabStop
-
-  // Initial styling - will be overridden by UpdateButtonsStyle
-  NewButton.BorderSettings.CornerRadius := Max(0, FBorderSettings.CornerRadius - 1); // Group radius is outer
-  NewButton.BorderSettings.Color := FBorderSettings.Color; // Default border
-  NewButton.BorderSettings.Thickness := 1; // Standard button border
-  NewButton.BorderSettings.BackgroundColor := FInactiveButtonColor;
-  NewButton.CaptionSettings.Font.Color := FInactiveButtonFontColor;
-
-  // Assign group's hover settings to the button for consistent hover effect
-  NewButton.HoverSettings.Assign(Self.FHoverSettings);
-  // More specific button hover styling if needed:
-  NewButton.HoverSettings.BackgroundColor := LighterColor(FInactiveButtonColor, 15);
-  NewButton.HoverSettings.BorderColor := FActiveButtonColor;
-  NewButton.HoverSettings.FontColor := FActiveButtonFontColor;
-  NewButton.HoverSettings.Enabled := True; // Enable hover for buttons
-
-  FButtons.Add(NewButton);
-  UpdateButtonsStyle; // Apply consistent styling
-  Resize; // Re-layout
-  Result := NewButton;
-end;
-
-procedure TANDMR_CButtonGroup.RemoveButton(AButton: TANDMR_CButton);
-var
-  idx: Integer;
-begin
-  idx := FButtons.IndexOf(AButton);
-  if idx <> -1 then
-  begin
-    if FSelectedButton = AButton then
-      FSelectedButton := nil;
-    FButtons.Remove(AButton); // TObjectList frees if it owns
-    // AButton.Free; // No, TObjectList(True) handles freeing
-    if FButtons.Count = 0 then FSelectedButton := nil;
-    Resize; // Re-layout
-  end;
-end;
-
-procedure TANDMR_CButtonGroup.ClearButtons;
-begin
-  FSelectedButton := nil; // Clear selection first
-  // TObjectList owns the buttons, so clearing it will free them.
-  FButtons.Clear;
-  Resize; // Re-layout
-end;
-
-procedure TANDMR_CButtonGroup.SelectButton(AButton: TANDMR_CButton);
-begin
-  if not Enabled then Exit;
-  if FAllowMultiSelect then
-  begin
-    // Multi-select logic (not the primary requirement for now)
-    // For now, even in multi-select mode, we'll just mark AButton as the "last selected" or "primary selected".
-    // A full multi-select would involve a list of selected buttons and checking if AButton is in it.
-    // If AButton is in FButtons list:
-    if FButtons.IndexOf(AButton) <> -1 then
-    begin
-        if FSelectedButton <> AButton then // If it's a new button to "select"
-        begin
-            FSelectedButton := AButton; // Update the primary selected button
-        end
-        else // If clicking the already primary selected button in multi-select (optional: deselect)
-        begin
-             // FSelectedButton := nil; // Optional: allow deselecting the primary in multi-mode
-        end;
-    end else
-    begin
-        FSelectedButton := nil; // Button not in group
-    end;
-  end
-  else // Single selection mode
-  begin
-    if FSelectedButton = AButton then
-    begin
-        // Optional: Allow deselecting by clicking the selected button again
-        // FSelectedButton := nil;
-    end
-    else
-    begin
-      FSelectedButton := nil; // Clear previous before searching
-      if FButtons.IndexOf(AButton) <> -1 then
-      begin
-        FSelectedButton := AButton;
-      end;
-    end;
-  end;
-
-  UpdateButtonsStyle;
-  Repaint; // Repaint the group and its buttons
-end;
-
-procedure TANDMR_CButtonGroup.UpdateButtonsStyle;
+procedure TANDMR_CButtonGroup.Paint;
 var
   i: Integer;
-  Btn: TANDMR_CButton;
-  IsSelected: Boolean;
-  IsFirst, IsLast, IsMiddle: Boolean;
-  EffectiveRadius: Integer;
+  LItem: TANDMR_CGroupButtonItem;
+  LRect, LInnerRect: TRect;
+  LCurrentX: Integer;
+  LColor, LFontColor, LBorderColor: TColor;
+  LG: TGPGraphics;
+  LGroupPath: TGPGraphicsPath;
+  LGroupPen: TGPPen;
+  LGroupRectF: TGPRectF;
 begin
-  EffectiveRadius := Max(0, FBorderSettings.CornerRadius -1); // Inner buttons have slightly less or specific radius handling
+  inherited;
 
-  for i := 0 to FButtons.Count - 1 do
-  begin
-    Btn := TANDMR_CButton(FButtons[i]);
-    IsSelected := (Btn = FSelectedButton); // Simplified for single selection focus
+  LG := TGPGraphics.Create(Canvas.Handle);
+  try
+    LG.SetSmoothingMode(SmoothingModeAntiAlias);
+    LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-    if IsSelected then
+    Canvas.Brush.Color := Self.Color;
+    Canvas.FillRect(ClientRect);
+
+    // Draw the main group border
+    if FGroupBorderVisible and (FGroupBorderWidth > 0) then
     begin
-      Btn.BorderSettings.BackgroundColor := FActiveButtonColor;
-      Btn.CaptionSettings.Font.Color := FActiveButtonFontColor;
-      // Potentially different border for selected
-      Btn.BorderSettings.Color := DarkerColor(FActiveButtonColor, 20);
-    end
-    else
-    begin
-      Btn.BorderSettings.BackgroundColor := FInactiveButtonColor;
-      Btn.CaptionSettings.Font.Color := FInactiveButtonFontColor;
-      Btn.BorderSettings.Color := FBorderSettings.Color; // Default border color
-    end;
+      LGroupRectF := MakeRect(0, 0, Width, Height);
+      InflateRectF(LGroupRectF, -FGroupBorderWidth / 2, -FGroupBorderWidth / 2);
 
-    // Adjust corner radius based on position for a continuous look
-    IsFirst := (i = 0);
-    IsLast := (i = FButtons.Count - 1);
-    IsMiddle := not IsFirst and not IsLast;
-
-    Btn.BorderSettings.RoundCornerType := rctNone; // Default for middle buttons
-
-    if FButtons.Count = 1 then // Single button takes full group radius
-    begin
-        Btn.BorderSettings.RoundCornerType := FBorderSettings.RoundCornerType;
-        Btn.BorderSettings.CornerRadius := FBorderSettings.CornerRadius;
-    end
-    else if FOrientation = bgoHorizontal then
-    begin
-      if IsFirst then
-      begin
-        Btn.BorderSettings.CornerRadius := EffectiveRadius;
-        Btn.BorderSettings.RoundCornerType := rctLeft;
-        if FBorderSettings.RoundCornerType = rctAll then Btn.BorderSettings.RoundCornerType := rctLeft
-        else if FBorderSettings.RoundCornerType = rctTopLeft then Btn.BorderSettings.RoundCornerType := rctTopLeft
-        else if FBorderSettings.RoundCornerType = rctBottomLeft then Btn.BorderSettings.RoundCornerType := rctBottomLeft
-        else if FBorderSettings.RoundCornerType = rctTop then Btn.BorderSettings.RoundCornerType := rctTopLeft
-        else if FBorderSettings.RoundCornerType = rctBottom then Btn.BorderSettings.RoundCornerType := rctBottomLeft;
-
-      end
-      else if IsLast then
-      begin
-        Btn.BorderSettings.CornerRadius := EffectiveRadius;
-        Btn.BorderSettings.RoundCornerType := rctRight;
-        if FBorderSettings.RoundCornerType = rctAll then Btn.BorderSettings.RoundCornerType := rctRight
-        else if FBorderSettings.RoundCornerType = rctTopRight then Btn.BorderSettings.RoundCornerType := rctTopRight
-        else if FBorderSettings.RoundCornerType = rctBottomRight then Btn.BorderSettings.RoundCornerType := rctBottomRight
-        else if FBorderSettings.RoundCornerType = rctTop then Btn.BorderSettings.RoundCornerType := rctTopRight
-        else if FBorderSettings.RoundCornerType = rctBottom then Btn.BorderSettings.RoundCornerType := rctBottomRight;
-      end
-      else // Middle buttons
-      begin
-        Btn.BorderSettings.CornerRadius := 0; // No radius for middle buttons in horizontal
-      end;
-    end
-    else // bgoVertical
-    begin
-      if IsFirst then
-      begin
-        Btn.BorderSettings.CornerRadius := EffectiveRadius;
-        Btn.BorderSettings.RoundCornerType := rctTop;
-         if FBorderSettings.RoundCornerType = rctAll then Btn.BorderSettings.RoundCornerType := rctTop
-        else if FBorderSettings.RoundCornerType = rctTopLeft then Btn.BorderSettings.RoundCornerType := rctTopLeft
-        else if FBorderSettings.RoundCornerType = rctTopRight then Btn.BorderSettings.RoundCornerType := rctTopRight
-        else if FBorderSettings.RoundCornerType = rctLeft then Btn.BorderSettings.RoundCornerType := rctTopLeft
-        else if FBorderSettings.RoundCornerType = rctRight then Btn.BorderSettings.RoundCornerType := rctTopRight;
-      end
-      else if IsLast then
-      begin
-        Btn.BorderSettings.CornerRadius := EffectiveRadius;
-        Btn.BorderSettings.RoundCornerType := rctBottom;
-        if FBorderSettings.RoundCornerType = rctAll then Btn.BorderSettings.RoundCornerType := rctBottom
-        else if FBorderSettings.RoundCornerType = rctBottomLeft then Btn.BorderSettings.RoundCornerType := rctBottomLeft
-        else if FBorderSettings.RoundCornerType = rctBottomRight then Btn.BorderSettings.RoundCornerType := rctBottomRight
-        else if FBorderSettings.RoundCornerType = rctLeft then Btn.BorderSettings.RoundCornerType := rctBottomLeft
-        else if FBorderSettings.RoundCornerType = rctRight then Btn.BorderSettings.RoundCornerType := rctBottomRight;
-      end
-      else // Middle buttons
-      begin
-        Btn.BorderSettings.CornerRadius := 0; // No radius for middle buttons in vertical
+      LGroupPath := TGPGraphicsPath.Create;
+      try
+        CreateGPRoundedPath(LGroupPath, LGroupRectF, FGroupCornerRadius, rctAll);
+        LGroupPen := TGPPen.Create(ColorToARGB(FGroupBorderColor), FGroupBorderWidth);
+        try
+          LG.DrawPath(LGroupPen, LGroupPath);
+        finally
+          LGroupPen.Free;
+        end;
+      finally
+        LGroupPath.Free;
       end;
     end;
-    Btn.Repaint;
+
+    LInnerRect := ClientRect;
+    if FGroupBorderVisible and (FGroupBorderWidth > 0) then
+      InflateRect(LInnerRect, -FGroupBorderWidth, -FGroupBorderWidth);
+
+
+    LCurrentX := LInnerRect.Left;
+    for i := 0 to FItems.Count - 1 do
+    begin
+      LItem := FItems.Items[i];
+      if not LItem.Visible then Continue;
+
+      LRect := Rect(LCurrentX, LInnerRect.Top, LCurrentX + LItem.Width, LInnerRect.Bottom);
+      LFontColor := LItem.Font.Color;
+      LColor := LItem.Color;
+      LBorderColor := LItem.BorderColor;
+
+      if LItem.Enabled then
+      begin
+        if LItem = FSelectedItem then
+        begin
+          LColor := FSelectedColor;
+          LFontColor := FSelectedFontColor;
+        end
+        else if LItem = FHoveredItem then
+        begin
+          if LItem.HoverColor <> clNone then
+            LColor := LItem.HoverColor;
+          if LItem.HoverFontColor <> clNone then
+            LFontColor := LItem.HoverFontColor;
+        end;
+
+        if LItem = FClickedItem then
+        begin
+          if LItem.ClickColor <> clNone then
+            LColor := LItem.ClickColor;
+        end;
+      end
+      else
+      begin
+        LColor := clBtnFace;
+        LFontColor := clGrayText;
+        LBorderColor := clGray;
+      end;
+
+      DrawButton(Canvas, LRect, LItem.Caption, LItem.Font, LColor, LBorderColor, LFontColor, LItem.BorderWidth, LItem.CornerRadius, LG);
+      LCurrentX := LCurrentX + LItem.Width + FSpacing;
+    end;
+  finally
+    LG.Free;
   end;
-  Repaint; // Group itself might need repaint due to selection changes affecting borders/separators
+end;
+
+procedure TANDMR_CButtonGroup.UpdateWidth;
+var
+  i: Integer;
+  LTotalWidth: Integer;
+  LVisibleItemCount: Integer;
+  LItem: TANDMR_CGroupButtonItem;
+begin
+  if (csLoading in ComponentState) or not FAutoSize then
+    Exit;
+
+  LTotalWidth := 0;
+  LVisibleItemCount := 0;
+  for i := 0 to FItems.Count - 1 do
+  begin
+    LItem := FItems.Items[i];
+    if LItem.Visible then
+    begin
+      LTotalWidth := LTotalWidth + LItem.Width;
+      Inc(LVisibleItemCount);
+    end;
+  end;
+
+  if LVisibleItemCount > 1 then
+    LTotalWidth := LTotalWidth + ((LVisibleItemCount - 1) * FSpacing);
+
+  if FGroupBorderVisible and (FGroupBorderWidth > 0) then
+    LTotalWidth := LTotalWidth + (FGroupBorderWidth * 2);
+
+  if Self.Width <> LTotalWidth then
+    Self.Width := LTotalWidth;
+end;
+
+function TANDMR_CButtonGroup.GetItemAt(X, Y: Integer): TANDMR_CGroupButtonItem;
+var
+  i: Integer;
+  LItem: TANDMR_CGroupButtonItem;
+  LCurrentX, LBorderOffset: Integer;
+begin
+  Result := nil;
+
+  LBorderOffset := 0;
+  if FGroupBorderVisible and (FGroupBorderWidth > 0) then
+    LBorderOffset := FGroupBorderWidth;
+
+  LCurrentX := LBorderOffset;
+  for i := 0 to FItems.Count - 1 do
+  begin
+    LItem := FItems.Items[i];
+    if not LItem.Visible then Continue;
+
+    if PtInRect(Rect(LCurrentX, LBorderOffset, LCurrentX + LItem.Width, Height - LBorderOffset), Point(X, Y)) then
+    begin
+      Result := LItem;
+      Exit;
+    end;
+    LCurrentX := LCurrentX + LItem.Width + FSpacing;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.CMMouseEnter(var Message: TMessage);
+begin
+  inherited;
+end;
+
+procedure TANDMR_CButtonGroup.CMMouseLeave(var Message: TMessage);
+begin
+  inherited;
+  if FHoveredItem <> nil then
+  begin
+    FHoveredItem := nil;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  LItem: TANDMR_CGroupButtonItem;
+begin
+  inherited;
+  if Button = mbLeft then
+  begin
+    LItem := GetItemAt(X, Y);
+    if (LItem <> nil) and LItem.Enabled then
+    begin
+      FClickedItem := LItem;
+      Invalidate;
+    end;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.MouseMove(Shift: TShiftState; X, Y: Integer);
+var
+  LItem: TANDMR_CGroupButtonItem;
+begin
+  inherited;
+  LItem := GetItemAt(X, Y);
+  if LItem <> FHoveredItem then
+  begin
+    FHoveredItem := LItem;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  LItem: TANDMR_CGroupButtonItem;
+begin
+  inherited;
+  if Button = mbLeft then
+  begin
+    LItem := GetItemAt(X, Y);
+    if (LItem <> nil) and (LItem = FClickedItem) and LItem.Enabled then
+    begin
+      if LItem = FSelectedItem then
+      begin
+        if FAllowDeselection then
+          FSelectedItem := nil;
+      end
+      else
+      begin
+        FSelectedItem := LItem;
+      end;
+
+      LItem.Click;
+    end;
+    FClickedItem := nil;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetAutoSize(const Value: Boolean);
+begin
+  if FAutoSize <> Value then
+  begin
+    FAutoSize := Value;
+    if FAutoSize then
+      UpdateWidth;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetItems(const Value: TANDMR_CGroupButtonItems);
+begin
+  FItems.Assign(Value);
+  UpdateWidth;
+end;
+
+procedure TANDMR_CButtonGroup.SetSpacing(const Value: Integer);
+begin
+  if FSpacing <> Value then
+  begin
+    FSpacing := Value;
+    UpdateWidth;
+    Invalidate;
+  end;
+end;
+
+function TANDMR_CButtonGroup.GetSelectedItemIndex: Integer;
+begin
+  if Assigned(FSelectedItem) then
+    Result := FSelectedItem.Index
+  else
+    Result := -1;
+end;
+
+procedure TANDMR_CButtonGroup.SetSelectedItemIndex(const Value: Integer);
+begin
+  if (Value >= 0) and (Value < FItems.Count) then
+  begin
+    if FItems[Value] <> FSelectedItem then
+    begin
+      FSelectedItem := FItems[Value];
+      Invalidate;
+    end;
+  end
+  else
+  begin
+    if FSelectedItem <> nil then
+    begin
+      FSelectedItem := nil;
+      Invalidate;
+    end;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetSelectedColor(const Value: TColor);
+begin
+  if FSelectedColor <> Value then
+  begin
+    FSelectedColor := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetSelectedFontColor(const Value: TColor);
+begin
+  if FSelectedFontColor <> Value then
+  begin
+    FSelectedFontColor := Value;
+    Invalidate;
+  end;
+end;
+
+// Group Border Setters
+procedure TANDMR_CButtonGroup.SetGroupBorderVisible(const Value: Boolean);
+begin
+  if FGroupBorderVisible <> Value then
+  begin
+    FGroupBorderVisible := Value;
+    UpdateWidth;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGroupBorderColor(const Value: TColor);
+begin
+  if FGroupBorderColor <> Value then
+  begin
+    FGroupBorderColor := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGroupBorderWidth(const Value: Integer);
+begin
+  if FGroupBorderWidth <> Value then
+  begin
+    FGroupBorderWidth := Value;
+    UpdateWidth;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGroupCornerRadius(const Value: Integer);
+begin
+  if FGroupCornerRadius <> Value then
+  begin
+    FGroupCornerRadius := Value;
+    Invalidate;
+  end;
+end;
+
+// Global Property Setters
+procedure TANDMR_CButtonGroup.GlobalFontChanged(Sender: TObject);
+var
+  i: Integer;
+begin
+  for i := 0 to FItems.Count - 1 do
+    FItems[i].Font.Assign(FGlobalFont);
+  Invalidate;
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalFont(const Value: TFont);
+begin
+  FGlobalFont.Assign(Value);
+  // The OnChange event (GlobalFontChanged) will handle the update
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalColor(const Value: TColor);
+var
+  i: Integer;
+begin
+  if FGlobalColor <> Value then
+  begin
+    FGlobalColor := Value;
+    for i := 0 to FItems.Count - 1 do
+      FItems[i].Color := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalBorderColor(const Value: TColor);
+var
+  i: Integer;
+begin
+  if FGlobalBorderColor <> Value then
+  begin
+    FGlobalBorderColor := Value;
+    for i := 0 to FItems.Count - 1 do
+      FItems[i].BorderColor := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalBorderWidth(const Value: Integer);
+var
+  i: Integer;
+begin
+  if FGlobalBorderWidth <> Value then
+  begin
+    FGlobalBorderWidth := Value;
+    for i := 0 to FItems.Count - 1 do
+      FItems[i].BorderWidth := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalCornerRadius(const Value: Integer);
+var
+  i: Integer;
+begin
+  if FGlobalCornerRadius <> Value then
+  begin
+    FGlobalCornerRadius := Value;
+    for i := 0 to FItems.Count - 1 do
+      FItems[i].CornerRadius := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalHoverColor(const Value: TColor);
+var
+  i: Integer;
+begin
+  if FGlobalHoverColor <> Value then
+  begin
+    FGlobalHoverColor := Value;
+    for i := 0 to FItems.Count - 1 do
+      FItems[i].HoverColor := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalHoverFontColor(const Value: TColor);
+var
+  i: Integer;
+begin
+  if FGlobalHoverFontColor <> Value then
+  begin
+    FGlobalHoverFontColor := Value;
+    for i := 0 to FItems.Count - 1 do
+      FItems[i].HoverFontColor := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalClickColor(const Value: TColor);
+var
+  i: Integer;
+begin
+  if FGlobalClickColor <> Value then
+  begin
+    FGlobalClickColor := Value;
+    for i := 0 to FItems.Count - 1 do
+      FItems[i].ClickColor := Value;
+    Invalidate;
+  end;
 end;
 
 end.

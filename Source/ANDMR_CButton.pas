@@ -1157,9 +1157,9 @@ begin
       BorderColorToUse := clNone;
 
     // ===== NEW GRADIENT/SOLID FILL AND BORDER LOGIC START =====
-    var
-      ButtonBodyPath: TGPGraphicsPath;
-      PathRectF: TGPRectF; // This will be the rect for CreateGPRoundedPath
+
+    var  ButtonBodyPath: TGPGraphicsPath;
+    var  PathRectF: TGPRectF; // This will be the rect for CreateGPRoundedPath
       // LRadiusValue is already declared and calculated before the original DrawEditBox
       // LPathInset is already declared
 

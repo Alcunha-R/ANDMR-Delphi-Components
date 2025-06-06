@@ -6,37 +6,31 @@ uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.ExtCtrls, Winapi.Messages, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
   System.Types, System.Math, Vcl.Imaging.jpeg, Vcl.Imaging.pngimage,
-  Vcl.GraphUtil, System.UITypes, ANDMR_ComponentUtils, // Added
+  Vcl.GraphUtil, System.UITypes, ANDMR_ComponentUtils,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL,
-  Winapi.ActiveX; // Adicionado para TStreamAdapter
+  Winapi.ActiveX;
 
 type
   TImagePosition = (ipLeft, ipRight, ipAbove, ipBelow, ipBehind);
-  TImageStretchMode = (ismProportional, ismFlat);
+  TImageStretchMode = (ismProportional, ismFlat); // Retained for compatibility if TImageSettings uses it
   TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient, bsDark, bsMaterial, bsModern, bsWindows, bsMacOS);
   TPresetType = (
-    cptNone,      // Sem predefinicao, usa as cores do componente
-    cptAccept,    // Aceitar, Confirmar (Verde)
-    cptDecline,   // Recusar, Cancelar (Vermelho/Cinza)
-    cptSave,      // Salvar (Azul)
-    cptEdit,      // Editar (Laranja/Amarelo)
-    cptDelete,    // Excluir (Vermelho)
-    cptNext,      // Proximo, Continuar (Azul/Verde)
-    cptPrevious,  // Anterior, Voltar (Cinza/Azul)
-    cptInfo,      // Informacao (Azul claro)
-    cptWarning,   // Aviso (Amarelo/Laranja)
-    cptHelp       // Ajuda (Azul claro)
+    cptNone,
+    cptAccept,
+    cptDecline,
+    cptSave,
+    cptEdit,
+    cptDelete,
+    cptNext,
+    cptPrevious,
+    cptInfo,
+    cptWarning,
+    cptHelp
   );
 
   TANDMR_CButton = class(TCustomControl)
   private
-    FBorderSettings: TBorderSettings;
-    FCaption: string;
-    FCaptionSettings: TCaptionSettings; // Added
-    FImageSettings: TImageSettings;   // Added
-    FGradientSettings: TGradientSettings;
     FImagePosition: TImagePosition;
-    FTextMargins: TANDMR_Margins; // FImageMargins removed
     FTag: Integer;
     FInternalTagString: TANDMR_TagString;
     FInternalTagExtended: TANDMR_TagExtended;
@@ -56,25 +50,21 @@ type
     FClickTitleColor: TColor;
 
     FPresetType: TPresetType;
+    FHoverSettings: THoverSettings;
 
-    FInternalHoverSettings: THoverSettings;
-
-    // New fields for progress animation
     FProcessing: Boolean;
     FProgressTimer: TTimer;
     FProgressStep: Integer;
-    FProgressSettings: TProgressSettings; // Added
+    FProgressSettings: TProgressSettings;
     FOriginalCaption: string;
-    FOriginalEnabledState: Boolean; // New field
-    // End of new fields
+    FOriginalEnabledState: Boolean;
 
-    procedure SetProgressSettings(const Value: TProgressSettings); // Added
-
-    procedure ProgressTimerHandler(Sender: TObject); // Added
-    procedure SetInternalHoverSettings(const Value: THoverSettings);
-    procedure InternalHoverSettingsChanged(Sender: TObject);
-    procedure BorderSettingsChanged(Sender: TObject); // New handler for FBorderSettings
-    procedure SettingsChanged(Sender: TObject); // Added
+    procedure SetProgressSettings(const Value: TProgressSettings);
+    procedure ProgressTimerHandler(Sender: TObject);
+    procedure SetHoverSettings(const Value: THoverSettings); // Retained as property setter for HoverSettings
+    procedure HoverSettingsChanged(Sender: TObject);
+    procedure BorderSettingsChanged(Sender: TObject);
+    procedure SettingsChanged(Sender: TObject);
 
     procedure SetStyle(const Value: TButtonStyle);
     function GetAlign: TAlign;
@@ -86,74 +76,37 @@ type
 
     function GetEnabled: Boolean;
     procedure SetEnabled(Value: Boolean);
+
+    function GetCaption: string;
     procedure SetCaption(const Value: string);
-    function GetCornerRadius: Integer; // Getter
-    procedure SetCornerRadius(const Value: Integer); // Setter
-    function GetRoundCornerType: TRoundCornerType; // Getter
-    procedure SetRoundCornerType(const Value: TRoundCornerType); // Setter
-    function GetActiveColor: TColor; // Getter for FBorderSettings.BackgroundColor
-    procedure SetActiveColor(const Value: TColor); // Setter for FBorderSettings.BackgroundColor
-    procedure SetHoverColor(const Value: TColor);
-    function GetTitleFont: TFont; // Changed
-    procedure SetTitleFont(const Value: TFont);
-    procedure FontChanged(Sender: TObject); // This will be FCaptionSettings.Font.OnChange
-    function GetImage: TPicture; // Changed
-    procedure SetImage(const Value: TPicture);
-    function GetTextAlign: TAlignment; // Changed
-    procedure SetTextAlign(const Value: TAlignment);
-    function GetGradientEnabled: Boolean;
-    procedure SetGradientEnabled(const Value: Boolean);
-    function GetGradientType: TGradientType;
-    procedure SetGradientType(const Value: TGradientType);
-    function GetGradientStartColor: TColor;
-    procedure SetGradientStartColor(const Value: TColor);
-    function GetGradientEndColor: TColor;
-    procedure SetGradientEndColor(const Value: TColor);
+
     procedure SetImagePosition(const Value: TImagePosition);
-    function GetImageStretchMode: TImageStretchMode; // Changed
-    procedure SetImageStretchMode(const Value: TImageStretchMode);
     procedure SetTag(const Value: Integer);
     function GetTagString: string;
     procedure SetTagString(const Value: string);
     function GetTagExtended: Extended;
+    procedure SetTagExtended(const Value: Extended); // Corrected from GetTagExtended to SetTagExtended
     function GetTagObject: TObject;
     procedure SetTagObject(const Value: TObject);
-    procedure SetHoverEffect(const Value: THoverEffect);
     procedure SetDisabledCursor(const Value: TCursor);
-    function GetImageMargins: TANDMR_Margins; // Changed
-    procedure SetImageMargins(const Value: TANDMR_Margins);
-    procedure SetTextMargins(const Value: TANDMR_Margins);
-    function GetBorderColor: TColor; // Getter
-    procedure SetBorderColor(const Value: TColor); // Setter
-    function GetBorderThickness: Integer; // Getter
-    procedure SetBorderThickness(const Value: Integer); // Setter
-    function GetBorderStyle: TPenStyle; // Getter
-    procedure SetBorderStyle(const Value: TPenStyle); // Setter
     procedure SetClickColor(const Value: TColor);
-    procedure SetHoverBorderColor(const Value: TColor);
     procedure SetClickBorderColor(const Value: TColor);
-    procedure SetEnableHoverEffect(const Value: Boolean);
-    procedure SetHoverTitleColor(const Value: TColor);
     procedure SetClickTitleColor(const Value: TColor);
     procedure SetClickEffectDuration(const Value: Integer);
     procedure SetTransparent(const Value: Boolean);
-
-    function GetEnableHoverEffect: Boolean;
-    function GetHoverColor: TColor;
-    function GetHoverBorderColor: TColor;
-    function GetHoverTitleColor: TColor;
-    function GetHoverEffect: THoverEffect;
 
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
     procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
     function IsEnabledStored: Boolean;
-    procedure MarginsChanged(Sender: TObject);
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
-    procedure SetTagExtended(const Value: Extended);
     procedure SetPresetType(const Value: TPresetType);
 
   protected
+    FBorderSettings: TBorderSettings;
+    FCaptionSettings: TCaptionSettings;
+    FImageSettings: TImageSettings;
+    FGradientSettings: TGradientSettings;
     procedure Paint; override;
     procedure Loaded; override;
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
@@ -162,42 +115,26 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure StartProcessing; // New public method
-    procedure StopProcessing; // New public method
+    procedure StartProcessing;
+    procedure StopProcessing;
   published
+    property BorderSettings: TBorderSettings read FBorderSettings write FBorderSettings;
+    property CaptionSettings: TCaptionSettings read FCaptionSettings write FCaptionSettings;
+    property ImageSettings: TImageSettings read FImageSettings write FImageSettings;
+    property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
+    property GradientSettings: TGradientSettings read FGradientSettings write FGradientSettings;
+
     property Align;
     property Enabled read GetEnabled write SetEnabled stored IsEnabledStored;
-    property Caption: string read FCaption write SetCaption;
-    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 12;
-    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read GetActiveColor write SetActiveColor default clTeal;
-    property HoverColor: TColor read GetHoverColor write SetHoverColor;
-    property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
-    property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
-    property TitleFont: TFont read GetTitleFont write SetTitleFont; // Changed
-    property Image: TPicture read GetImage write SetImage; // Changed
-    property TextAlign: TAlignment read GetTextAlign write SetTextAlign default taCenter; // Changed
-
-    property GradientEnabled: Boolean read GetGradientEnabled write SetGradientEnabled default False;
-    property GradientType: TGradientType read GetGradientType write SetGradientType default gtLinearVertical;
-    property GradientStartColor: TColor read GetGradientStartColor write SetGradientStartColor; // Default clNone is handled by TGradientSettings
-    property GradientEndColor: TColor read GetGradientEndColor write SetGradientEndColor; // Default clNone is handled by TGradientSettings
+    property Caption: string read GetCaption write SetCaption;
 
     property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
-    property ImageMargins: TANDMR_Margins read GetImageMargins write SetImageMargins; // Changed
-    property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
-    property ImageStretchMode: TImageStretchMode read GetImageStretchMode write SetImageStretchMode default ismProportional; // Changed
 
-    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
-    property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor;
     property ClickColor: TColor read FClickColor write SetClickColor default clNone;
     property ClickBorderColor: TColor read FClickBorderColor write SetClickBorderColor default clNone;
+    property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone; // Retained
 
     property Style: TButtonStyle read FStyle write SetStyle default bsSolid;
-    property EnableHoverEffect: Boolean read GetEnableHoverEffect write SetEnableHoverEffect default True;
-    property HoverEffect: THoverEffect read GetHoverEffect write SetHoverEffect default heFade;
     property ClickEffectDuration: Integer read FClickEffectDuration write SetClickEffectDuration default 200;
 
     property DisabledCursor: TCursor read FDisabledCursor write SetDisabledCursor default crNo;
@@ -209,7 +146,6 @@ type
     property TagObject: TObject read GetTagObject write SetTagObject;
 
     property PresetType: TPresetType read FPresetType write SetPresetType default cptNone;
-
     property ProgressSettings: TProgressSettings read FProgressSettings write SetProgressSettings;
 
     property Anchors;
@@ -217,7 +153,7 @@ type
     property DragCursor;
     property DragKind;
     property DragMode;
-    property Font;
+    property Font; // Standard VCL Font property, keep
     property ParentShowHint;
     property PopupMenu;
     property ShowHint;
@@ -266,16 +202,6 @@ begin
   FTransparent := False;
   FClickTitleColor := clNone;
 
-  // FTitleFont := TFont.Create; // Removed
-  // FTitleFont.Name := 'Segoe UI'; // Removed
-  // FTitleFont.Size := 9; // Removed
-  // FTitleFont.Style := [fsBold]; // Removed
-  // FTitleFont.Color := clWindowText; // Removed
-  // FTitleFont.OnChange := FontChanged; // Will be handled by FCaptionSettings.Font.OnChange
-
-  FTextMargins := TANDMR_Margins.Create;
-  FTextMargins.OnChange := MarginsChanged;
-
   FImagePosition := ipLeft;
 
   FGradientSettings := TGradientSettings.Create;
@@ -299,29 +225,22 @@ begin
 
   FStyle := bsSolid;
   FPresetType := cptNone;
-  FCaption := Self.Name;
 
-  FInternalHoverSettings := THoverSettings.Create(Self);
-  FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
+  FHoverSettings := THoverSettings.Create(Self);
+  FHoverSettings.OnChange := HoverSettingsChanged;
 
   FBorderSettings := TBorderSettings.Create;
   FBorderSettings.OnChange := BorderSettingsChanged;
-  FBorderSettings.CornerRadius := 12; // Default FCornerRadius
-  FBorderSettings.RoundCornerType := rctAll; // Default FRoundCornerType
-  FBorderSettings.BackgroundColor := clTeal; // Default FActiveColor
-  FBorderSettings.Color := clBlack; // Default FBorderColor
-  FBorderSettings.Thickness := 1; // Default FBorderThickness
-  FBorderSettings.Style := psSolid; // Default FBorderStyle
+  FBorderSettings.CornerRadius := 12;
+  FBorderSettings.RoundCornerType := rctAll;
+  FBorderSettings.BackgroundColor := clTeal;
+  FBorderSettings.Color := clBlack;
+  FBorderSettings.Thickness := 1;
+  FBorderSettings.Style := psSolid;
 
-  // Create and initialize FCaptionSettings
   FCaptionSettings := TCaptionSettings.Create(Self);
   FCaptionSettings.OnChange := SettingsChanged;
-  // Transfer initial values from old fields (if they existed before this point) to FCaptionSettings.Font
-  // Assuming FTitleFont was created temporarily for this or accessed via a property if it still exists
-  // For a clean refactor, FTitleFont fields would be set directly if no TFont object was created yet.
-  // However, the original code creates FTitleFont, then transfers.
-  // We need to ensure FCaptionSettings gets these initial values if FTitleFont is removed before this block.
-  // Let's assume FTitleFont was created for setup and values are transferred:
+  FCaptionSettings.Text := Self.Name;
   var TempTitleFont: TFont;
   TempTitleFont := TFont.Create;
   try
@@ -333,20 +252,13 @@ begin
   finally
     TempTitleFont.Free;
   end;
-  FCaptionSettings.Font.OnChange := FontChanged;
-  FCaptionSettings.Alignment := taCenter; // Default FTextAlign
+  // FCaptionSettings.Font.OnChange := FontChanged; // Removed TANDMR_CButton.FontChanged
+  FCaptionSettings.Alignment := taCenter;
 
-  // Create and initialize FImageSettings
   FImageSettings := TImageSettings.Create(Self);
   FImageSettings.OnChange := SettingsChanged;
-  // Similarly, for FImage, FImageMargins, FImageStretchMode
-  // FImageSettings.Picture.Assign(FImage); // FImage would be created temporarily or use defaults
-  // FImageSettings.Margins.Assign(FImageMargins); // FImageMargins would be created temporarily or use defaults
-  // Default assignment for picture and margins if not assigned from old fields
-  FImageSettings.Picture.Create; // Ensure picture object exists
-  FImageSettings.Margins.Create; // Ensure margins object exists
-
-  // Initial FImageStretchMode was ismProportional
+  FImageSettings.Picture.Create;
+  FImageSettings.Margins.Create;
   FImageSettings.DrawMode := idmProportional;
 
   FInternalTagString := TANDMR_TagString.Create;
@@ -356,7 +268,6 @@ begin
   FProgressSettings := TProgressSettings.Create(Self);
   FProgressSettings.OnChange := SettingsChanged;
 
-  // Initializations for progress animation
   FProcessing := False;
   FProgressTimer := TTimer.Create(Self);
   FProgressTimer.Enabled := False;
@@ -370,18 +281,15 @@ begin
   FBorderSettings.OnChange := nil;
   FBorderSettings.Free;
 
-  FInternalHoverSettings.OnChange := nil;
-  FInternalHoverSettings.Free;
+  FHoverSettings.OnChange := nil;
+  FHoverSettings.Free;
 
-  // Free FCaptionSettings
   FCaptionSettings.OnChange := nil;
   FCaptionSettings.Free;
 
-  // Free FImageSettings
   FImageSettings.OnChange := nil;
   FImageSettings.Free;
 
-  FTextMargins.Free;
   FClickEffectTimer.Free;
 
   if Assigned(FProgressSettings) then
@@ -390,7 +298,7 @@ begin
     FProgressSettings.Free;
     FProgressSettings := nil;
   end;
-  FProgressTimer.Free; // Added
+  FProgressTimer.Free;
 
   FInternalTagString.Free;
   FInternalTagExtended.Free;
@@ -413,7 +321,7 @@ begin
     if FProgressSettings.HideCaptionWhileProcessing then
       Self.Caption := '';
 
-    if Self.Enabled then // Only change if it was enabled
+    if Self.Enabled then
       Self.Enabled := False;
 
     FProgressStep := 0;
@@ -424,14 +332,13 @@ end;
 
 procedure TANDMR_CButton.StopProcessing;
 begin
-  if FProcessing then // Only act if processing was active
+  if FProcessing then
   begin
     FProcessing := False;
     FProgressTimer.Enabled := False;
 
-    Self.Caption := FOriginalCaption; // Restore caption
+    Self.Caption := FOriginalCaption;
 
-    // Restore the button's original enabled state
     if Self.Enabled <> FOriginalEnabledState then
       Self.Enabled := FOriginalEnabledState;
 
@@ -446,36 +353,31 @@ end;
 
 procedure TANDMR_CButton.ProgressTimerHandler(Sender: TObject);
 begin
-  if FProcessing then // Only do this if we are in the processing state
+  if FProcessing then
   begin
     Inc(FProgressStep);
-    // Optional: Cap or cycle FProgressStep if the animation has a fixed number of frames.
-    // For example, if it's a 12-step spinner:
-    // if FProgressStep >= 12 then FProgressStep := 0;
     Repaint;
   end
   else
   begin
-    // If not processing, ensure the timer is stopped.
-    // This is a safeguard, as StopProcessing should handle it.
     FProgressTimer.Enabled := False;
   end;
 end;
 
-procedure TANDMR_CButton.SetInternalHoverSettings(const Value: THoverSettings);
+procedure TANDMR_CButton.SetHoverSettings(const Value: THoverSettings);
 begin
-  FInternalHoverSettings.Assign(Value);
+  FHoverSettings.Assign(Value);
   Repaint;
 end;
 
-procedure TANDMR_CButton.InternalHoverSettingsChanged(Sender: TObject);
+procedure TANDMR_CButton.HoverSettingsChanged(Sender: TObject);
 begin
   Repaint;
 end;
 
 procedure TANDMR_CButton.BorderSettingsChanged(Sender: TObject);
 begin
-  Invalidate; // Or Repaint if more direct control is needed
+  Invalidate;
 end;
 
 procedure TANDMR_CButton.SettingsChanged(Sender: TObject);
@@ -495,6 +397,12 @@ begin
     ControlStyle := ControlStyle - [csOpaque] + [csParentBackground]
   else
     ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
+
+  if (csDesigning in ComponentState) and (Parent <> nil) then
+  begin
+    if (Self.Caption = Name) and (FPresetType = cptNone) then
+      Self.Caption := '';
+  end;
   Repaint;
 end;
 
@@ -503,8 +411,8 @@ begin
   inherited SetParent(AParent);
   if (csDesigning in ComponentState) and (AParent <> nil) then
   begin
-    if (FCaption = Name) and (FPresetType = cptNone) then
-      FCaption := '';
+    if (FCaptionSettings.Text = Name) and (FPresetType = cptNone) then
+      FCaptionSettings.Text := '';
   end;
 end;
 
@@ -589,8 +497,8 @@ begin
       FClickEffectActive := False;
       FClickEffectProgress := 0;
       FClickEffectTimer.Enabled := False;
-      if FInternalHoverSettings.Enabled then
-         FInternalHoverSettings.StartAnimation(False);
+      if FHoverSettings.Enabled then
+         FHoverSettings.StartAnimation(False);
     end;
     Cursor := IfThen(Value, crHandPoint, FDisabledCursor);
     Repaint;
@@ -602,48 +510,16 @@ begin
   Result := not inherited Enabled;
 end;
 
+function TANDMR_CButton.GetCaption: string;
+begin
+  Result := FCaptionSettings.Text;
+end;
+
 procedure TANDMR_CButton.SetCaption(const Value: string);
 begin
-  if FCaption <> Value then
+  if FCaptionSettings.Text <> Value then
   begin
-    FCaption := Value;
-    Repaint;
-  end;
-end;
-
-// Getters and Setters for Border Properties
-function TANDMR_CButton.GetCornerRadius: Integer; begin Result := FBorderSettings.CornerRadius; end;
-procedure TANDMR_CButton.SetCornerRadius(const Value: Integer);
-var MaxRadius: Integer;
-begin
-  if (Width > 0) and (Height > 0) then MaxRadius := Min(Width, Height) div 2
-  else MaxRadius := Value;
-  FBorderSettings.CornerRadius := EnsureRange(Value, 0, MaxRadius);
-  // FBorderSettings.OnChange will trigger repaint
-end;
-
-function TANDMR_CButton.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
-procedure TANDMR_CButton.SetRoundCornerType(const Value: TRoundCornerType); begin FBorderSettings.RoundCornerType := Value; end;
-
-function TANDMR_CButton.GetActiveColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
-procedure TANDMR_CButton.SetActiveColor(const Value: TColor);
-var
-  OldActiveColor: TColor;
-  OldDerivedEndColor: TColor;
-begin
-  if FBorderSettings.BackgroundColor <> Value then
-  begin
-    OldActiveColor := FBorderSettings.BackgroundColor;
-    FBorderSettings.BackgroundColor := Value; // This will trigger FBorderSettings.OnChange -> BorderSettingsChanged -> Invalidate
-
-    // Use the property access to ensure OnChange is triggered for gradient settings
-    if (FGradientSettings.StartColor = OldActiveColor) or (FGradientSettings.StartColor = clNone) then
-      FGradientSettings.StartColor := FBorderSettings.BackgroundColor;
-
-    OldDerivedEndColor := DarkerColor(OldActiveColor, 30);
-    if (FGradientSettings.EndColor = OldDerivedEndColor) or (FGradientSettings.EndColor = clNone) then
-      FGradientSettings.EndColor := DarkerColor(FBorderSettings.BackgroundColor, 30);
-    // FGradientSettings.OnChange will trigger repaint if its properties were changed
+    FCaptionSettings.Text := Value;
   end;
 end;
 
@@ -660,7 +536,7 @@ begin
     NewTitleColor := clWhite;
 
     case FPresetType of
-      cptNone: begin BaseColor := FBorderSettings.BackgroundColor; Exit; end; // Use FBorderSettings.BackgroundColor
+      cptNone: begin BaseColor := BorderSettings.BackgroundColor; Exit; end;
       cptAccept:   begin BaseColor := TColor($0050AF4C); PresetCaption := 'Confirmar'; NewTitleColor := clWhite; end;
       cptDecline:  begin BaseColor := TColor($00757575); PresetCaption := 'Cancelar';  NewTitleColor := clWhite; end;
       cptSave:     begin BaseColor := TColor($00F39621); PresetCaption := 'Salvar';    NewTitleColor := clWhite; end;
@@ -672,135 +548,36 @@ begin
       cptWarning:  begin BaseColor := TColor($003BEBFF); PresetCaption := 'Aviso';     NewTitleColor := clBlack; end;
       cptHelp:     begin BaseColor := TColor($008B7D60); PresetCaption := 'Ajuda';     NewTitleColor := clWhite; end;
     else
-      BaseColor := FBorderSettings.BackgroundColor; // Use FBorderSettings.BackgroundColor
+      BaseColor := BorderSettings.BackgroundColor;
     end;
 
-    FBorderSettings.BackgroundColor := BaseColor; // Set ActiveColor via FBorderSettings
-    FBorderSettings.Color := DarkerColor(BaseColor, 30); // Set BorderColor via FBorderSettings
-    Self.HoverColor := LighterColor(BaseColor, 25);
-    Self.HoverBorderColor := BaseColor;
-    Self.ClickColor := DarkerColor(BaseColor, 25);
-    Self.ClickBorderColor := DarkerColor(BaseColor, 30);
-    FCaptionSettings.Font.Color := NewTitleColor; // Changed
+    BorderSettings.BackgroundColor := BaseColor;
+    BorderSettings.Color := DarkerColor(BaseColor, 30);
+    HoverSettings.BackgroundColor := LighterColor(BaseColor, 25);
+    HoverSettings.BorderColor := BaseColor;
+    Self.ClickColor := DarkerColor(BaseColor, 25); // ClickColor is direct property
+    Self.ClickBorderColor := DarkerColor(BaseColor, 30); // ClickBorderColor is direct property
+    FCaptionSettings.Font.Color := NewTitleColor;
 
-    if (GetRValue(Self.HoverColor) * 0.299 + GetGValue(Self.HoverColor) * 0.587 + GetBValue(Self.HoverColor) * 0.114) > 186 then
-      FInternalHoverSettings.FontColor := clBlack // Changed
+    if (GetRValue(HoverSettings.BackgroundColor) * 0.299 + GetGValue(HoverSettings.BackgroundColor) * 0.587 + GetBValue(HoverSettings.BackgroundColor) * 0.114) > 186 then
+      FHoverSettings.FontColor := clBlack
     else
-      FInternalHoverSettings.FontColor := clWhite; // Changed
+      FHoverSettings.FontColor := clWhite;
 
     if (GetRValue(Self.ClickColor) * 0.299 + GetGValue(Self.ClickColor) * 0.587 + GetBValue(Self.ClickColor) * 0.114) > 186 then
       Self.ClickTitleColor := clBlack
     else
       Self.ClickTitleColor := clWhite;
 
-    if (Trim(Self.FCaption) = '') or (Self.FCaption <> PresetCaption) then
+    if (Trim(FCaptionSettings.Text) = '') or (FCaptionSettings.Text <> PresetCaption) then
     begin
-      Self.FCaption := PresetCaption; // FCaption setter calls Repaint
+      FCaptionSettings.Text := PresetCaption;
     end
-    else if FPresetType <> cptNone then // Repaint if a preset was applied, even if caption didn't change
+    else if FPresetType <> cptNone then
     begin
-      Repaint; // This repaint might be redundant if FCaptionSettings.OnChange handles it.
+      Repaint;
     end;
   end;
-end;
-
-function TANDMR_CButton.GetTitleFont: TFont;
-begin
-  Result := FCaptionSettings.Font;
-end;
-
-procedure TANDMR_CButton.SetHoverColor(const Value: TColor);
-begin
-  if FInternalHoverSettings.BackgroundColor <> Value then
-  begin
-    FInternalHoverSettings.BackgroundColor := Value;
-  end;
-end;
-
-function TANDMR_CButton.GetHoverColor: TColor;
-begin
-  Result := FInternalHoverSettings.BackgroundColor;
-end;
-
-procedure TANDMR_CButton.SetTitleFont(const Value: TFont);
-begin
-  FCaptionSettings.Font.Assign(Value);
-  // Repaint is handled by FCaptionSettings.OnChange via SettingsChanged or FontChanged directly
-end;
-
-procedure TANDMR_CButton.FontChanged(Sender: TObject);
-// This method is now assigned to FCaptionSettings.Font.OnChange
-// Or, if FCaptionSettings.OnChange = SettingsChanged is sufficient, this can be removed
-// and SettingsChanged will handle the repaint. For now, let's keep it for directness.
-begin
-  Repaint;
-end;
-
-function TANDMR_CButton.GetImage: TPicture;
-begin
-  Result := FImageSettings.Picture;
-end;
-
-procedure TANDMR_CButton.SetImage(const Value: TPicture);
-begin
-  FImageSettings.Picture.Assign(Value);
-  // Repaint is handled by FImageSettings.OnChange via SettingsChanged
-  Repaint; // Keep repaint for safety, though SettingsChanged should cover it.
-end;
-
-function TANDMR_CButton.GetTextAlign: TAlignment;
-begin
-  Result := FCaptionSettings.Alignment;
-end;
-
-procedure TANDMR_CButton.SetTextAlign(const Value: TAlignment);
-begin
-  // FCaptionSettings.Alignment setter should handle repaint via OnChange
-  FCaptionSettings.Alignment := Value;
-  // If FCaptionSettings.OnChange doesn't trigger repaint for Alignment, add Repaint here.
-  // Based on TCaptionSettings implementation, its OnChange should be called.
-  // Adding Repaint just in case, but ideally SettingsChanged covers this.
-  Repaint;
-end;
-
-function TANDMR_CButton.GetGradientEnabled: Boolean;
-begin
-  Result := FGradientSettings.Enabled;
-end;
-
-procedure TANDMR_CButton.SetGradientEnabled(const Value: Boolean);
-begin
-  FGradientSettings.Enabled := Value; // OnChange will trigger repaint
-end;
-
-function TANDMR_CButton.GetGradientType: TGradientType;
-begin
-  Result := FGradientSettings.GradientType;
-end;
-
-procedure TANDMR_CButton.SetGradientType(const Value: TGradientType);
-begin
-  FGradientSettings.GradientType := Value; // OnChange will trigger repaint
-end;
-
-function TANDMR_CButton.GetGradientStartColor: TColor;
-begin
-  Result := FGradientSettings.StartColor;
-end;
-
-procedure TANDMR_CButton.SetGradientStartColor(const Value: TColor);
-begin
-  FGradientSettings.StartColor := Value; // OnChange will trigger repaint
-end;
-
-function TANDMR_CButton.GetGradientEndColor: TColor;
-begin
-  Result := FGradientSettings.EndColor;
-end;
-
-procedure TANDMR_CButton.SetGradientEndColor(const Value: TColor);
-begin
-  FGradientSettings.EndColor := Value; // OnChange will trigger repaint
 end;
 
 procedure TANDMR_CButton.SetImagePosition(const Value: TImagePosition);
@@ -810,41 +587,6 @@ begin
     FImagePosition := Value;
     Repaint;
   end;
-end;
-
-function TANDMR_CButton.GetImageStretchMode: TImageStretchMode;
-begin
-  if FImageSettings.DrawMode = idmProportional then
-    Result := ismProportional
-  else if FImageSettings.DrawMode = idmStretch then // Assuming idmStretch is the equivalent of ismFlat
-    Result := ismFlat
-  else
-    Result := ismProportional; // Default or map other modes if necessary
-end;
-
-procedure TANDMR_CButton.SetImageStretchMode(const Value: TImageStretchMode);
-begin
-  if Value = ismProportional then
-    FImageSettings.DrawMode := idmProportional
-  else if Value = ismFlat then
-    FImageSettings.DrawMode := idmStretch;
-  // Repaint is handled by FImageSettings.OnChange via SettingsChanged
-end;
-
-function TANDMR_CButton.GetImageMargins: TANDMR_Margins;
-begin
-  Result := FImageSettings.Margins;
-end;
-
-procedure TANDMR_CButton.SetImageMargins(const Value: TANDMR_Margins);
-begin
-  FImageSettings.Margins.Assign(Value);
-  // Repaint is handled by FImageSettings.OnChange via SettingsChanged
-end;
-
-procedure TANDMR_CButton.SetTextMargins(const Value: TANDMR_Margins);
-begin
-  FTextMargins.Assign(Value);
 end;
 
 procedure TANDMR_CButton.SetTag(const Value: Integer); begin FTag := Value; end;
@@ -857,23 +599,16 @@ end;
 procedure TANDMR_CButton.SetTagString(const Value: string);
 begin
   FInternalTagString.AsString := Value;
-  // Tags usually don't trigger repaint, but if an OnChange mechanism is needed later,
-  // FInternalTagString.OnChange could be assigned here or in Create.
 end;
 
 function TANDMR_CButton.GetTagExtended: Extended;
 begin
-  // TANDMR_TagExtended stores a TStringList. The original FTagExtended was an Extended type.
-  // This indicates a mismatch in the plan or understanding.
-  // For now, let's assume TagExtended should map to the first item in TANDMR_TagExtended.Items if it's a valid float,
-  // or handle it as string if that's more appropriate.
-  // Given the original was 'Extended', we'll try to convert.
   if FInternalTagExtended.Items.Count > 0 then
   begin
     try
       Result := StrToFloatDef(FInternalTagExtended.Items[0], 0.0);
     except
-      Result := 0.0; // Default on conversion error
+      Result := 0.0;
     end;
   end
   else
@@ -896,16 +631,6 @@ begin
   FInternalTagObject.ObjectValue := Value;
 end;
 
-procedure TANDMR_CButton.SetHoverEffect(const Value: THoverEffect);
-begin
-  FInternalHoverSettings.HoverEffect := Value;
-end;
-
-function TANDMR_CButton.GetHoverEffect: THoverEffect;
-begin
-  Result := FInternalHoverSettings.HoverEffect;
-end;
-
 procedure TANDMR_CButton.SetDisabledCursor(const Value: TCursor);
 begin
   if FDisabledCursor <> Value then
@@ -916,15 +641,6 @@ begin
   end;
 end;
 
-function TANDMR_CButton.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
-procedure TANDMR_CButton.SetBorderColor(const Value: TColor); begin FBorderSettings.Color := Value; end;
-
-function TANDMR_CButton.GetBorderThickness: Integer; begin Result := FBorderSettings.Thickness; end;
-procedure TANDMR_CButton.SetBorderThickness(const Value: Integer); begin FBorderSettings.Thickness := Max(0, Value); end;
-
-function TANDMR_CButton.GetBorderStyle: TPenStyle; begin Result := FBorderSettings.Style; end;
-procedure TANDMR_CButton.SetBorderStyle(const Value: TPenStyle); begin FBorderSettings.Style := Value; end;
-
 procedure TANDMR_CButton.SetClickColor(const Value: TColor);
 begin
   if FClickColor <> Value then
@@ -934,19 +650,6 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetHoverBorderColor(const Value: TColor);
-begin
-  if FInternalHoverSettings.BorderColor <> Value then
-  begin
-    FInternalHoverSettings.BorderColor := Value;
-  end;
-end;
-
-function TANDMR_CButton.GetHoverBorderColor: TColor;
-begin
-  Result := FInternalHoverSettings.BorderColor;
-end;
-
 procedure TANDMR_CButton.SetClickBorderColor(const Value: TColor);
 begin
   if FClickBorderColor <> Value then
@@ -954,32 +657,6 @@ begin
     FClickBorderColor := Value;
     Repaint;
   end;
-end;
-
-procedure TANDMR_CButton.SetEnableHoverEffect(const Value: Boolean);
-begin
-  if FInternalHoverSettings.Enabled <> Value then
-  begin
-    FInternalHoverSettings.Enabled := Value;
-  end;
-end;
-
-function TANDMR_CButton.GetEnableHoverEffect: Boolean;
-begin
-  Result := FInternalHoverSettings.Enabled;
-end;
-
-procedure TANDMR_CButton.SetHoverTitleColor(const Value: TColor);
-begin
-  if FInternalHoverSettings.FontColor <> Value then
-  begin
-    FInternalHoverSettings.FontColor := Value;
-  end;
-end;
-
-function TANDMR_CButton.GetHoverTitleColor: TColor;
-begin
-  Result := FInternalHoverSettings.FontColor;
 end;
 
 procedure TANDMR_CButton.SetClickTitleColor(const Value: TColor);
@@ -1011,11 +688,6 @@ begin
       ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
     Repaint;
   end;
-end;
-
-procedure TANDMR_CButton.MarginsChanged(Sender: TObject);
-begin
-  Repaint;
 end;
 
 procedure TANDMR_CButton.ClickEffectTimerHandler(Sender: TObject);
@@ -1055,8 +727,8 @@ begin
       FClickEffectActive := False;
       FClickEffectProgress := 0;
       FClickEffectTimer.Enabled := False;
-      if FInternalHoverSettings.Enabled then
-         FInternalHoverSettings.StartAnimation(False);
+      if FHoverSettings.Enabled then
+         FHoverSettings.StartAnimation(False);
   end;
   Repaint;
 end;
@@ -1064,22 +736,22 @@ end;
 procedure TANDMR_CButton.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
-  if Enabled and GetEnableHoverEffect then
+  if Enabled and HoverSettings.Enabled then // Use HoverSettings property
   begin
-    FInternalHoverSettings.StartAnimation(True);
+    FHoverSettings.StartAnimation(True);
   end;
 end;
 
 procedure TANDMR_CButton.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
-  if Enabled and GetEnableHoverEffect then
+  if Enabled and HoverSettings.Enabled then // Use HoverSettings property
   begin
-    FInternalHoverSettings.StartAnimation(False);
+    FHoverSettings.StartAnimation(False);
   end
-  else if FInternalHoverSettings.CurrentAnimationValue > 0 then
+  else if FHoverSettings.CurrentAnimationValue > 0 then
   begin
-    FInternalHoverSettings.StartAnimation(False);
+    FHoverSettings.StartAnimation(False);
   end;
 end;
 
@@ -1110,7 +782,7 @@ var
   LAnimationStyle: TProgressAnimationStyle;
   LProgressText: string;
   LShowProgressText: Boolean;
-  DotYOffset: array[0..2] of Integer; // For DotCount = 3
+  DotYOffset: array[0..2] of Integer;
 
 const
   SHADOW_ALPHA = 50;
@@ -1151,24 +823,24 @@ begin
     LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
     LHoverProgress := 0;
-    if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.CurrentAnimationValue > 0) and (FInternalHoverSettings.HoverEffect <> heNone) and not FProcessing then // Added not FProcessing
-      LHoverProgress := FInternalHoverSettings.CurrentAnimationValue / 255.0;
+    if Enabled and HoverSettings.Enabled and (FHoverSettings.CurrentAnimationValue > 0) and (HoverSettings.HoverEffect <> heNone) and not FProcessing then
+      LHoverProgress := FHoverSettings.CurrentAnimationValue / 255.0;
 
     LClickProgress := 0;
-    if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and (FClickEffectDuration > 0) and not FProcessing then // Added not FProcessing
+    if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and (FClickEffectDuration > 0) and not FProcessing then
       LClickProgress := (255 - FClickEffectProgress) / 255.0;
 
-  LInitialFillColor := ResolveStateColor(Enabled, False, False, FBorderSettings.BackgroundColor, clNone, clNone, BlendColors(FBorderSettings.BackgroundColor, clGray, 0.65), False, False); // Use FBorderSettings.BackgroundColor and blend for disabled
-  LInitialBorderColor := ResolveStateColor(Enabled, False, False, FBorderSettings.Color, clNone, clNone, BlendColors(FBorderSettings.Color, clGray, 0.7), False, False); // Use FBorderSettings.Color
-  LActualBorderThickness := FBorderSettings.Thickness; // Use FBorderSettings.Thickness
+  LInitialFillColor := ResolveStateColor(Enabled, False, False, BorderSettings.BackgroundColor, clNone, clNone, BlendColors(BorderSettings.BackgroundColor, clGray, 0.65), False, False);
+  LInitialBorderColor := ResolveStateColor(Enabled, False, False, BorderSettings.Color, clNone, clNone, BlendColors(BorderSettings.Color, clGray, 0.7), False, False);
+  LActualBorderThickness := BorderSettings.Thickness;
 
-    if FInternalHoverSettings.BackgroundColor <> clNone then
-      LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+    if HoverSettings.BackgroundColor <> clNone then
+      LFinalHoverColor := HoverSettings.BackgroundColor
     else
       LFinalHoverColor := LighterColor(LInitialFillColor, 15);
 
-    if FInternalHoverSettings.BorderColor <> clNone then
-      LFinalHoverBorderColor := FInternalHoverSettings.BorderColor
+    if HoverSettings.BorderColor <> clNone then
+      LFinalHoverBorderColor := HoverSettings.BorderColor
     else
       LFinalHoverBorderColor := LInitialBorderColor;
 
@@ -1177,19 +849,14 @@ begin
 
     LActualFillColor := LInitialFillColor;
     LActualBorderColor := LInitialBorderColor;
-    LCurrentGradientEnabled := FGradientSettings.Enabled;
+    LCurrentGradientEnabled := GradientSettings.Enabled;
     LDrawFill := True;
     LDrawBorder := LActualBorderThickness > 0;
 
     case FStyle of
       bsSolid:
       begin
-        // Ensure bsSolid is truly solid, ignoring FGradientEnabled.
         LCurrentGradientEnabled := False;
-        // LActualFillColor is LInitialFillColor (from FBorderSettings.BackgroundColor)
-        // LActualBorderColor is LInitialBorderColor (from FBorderSettings.Color)
-        // LActualBorderThickness is FBorderSettings.Thickness (inherited)
-        // LDrawFill is True, LDrawBorder is True (if thickness > 0) (inherited)
       end;
       bsFaded:
       begin
@@ -1204,204 +871,161 @@ begin
       begin
         LDrawFill := False;
         LCurrentGradientEnabled := False;
-        // Ensure border thickness respects FBorderSettings.Thickness but is at least 1 for this style.
-        LActualBorderThickness := Max(1, FBorderSettings.Thickness);
-        LDrawBorder := LActualBorderThickness > 0; // Should be true if thickness > 0
-        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 70); // Fill on hover
-        // LActualBorderColor remains LInitialBorderColor
+        LActualBorderThickness := Max(1, BorderSettings.Thickness);
+        LDrawBorder := LActualBorderThickness > 0;
+        LFinalHoverColor := ColorToARGB(IfThen(HoverSettings.BackgroundColor=clNone, LInitialFillColor, HoverSettings.BackgroundColor), 70);
       end;
       bsLight:
       begin
         LBaseStyleColor := BlendColors(LInitialFillColor, clWhite, 0.6);
         LActualFillColor := LBaseStyleColor;
-        // LActualBorderColor remains LInitialBorderColor (FBorderSettings.Color)
         LFinalHoverColor := BlendColors(LBaseStyleColor, LighterColor(LInitialFillColor, 20), 0.7);
         LCurrentGradientEnabled := False;
-        // Ensure border thickness respects FBorderSettings.Thickness but is at least 1 for this style.
-        LActualBorderThickness := Max(1, FBorderSettings.Thickness);
-        LDrawBorder := LActualBorderThickness > 0; // Should be true if thickness > 0
+        LActualBorderThickness := Max(1, BorderSettings.Thickness);
+        LDrawBorder := LActualBorderThickness > 0;
       end;
       bsFlat:
       begin
         LCurrentGradientEnabled := False;
         LActualBorderThickness := 0;
         LDrawBorder := False;
-        // LActualFillColor is LInitialFillColor
-        LFinalHoverBorderColor := LInitialFillColor; // On hover, a border appears using the fill color
-        // Click colors will use standard logic based on LActualFillColor
+        LFinalHoverBorderColor := LInitialFillColor;
       end;
       bsGhost:
       begin
         LDrawFill := False;
         LCurrentGradientEnabled := False;
-        // Border should use FBorderSettings.Thickness but be at least 1. Its color is LInitialFillColor.
-        LActualBorderThickness := Max(1, FBorderSettings.Thickness);
-        LActualBorderColor := LInitialFillColor; // Border takes the base fill color
-        LDrawBorder := LActualBorderThickness > 0; // Should be true if thickness > 0
-        LFinalHoverColor := ColorToARGB(IfThen(GetHoverColor=clNone, LInitialFillColor, GetHoverColor), 100); // Fill on hover
-        LFinalHoverBorderColor := LInitialFillColor; // Border color on hover remains the same
+        LActualBorderThickness := Max(1, BorderSettings.Thickness);
+        LActualBorderColor := LInitialFillColor;
+        LDrawBorder := LActualBorderThickness > 0;
+        LFinalHoverColor := ColorToARGB(IfThen(HoverSettings.BackgroundColor=clNone, LInitialFillColor, HoverSettings.BackgroundColor), 100);
+        LFinalHoverBorderColor := LInitialFillColor;
       end;
       bsShadow:
       begin
-        // This style primarily enables shadow rendering via the common shadow logic.
-        // If transparent, the fill is disabled to make it a pure shadow effect.
         if FTransparent then
         begin
           LDrawFill := False;
-          LCurrentGradientEnabled := False; // No fill means no gradient on fill
+          LCurrentGradientEnabled := False;
         end;
-        // LActualFillColor is LInitialFillColor (relevant if not transparent)
-        // LActualBorderColor is LInitialBorderColor (relevant for path shape for shadow)
-        // LActualBorderThickness is FBorderSettings.Thickness (relevant for path shape for shadow)
       end;
       bsGradient:
       begin
-        LCurrentGradientEnabled := True; // Force gradient
+        LCurrentGradientEnabled := True;
         LDrawFill := True;
-        // LActualFillColor is LInitialFillColor (used as gradient start if FGradientStartColor is clNone)
-        // LActualBorderColor is LInitialBorderColor
-        // LActualBorderThickness is FBorderSettings.Thickness
-        LDrawBorder := LActualBorderThickness > 0; // Draw border if thickness > 0
+        LDrawBorder := LActualBorderThickness > 0;
       end;
       bsDark:
       begin
-        // Base Colors for Dark Style
-        LBaseStyleColor := DarkerColor(FBorderSettings.BackgroundColor, 60); // Significantly darken the base active color
-        // For now, using a fixed dark color as a fallback if the base color isn't suitable, as per instructions.
-        // A more sophisticated IsColorVeryDark check could be added later if needed.
+        LBaseStyleColor := DarkerColor(BorderSettings.BackgroundColor, 60);
         if (GetRValue(LBaseStyleColor) < 30) and (GetGValue(LBaseStyleColor) < 30) and (GetBValue(LBaseStyleColor) < 30) then
-            LBaseStyleColor := TColor($FF383838); // A specific dark gray
+            LBaseStyleColor := TColor($FF383838);
 
         LActualFillColor := LBaseStyleColor;
-        LActualBorderColor := LighterColor(LBaseStyleColor, 20); // Border slightly lighter than fill
+        LActualBorderColor := LighterColor(LBaseStyleColor, 20);
         LCurrentGradientEnabled := False;
         LDrawFill := True;
-        LDrawBorder := True; // Assuming a subtle border for dark style
-        LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Ensure border is at least 1px for bsDark
+        LDrawBorder := True;
+        LActualBorderThickness := Max(1, BorderSettings.Thickness);
 
-        // Hover Colors for Dark Style
-        if FInternalHoverSettings.BackgroundColor <> clNone then
-          LFinalHoverColor := FInternalHoverSettings.BackgroundColor // Allow user override
+        if HoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := HoverSettings.BackgroundColor
         else
           LFinalHoverColor := LighterColor(LBaseStyleColor, 15);
 
-        if FInternalHoverSettings.BorderColor <> clNone then
-          LFinalHoverBorderColor := FInternalHoverSettings.BorderColor // Allow user override
+        if HoverSettings.BorderColor <> clNone then
+          LFinalHoverBorderColor := HoverSettings.BorderColor
         else
           LFinalHoverBorderColor := LighterColor(LActualBorderColor, 15);
 
-        // Click Colors for Dark Style (subtly different from base dark)
         LFinalClickColor := IfThen(FClickColor = clNone, LighterColor(LBaseStyleColor, 10), FClickColor);
         LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, LighterColor(LActualBorderColor, 10), FClickBorderColor);
       end;
       bsMaterial:
       begin
-        // Material Design uses the primary color, often from presets.
-        LActualFillColor := FBorderSettings.BackgroundColor; // Base color from ActiveColor
-        LActualBorderColor := clNone; // Material buttons often have no border or a very subtle one
-        LActualBorderThickness := 0; // No border or minimal
+        LActualFillColor := BorderSettings.BackgroundColor;
+        LActualBorderColor := clNone;
+        LActualBorderThickness := 0;
         LDrawBorder := False;
         LCurrentGradientEnabled := False;
         LDrawFill := True;
 
-        // Hover: Slightly lighter version of the fill color or a standard overlay
-        if FInternalHoverSettings.BackgroundColor <> clNone then
-          LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+        if HoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := HoverSettings.BackgroundColor
         else
-          LFinalHoverColor := LighterColor(LActualFillColor, 10); // Subtle lighten
+          LFinalHoverColor := LighterColor(LActualFillColor, 10);
 
-        // Click: Material has a ripple; for now, use color feedback.
-        // A darker shade or a standard overlay.
         LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 10), FClickColor);
-
-        // Shadow properties for Material look (will be used by the common shadow drawing logic)
-        // Note: LShadowOffsetXToUse, LShadowOffsetYToUse, LShadowAlphaToUse are declared outside this case block.
-        // Their values will be set here and used by the shadow drawing logic later in the Paint method.
-        // This section is for setting parameters; the actual shadow drawing condition modification is separate.
       end;
       bsModern:
       begin
-        // Modern style: Clean, often flat with emphasis on typography and subtle interactions.
-        LActualFillColor := FBorderSettings.BackgroundColor;
-        // Border can be a slightly darker version of the fill or a neutral tone.
+        LActualFillColor := BorderSettings.BackgroundColor;
         LActualBorderColor := DarkerColor(LActualFillColor, 15);
-        LActualBorderThickness := 1; // Clean 1px border
+        LActualBorderThickness := 1;
         LDrawBorder := True;
         LCurrentGradientEnabled := False;
         LDrawFill := True;
 
-        // Hover: Subtle changes. Fill might lighten, border might change color or intensity.
-        if FInternalHoverSettings.BackgroundColor <> clNone then
-          LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+        if HoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := HoverSettings.BackgroundColor
         else
-          LFinalHoverColor := LighterColor(LActualFillColor, 8); // Very subtle lighten
+          LFinalHoverColor := LighterColor(LActualFillColor, 8);
 
-        if FInternalHoverSettings.BorderColor <> clNone then
-          LFinalHoverBorderColor := FInternalHoverSettings.BorderColor
+        if HoverSettings.BorderColor <> clNone then
+          LFinalHoverBorderColor := HoverSettings.BorderColor
         else
-          LFinalHoverBorderColor := LActualFillColor; // Border matches fill on hover for a softer look, or could be a highlight color
+          LFinalHoverBorderColor := LActualFillColor;
 
-        // Click: Subtle darkening or clear feedback.
         LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 8), FClickColor);
         LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualFillColor, 20), FClickBorderColor);
-
-        // No shadow for this style. The existing shadow logic is conditioned for bsShadow or bsMaterial.
       end;
       bsWindows:
       begin
-        // Windows (Fluent-inspired): Light base, subtle border.
-        LActualFillColor := TColor($FFEFEFEF); // Light gray
-        LActualBorderColor := TColor($FFDCDCDC); // Slightly darker gray for border
+        LActualFillColor := TColor($FFEFEFEF);
+        LActualBorderColor := TColor($FFDCDCDC);
         LActualBorderThickness := 1;
         LDrawBorder := True;
         LCurrentGradientEnabled := False;
         LDrawFill := True;
 
-        // Hover: Lighten fill slightly, border might use ActiveColor or similar highlight
-        if FInternalHoverSettings.BackgroundColor <> clNone then
-          LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+        if HoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := HoverSettings.BackgroundColor
         else
-          LFinalHoverColor := TColor($FFF5F5F5); // Even lighter gray
+          LFinalHoverColor := TColor($FFF5F5F5);
 
-        if FInternalHoverSettings.BorderColor <> clNone then
-          LFinalHoverBorderColor := FInternalHoverSettings.BorderColor
+        if HoverSettings.BorderColor <> clNone then
+          LFinalHoverBorderColor := HoverSettings.BorderColor
         else
-          LFinalHoverBorderColor := FBorderSettings.BackgroundColor; // Accent color for border on hover
+          LFinalHoverBorderColor := BorderSettings.BackgroundColor;
 
-        // Click: Darken fill
         LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 10), FClickColor);
         LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualBorderColor, 10), FClickBorderColor);
-        // No shadow for this style in this iteration.
       end;
       bsMacOS:
       begin
-        // macOS-inspired: Often light gray or themed, subtle changes on interaction.
-        LActualFillColor := TColor($FFF2F2F7); // Common macOS light/medium gray
-        LActualBorderColor := TColor($FFD1D1D6); // Subtle border, slightly darker than fill
+        LActualFillColor := TColor($FFF2F2F7);
+        LActualBorderColor := TColor($FFD1D1D6);
         LActualBorderThickness := 1;
         LDrawBorder := True;
         LCurrentGradientEnabled := False;
         LDrawFill := True;
 
-        // Hover: Fill slightly darkens
-        if FInternalHoverSettings.BackgroundColor <> clNone then
-          LFinalHoverColor := FInternalHoverSettings.BackgroundColor
+        if HoverSettings.BackgroundColor <> clNone then
+          LFinalHoverColor := HoverSettings.BackgroundColor
         else
-          LFinalHoverColor := DarkerColor(LActualFillColor, 5); // Subtle darken
+          LFinalHoverColor := DarkerColor(LActualFillColor, 5);
 
-        if FInternalHoverSettings.BorderColor <> clNone then
-          LFinalHoverBorderColor := FInternalHoverSettings.BorderColor
+        if HoverSettings.BorderColor <> clNone then
+          LFinalHoverBorderColor := HoverSettings.BorderColor
         else
           LFinalHoverBorderColor := DarkerColor(LActualBorderColor, 5);
 
-        // Click: Fill darkens more noticeably
         LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 12), FClickColor);
         LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualBorderColor, 12), FClickBorderColor);
-        // No shadow for this style in this iteration.
       end;
     end;
 
-    if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
+    if (LHoverProgress > 0) and Enabled and HoverSettings.Enabled then // Use HoverSettings property
     begin
       if LDrawFill or (FStyle = bsBordered) or (FStyle = bsGhost) then
         LActualFillColor := BlendColors(LActualFillColor, LFinalHoverColor, LHoverProgress);
@@ -1411,7 +1035,7 @@ begin
       else if FStyle = bsFlat then
       begin
         LActualBorderColor := BlendColors(clNone, LFinalHoverBorderColor, LHoverProgress);
-        LActualBorderThickness := Max(1, FBorderSettings.Thickness); // Use FBorderSettings.Thickness
+        LActualBorderThickness := Max(1, BorderSettings.Thickness);
         LDrawBorder := True;
       end;
     end;
@@ -1433,10 +1057,8 @@ begin
 
     ButtonRectEffectiveF := MakeRect(0.0, 0.0, Self.Width, Self.Height);
 
-    // Shadow configuration for bsMaterial - needs to be done before the main shadow block
     if (FStyle = bsMaterial) and (not FTransparent) then
     begin
-      // Default shadow properties for Material style
       LShadowOffsetXToUse := 1;
       LShadowOffsetYToUse := 2;
       LShadowAlphaToUse := 60;
@@ -1445,13 +1067,12 @@ begin
       const  MATERIAL_SHADOW_OFFSET_Y_HOVER_FACTOR = 1.8;
       const  MATERIAL_SHADOW_ALPHA_HOVER = 90;
 
-      if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
+      if (LHoverProgress > 0) and Enabled and HoverSettings.Enabled then // Use HoverSettings property
       begin
-        // Calculate hover shadow properties for Material style
-        var TempShadowOffsetXConst_Material: Single; // Renamed to avoid conflict
-        var TempShadowOffsetYConst_Material: Single; // Renamed to avoid conflict
-        TempShadowOffsetXConst_Material := 1; // Base X for Material
-        TempShadowOffsetYConst_Material := 2; // Base Y for Material
+        var TempShadowOffsetXConst_Material: Single;
+        var TempShadowOffsetYConst_Material: Single;
+        TempShadowOffsetXConst_Material := 1;
+        TempShadowOffsetYConst_Material := 2;
 
         LShadowOffsetXToUse := TempShadowOffsetXConst_Material + ((TempShadowOffsetXConst_Material * MATERIAL_SHADOW_OFFSET_X_HOVER_FACTOR) - TempShadowOffsetXConst_Material) * LHoverProgress;
         LShadowOffsetYToUse := TempShadowOffsetYConst_Material + ((TempShadowOffsetYConst_Material * MATERIAL_SHADOW_OFFSET_Y_HOVER_FACTOR) - TempShadowOffsetYConst_Material) * LHoverProgress;
@@ -1461,22 +1082,19 @@ begin
 
     if ((FStyle = bsShadow) or (FStyle = bsMaterial)) and (not FTransparent) then
     begin
-      // If bsShadow, set its specific shadow parameters
       if FStyle = bsShadow then
       begin
         LShadowOffsetXToUse := SHADOW_OFFSET_X_CONST;
         LShadowOffsetYToUse := SHADOW_OFFSET_Y_CONST;
         LShadowAlphaToUse := SHADOW_ALPHA;
 
-        // Hover adjustments specifically for bsShadow
-        if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
+        if (LHoverProgress > 0) and Enabled and HoverSettings.Enabled then // Use HoverSettings property
         begin
           LShadowOffsetXToUse := SHADOW_OFFSET_X_CONST + ((SHADOW_OFFSET_X_CONST * SHADOW_OFFSET_X_HOVER_FACTOR) - SHADOW_OFFSET_X_CONST) * LHoverProgress;
           LShadowOffsetYToUse := SHADOW_OFFSET_Y_CONST + ((SHADOW_OFFSET_Y_CONST * SHADOW_OFFSET_Y_HOVER_FACTOR) - SHADOW_OFFSET_Y_CONST) * LHoverProgress;
           LShadowAlphaToUse := Round(SHADOW_ALPHA + (SHADOW_ALPHA_HOVER - SHADOW_ALPHA) * LHoverProgress);
         end;
       end;
-      // For bsMaterial, LShadowOffsetXToUse, LShadowOffsetYToUse, LShadowAlphaToUse are already set by the dedicated block above, including its hover effect.
 
       ButtonRectEffectiveF.X := IfThen(LShadowOffsetXToUse < 0, Abs(LShadowOffsetXToUse), 0.0);
       ButtonRectEffectiveF.Y := IfThen(LShadowOffsetYToUse < 0, Abs(LShadowOffsetYToUse), 0.0);
@@ -1494,12 +1112,12 @@ begin
       LShadowPathDrawRect := MakeRect(ButtonRectEffectiveF.X + LPathInset + LShadowOffsetXToUse,
                                       ButtonRectEffectiveF.Y + LPathInset + LShadowOffsetYToUse,
                                       LPathWidth, LPathHeight);
-    LRadiusValue := Min(FBorderSettings.CornerRadius, Min(LShadowPathDrawRect.Width, LShadowPathDrawRect.Height) / 2.0); // Use FBorderSettings.CornerRadius
+    LRadiusValue := Min(BorderSettings.CornerRadius, Min(LShadowPathDrawRect.Width, LShadowPathDrawRect.Height) / 2.0);
       LRadiusValue := Max(0, LRadiusValue);
 
       LGPPath := TGPGraphicsPath.Create;
       try
-      CreateGPRoundedPath(LGPPath, LShadowPathDrawRect, LRadiusValue, FBorderSettings.RoundCornerType); // Use FBorderSettings.RoundCornerType
+      CreateGPRoundedPath(LGPPath, LShadowPathDrawRect, LRadiusValue, BorderSettings.RoundCornerType);
         if LGPPath.GetPointCount > 0 then
         begin
           LGPBrush := TGPSolidBrush.Create(ColorToARGB(clBlack, LShadowAlphaToUse));
@@ -1514,7 +1132,7 @@ begin
     end;
 
     if LDrawBorder and (LActualBorderThickness > 0) then LPathInset := LActualBorderThickness / 2.0 else LPathInset := 0.0;
-    LRadiusValue := Min(FBorderSettings.CornerRadius, Min(ButtonRectEffectiveF.Width, ButtonRectEffectiveF.Height) / 2.0); // Use FBorderSettings.CornerRadius
+    LRadiusValue := Min(BorderSettings.CornerRadius, Min(ButtonRectEffectiveF.Width, ButtonRectEffectiveF.Height) / 2.0);
     LRadiusValue := Max(0, LRadiusValue);
 
     var DrawAreaRect: TRect;
@@ -1525,7 +1143,7 @@ begin
     if LDrawFill and not FTransparent then
     begin
       if LCurrentGradientEnabled then
-        BgColorToUse := IfThen(FGradientSettings.StartColor = clNone, LActualFillColor, FGradientSettings.StartColor)
+        BgColorToUse := IfThen(GradientSettings.StartColor = clNone, LActualFillColor, GradientSettings.StartColor)
       else
         BgColorToUse := LActualFillColor;
     end
@@ -1538,21 +1156,18 @@ begin
     else
       BorderColorToUse := clNone;
 
-    DrawEditBox(LG, DrawAreaRect, BgColorToUse, BorderColorToUse, LActualBorderThickness, FBorderSettings.Style, Round(LRadiusValue), FBorderSettings.RoundCornerType, 255); // Use FBorderSettings.Style and FBorderSettings.RoundCornerType
+    DrawEditBox(LG, DrawAreaRect, BgColorToUse, BorderColorToUse, LActualBorderThickness, BorderSettings.Style, Round(LRadiusValue), BorderSettings.RoundCornerType, 255);
 
     LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
                               Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
                               Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
 
-    if FImageSettings.Placement = iplInsideBounds then // iplInsideBounds is the default historical behavior
+    if ImageSettings.Placement = iplInsideBounds then
     begin
       if LDrawBorder and (LActualBorderThickness > 0) then
           InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
     end;
-    // For iplOutsideBounds, LImageClipRect remains the full ButtonRectEffectiveF.
-    // Margins will then position the image within this full rect.
 
-    // >>> START NEW PROGRESS ANIMATION LOGIC <<<
     if FProcessing and FProgressSettings.ShowProgress then
     begin
       var LProgressRect: TRect;
@@ -1561,33 +1176,27 @@ begin
       var LProgressBarPen: TGPPen;
       var LProgressPath: TGPGraphicsPath;
       var ArcRectF: TGPRectF;
-      var OriginalProgressRect: TRect; // To store the initial calculation
+      var OriginalProgressRect: TRect;
 
-      LProgressRect := ClientRect; // Start with full client rect
-      if FBorderSettings.Thickness > 0 then
-        InflateRect(LProgressRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
+      LProgressRect := ClientRect;
+      if BorderSettings.Thickness > 0 then
+        InflateRect(LProgressRect, -BorderSettings.Thickness, -BorderSettings.Thickness);
 
-      OriginalProgressRect := LProgressRect; // Save this before potential adjustments for text
+      OriginalProgressRect := LProgressRect;
 
-      // If text is shown, adjust LProgressRect to make space for the animation.
-      // This example assumes animation on the left, text on the right.
-      // A more sophisticated layout might be needed for other text positions.
       if LShowProgressText and (LProgressText <> '') then
       begin
-        // Attempt to reserve about 40% for animation, 60% for text, if wide enough
-        if LProgressRect.Width > 100 then // Only if button is reasonably wide
+        if LProgressRect.Width > 100 then
         begin
-          OriginalProgressRect.Right := LProgressRect.Left + Round(LProgressRect.Width * 0.4); // Animation takes left 40%
-          LProgressRect := OriginalProgressRect; // Animation will be drawn in this potentially smaller rect
+          OriginalProgressRect.Right := LProgressRect.Left + Round(LProgressRect.Width * 0.4);
+          LProgressRect := OriginalProgressRect;
         end
-        else // Button too narrow, text might go below or animation shrinks a lot
+        else
         begin
-           // For narrow buttons, perhaps animation shrinks more, or text is prioritized differently
-           InflateRect(LProgressRect, -Round(LProgressRect.Width * 0.1), -Round(LProgressRect.Height * 0.1)); // General shrink
+           InflateRect(LProgressRect, -Round(LProgressRect.Width * 0.1), -Round(LProgressRect.Height * 0.1));
         end;
       end;
 
-      // Make the animation area square-ish for circular/dot animations
       if LAnimationStyle in [pasRotatingSemiCircle, pasFullCircularSpinner, pasBouncingDots] then
       begin
         if LProgressRect.Width > LProgressRect.Height then
@@ -1600,7 +1209,6 @@ begin
             LProgressRect.Top := LProgressRect.Top + (LProgressRect.Height - LProgressRect.Width) div 2;
             LProgressRect.Height := LProgressRect.Width;
         end;
-        // Reduce size slightly to give some padding for circular/dot animations
         InflateRect(LProgressRect, -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)), -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)));
       end;
 
@@ -1664,17 +1272,14 @@ begin
         begin
           var BarRect: TRect;
           var InnerBarWidth, InnerBarX: Integer;
-          // Use OriginalProgressRect for horizontal bar as it might span more width if text is also present
           BarRect := OriginalProgressRect;
           if LShowProgressText and (LProgressText <> '') and (OriginalProgressRect.Width > 100) then
           begin
-            // If text is shown, the animation area (OriginalProgressRect) was already adjusted
-            // The horizontal bar should fit within this adjusted OriginalProgressRect (which is LProgressRect here)
-             BarRect := LProgressRect; // Use the already adjusted rect for animation
+             BarRect := LProgressRect;
           end;
 
           InflateRect(BarRect, 0, -BarRect.Height div 3);
-          if BarRect.Height < 4 then BarRect.Height := Max(2, Min(LProgressRect.Height, 4)); // Ensure min height but not exceeding LProgressRect
+          if BarRect.Height < 4 then BarRect.Height := Max(2, Min(LProgressRect.Height, 4));
           if BarRect.Width > 10 then
           begin
             LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 100));
@@ -1684,7 +1289,7 @@ begin
               LGPBrush.Free;
             end;
             InnerBarWidth := BarRect.Width div 3;
-            if BarRect.Width - InnerBarWidth > 0 then // Ensure InnerBarX calculation is valid
+            if BarRect.Width - InnerBarWidth > 0 then
                 InnerBarX := (FProgressStep * 5) mod (BarRect.Width - InnerBarWidth)
             else
                 InnerBarX := 0;
@@ -1701,16 +1306,15 @@ begin
         begin
           const DotCount = 3;
           var DotSize, DotSpacing, TotalDotWidth, StartX, BaseY: Integer;
-          // var DotYOffset: array[0..DotCount-1] of Integer; // Moved to main var block
           var i: Integer;
 
-          if (LProgressRect.Width > 0) and (LProgressRect.Height > 0) then // Ensure LProgressRect is valid
+          if (LProgressRect.Width > 0) and (LProgressRect.Height > 0) then
           begin
-            DotSize := Max(4, Min(LProgressRect.Width div Max(1, (DotCount * 2)), LProgressRect.Height div 2)); // Adjusted DotSize
+            DotSize := Max(4, Min(LProgressRect.Width div Max(1, (DotCount * 2)), LProgressRect.Height div 2));
             DotSpacing := DotSize div 2;
             TotalDotWidth := (DotCount * DotSize) + ((DotCount - 1) * DotSpacing);
 
-            if TotalDotWidth > LProgressRect.Width then // If dots are too wide, shrink them
+            if TotalDotWidth > LProgressRect.Width then
             begin
                 DotSize := Max(2, LProgressRect.Width div (DotCount * 2));
                 DotSpacing := DotSize div 3;
@@ -1738,47 +1342,42 @@ begin
             end;
           end;
         end;
-      end; // case LAnimationStyle
+      end;
 
-      // Draw Progress Text
       if LShowProgressText and (LProgressText <> '') then
       begin
         var TextRect: TRect;
         var ProgressCaptionFont: TFont;
         var AnimationAreaRightBound: Integer;
 
-        // Calculate TextRect based on where the animation was drawn (LProgressRect)
-        // and the original full progress area (OriginalProgressRect)
-        if (OriginalProgressRect.Width > 100) and (LAnimationStyle <> pasHorizontalBar) then // If wide and not full-width bar
+        if (OriginalProgressRect.Width > 100) and (LAnimationStyle <> pasHorizontalBar) then
         begin
-            AnimationAreaRightBound := LProgressRect.Left + LProgressRect.Width; // Right edge of (possibly shrunk) animation area
-            TextRect.Left := AnimationAreaRightBound + Self.FTextMargins.Left;
-            TextRect.Top  := OriginalProgressRect.Top; // Align with top of original progress area
-            TextRect.Right := OriginalProgressRect.Left + OriginalProgressRect.Width - Self.FTextMargins.Right; // Use full original width for text
-            TextRect.Bottom := OriginalProgressRect.Bottom; // Align with bottom of original progress area
+            AnimationAreaRightBound := LProgressRect.Left + LProgressRect.Width;
+            TextRect.Left := AnimationAreaRightBound + CaptionSettings.Margins.Left;
+            TextRect.Top  := OriginalProgressRect.Top;
+            TextRect.Right := OriginalProgressRect.Left + OriginalProgressRect.Width - CaptionSettings.Margins.Right;
+            TextRect.Bottom := OriginalProgressRect.Bottom;
         end
-        else if (LAnimationStyle = pasHorizontalBar) and (OriginalProgressRect.Width > 100) then // Horizontal bar might be full width
+        else if (LAnimationStyle = pasHorizontalBar) and (OriginalProgressRect.Width > 100) then
         begin
-            // For horizontal bar, text might go below, or overlay if very short. This example: below.
-            TextRect.Left := OriginalProgressRect.Left + Self.FTextMargins.Left;
-            TextRect.Top := LProgressRect.Bottom + Self.FTextMargins.Top; // Text below the bar
-            TextRect.Right := OriginalProgressRect.Right - Self.FTextMargins.Right;
-            TextRect.Bottom := OriginalProgressRect.Bottom; // Extend to bottom of original progress area
+            TextRect.Left := OriginalProgressRect.Left + CaptionSettings.Margins.Left;
+            TextRect.Top := LProgressRect.Bottom + CaptionSettings.Margins.Top;
+            TextRect.Right := OriginalProgressRect.Right - CaptionSettings.Margins.Right;
+            TextRect.Bottom := OriginalProgressRect.Bottom;
         end
-        else // Narrow button or other cases: Text centered below animation area
+        else
         begin
-            TextRect.Left := ClientRect.Left + Self.FTextMargins.Left;
-            TextRect.Top := LProgressRect.Bottom + Self.FTextMargins.Top;
-            TextRect.Right := ClientRect.Right - Self.FTextMargins.Right;
-            TextRect.Bottom := ClientRect.Bottom - Self.FTextMargins.Bottom;
+            TextRect.Left := ClientRect.Left + CaptionSettings.Margins.Left;
+            TextRect.Top := LProgressRect.Bottom + CaptionSettings.Margins.Top;
+            TextRect.Right := ClientRect.Right - CaptionSettings.Margins.Right;
+            TextRect.Bottom := ClientRect.Bottom - CaptionSettings.Margins.Bottom;
         end;
 
         if (TextRect.Width > 0) and (TextRect.Height > 0) then
         begin
           ProgressCaptionFont := TFont.Create;
           try
-            ProgressCaptionFont.Assign(Self.FCaptionSettings.Font);
-            // ProgressCaptionFont.Color := ...; // Optional: Different color for progress text
+            ProgressCaptionFont.Assign(Self.CaptionSettings.Font);
             DrawComponentCaption(Self.Canvas, TextRect, LProgressText, ProgressCaptionFont, ProgressCaptionFont.Color, taCenter, cvaCenter, False, 255);
           finally
             ProgressCaptionFont.Free;
@@ -1786,27 +1385,25 @@ begin
         end;
       end;
     end;
-    // >>> END NEW PROGRESS ANIMATION LOGIC <<<
 
-    // Conditionally draw image and caption
     if not (FProcessing and FProgressSettings.ShowProgress and FProgressSettings.HideCaptionWhileProcessing) then
     begin
       LImgW := 0; LImgH := 0; LDrawW := 0; LDrawH := 0; LImgX := 0; LImgY := 0;
       AvailableWidth := 0; AvailableHeight := 0;
       var imageCanvasX, imageCanvasY: Integer;
-      var imgAspectRatio, availAspectRatio, targetAspectRatio: Single; // Use Single for AspectRatio
+      var imgAspectRatio, availAspectRatio, targetAspectRatio: Single;
 
-      if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and FImageSettings.Visible then
+      if (ImageSettings.Picture.Graphic <> nil) and not ImageSettings.Picture.Graphic.Empty and ImageSettings.Visible then
       begin
-        LImgW := FImageSettings.Picture.Width;
-        LImgH := FImageSettings.Picture.Height;
+        LImgW := ImageSettings.Picture.Width;
+        LImgH := ImageSettings.Picture.Height;
 
-        AvailableWidth  := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
-        AvailableHeight := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+        AvailableWidth  := Max(0, LImageClipRect.Width - ImageSettings.Margins.Left - ImageSettings.Margins.Right);
+        AvailableHeight := Max(0, LImageClipRect.Height - ImageSettings.Margins.Top - ImageSettings.Margins.Bottom);
 
-        if FImageSettings.AutoSize then
+        if ImageSettings.AutoSize then
         begin
-          case FImageSettings.DrawMode of
+          case ImageSettings.DrawMode of
             idmStretch:
             begin
               LDrawW := AvailableWidth;
@@ -1820,12 +1417,12 @@ begin
               begin
                 imgAspectRatio := LImgW / LImgH;
                 availAspectRatio := AvailableWidth / AvailableHeight;
-                if availAspectRatio > imgAspectRatio then // Fit to height
+                if availAspectRatio > imgAspectRatio then
                 begin
                   LDrawH := AvailableHeight;
                   LDrawW := Round(LDrawH * imgAspectRatio);
                 end
-                else // Fit to width
+                else
                 begin
                   LDrawW := AvailableWidth;
                   LDrawH := Round(LDrawW / imgAspectRatio);
@@ -1837,17 +1434,17 @@ begin
               LDrawW := LImgW;
               LDrawH := LImgH;
             end;
-          else // Should not happen, but default to normal
+          else
             LDrawW := LImgW; LDrawH := LImgH;
           end;
         end
-        else // Not AutoSize (use TargetWidth, TargetHeight)
+        else
         begin
           var targetW, targetH: Integer;
-          targetW := FImageSettings.TargetWidth;
-          targetH := FImageSettings.TargetHeight;
+          targetW := ImageSettings.TargetWidth;
+          targetH := ImageSettings.TargetHeight;
 
-          case FImageSettings.DrawMode of
+          case ImageSettings.DrawMode of
             idmStretch:
             begin
               LDrawW := targetW;
@@ -1861,12 +1458,12 @@ begin
               begin
                 imgAspectRatio := LImgW / LImgH;
                 targetAspectRatio := targetW / targetH;
-                if targetAspectRatio > imgAspectRatio then // Fit to target height
+                if targetAspectRatio > imgAspectRatio then
                 begin
                   LDrawH := targetH;
                   LDrawW := Round(LDrawH * imgAspectRatio);
                 end
-                else // Fit to target width
+                else
                 begin
                   LDrawW := targetW;
                   LDrawH := Round(LDrawW / imgAspectRatio);
@@ -1877,11 +1474,8 @@ begin
             begin
               LDrawW := LImgW;
               LDrawH := LImgH;
-              // Optionally clip to target dimensions if idmNormal should not exceed target
-              // LDrawW := Min(LDrawW, targetW);
-              // LDrawH := Min(LDrawH, targetH);
             end;
-          else // Should not happen, but default to normal (respecting original image size)
+          else
             LDrawW := LImgW; LDrawH := LImgH;
           end;
         end;
@@ -1889,68 +1483,64 @@ begin
         LDrawW := Max(0, LDrawW);
         LDrawH := Max(0, LDrawH);
 
-        // Clip LDrawW and LDrawH to AvailableWidth and AvailableHeight if they exceed
-        // This is important especially for idmNormal or when TargetWidth/Height are larger than available space
         if LDrawW > AvailableWidth then LDrawW := AvailableWidth;
         if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
 
-        imageCanvasX := LImageClipRect.Left + FImageSettings.Margins.Left;
-        imageCanvasY := LImageClipRect.Top + FImageSettings.Margins.Top;
+        imageCanvasX := LImageClipRect.Left + ImageSettings.Margins.Left;
+        imageCanvasY := LImageClipRect.Top + ImageSettings.Margins.Top;
 
-        case FImageSettings.HorizontalAlign of
+        case ImageSettings.HorizontalAlign of
           ihaLeft:   LImgX := imageCanvasX;
           ihaCenter: LImgX := imageCanvasX + (AvailableWidth - LDrawW) div 2;
           ihaRight:  LImgX := imageCanvasX + AvailableWidth - LDrawW;
-        else LImgX := imageCanvasX; // Default to left
+        else LImgX := imageCanvasX;
         end;
 
-        case FImageSettings.VerticalAlign of
+        case ImageSettings.VerticalAlign of
           ivaTop:    LImgY := imageCanvasY;
           ivaCenter: LImgY := imageCanvasY + (AvailableHeight - LDrawH) div 2;
           ivaBottom: LImgY := imageCanvasY + AvailableHeight - LDrawH;
-        else LImgY := imageCanvasY; // Default to top
+        else LImgY := imageCanvasY;
         end;
 
-        // Adjust LTextArea based on image position and dimensions
         case FImagePosition of
           ipLeft:
-            LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right,
-                              LImageClipRect.Bottom - FTextMargins.Bottom);
+            LTextArea := Rect(LImgX + LDrawW + ImageSettings.Margins.Right + CaptionSettings.Margins.Left,
+                              LImageClipRect.Top + CaptionSettings.Margins.Top,
+                              LImageClipRect.Right - CaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
           ipRight:
-            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
-                              LImgX - FImageSettings.Margins.Left - FTextMargins.Right,
-                              LImageClipRect.Bottom - FTextMargins.Bottom);
+            LTextArea := Rect(LImageClipRect.Left + CaptionSettings.Margins.Left,
+                              LImageClipRect.Top + CaptionSettings.Margins.Top,
+                              LImgX - ImageSettings.Margins.Left - CaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
           ipAbove:
-            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
-                              LImgY + LDrawH + FImageSettings.Margins.Bottom + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right,
-                              LImageClipRect.Bottom - FTextMargins.Bottom);
+            LTextArea := Rect(LImageClipRect.Left + CaptionSettings.Margins.Left,
+                              LImgY + LDrawH + ImageSettings.Margins.Bottom + CaptionSettings.Margins.Top,
+                              LImageClipRect.Right - CaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
           ipBelow:
-            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right,
-                              LImgY - FImageSettings.Margins.Top - FTextMargins.Bottom);
-          ipBehind: // Text area covers the whole space, image is behind
-            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
-        else // Default to ipLeft behavior for LTextArea
-           LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right,
-                              LImageClipRect.Bottom - FTextMargins.Bottom);
+            LTextArea := Rect(LImageClipRect.Left + CaptionSettings.Margins.Left,
+                              LImageClipRect.Top + CaptionSettings.Margins.Top,
+                              LImageClipRect.Right - CaptionSettings.Margins.Right,
+                              LImgY - ImageSettings.Margins.Top - CaptionSettings.Margins.Bottom);
+          ipBehind:
+            LTextArea := Rect(LImageClipRect.Left + CaptionSettings.Margins.Left, LImageClipRect.Top + CaptionSettings.Margins.Top,
+                              LImageClipRect.Right - CaptionSettings.Margins.Right, LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
+        else
+           LTextArea := Rect(LImgX + LDrawW + ImageSettings.Margins.Right + CaptionSettings.Margins.Left,
+                              LImageClipRect.Top + CaptionSettings.Margins.Top,
+                              LImageClipRect.Right - CaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
         end;
         LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
 
-        if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
+        if Enabled and HoverSettings.Enabled and (HoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
         begin
-          LScaleFactor := 1 + (LHoverProgress * (1.05 - 1)); // Example scale factor
+          LScaleFactor := 1 + (LHoverProgress * (1.05 - 1));
           var ScaledW, ScaledH: Integer;
           ScaledW := Round(LDrawW * LScaleFactor);
           ScaledH := Round(LDrawH * LScaleFactor);
-          // Adjust LDestRect for scaling, centered on original LImgX, LImgY + LDrawW/2, LDrawH/2
           LDestRect.Left := LImgX + (LDrawW - ScaledW) div 2;
           LDestRect.Top := LImgY + (LDrawH - ScaledH) div 2;
           LDestRect.Right := LDestRect.Left + ScaledW;
@@ -1959,20 +1549,20 @@ begin
 
         if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
         begin
-          if FImageSettings.Picture.Graphic is TPNGImage then
-            DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, LDestRect, idmStretch) // Always stretch
-          else if FImageSettings.Picture.Graphic <> nil then
-            DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, LDestRect, idmStretch); // Always stretch
+          if ImageSettings.Picture.Graphic is TPNGImage then
+            DrawPNGImageWithGDI(LG, ImageSettings.Picture.Graphic as TPNGImage, LDestRect, idmStretch)
+          else if ImageSettings.Picture.Graphic <> nil then
+            DrawNonPNGImageWithCanvas(Self.Canvas, ImageSettings.Picture.Graphic, LDestRect, idmStretch);
         end;
       end
-      else // No image or image not visible
+      else
       begin
-        LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                          LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
+        LTextArea := Rect(LImageClipRect.Left + CaptionSettings.Margins.Left, LImageClipRect.Top + CaptionSettings.Margins.Top,
+                          LImageClipRect.Right - CaptionSettings.Margins.Right, LImageClipRect.Bottom - CaptionSettings.Margins.Bottom);
       end;
 
-      if Trim(Self.FCaption) <> '' then
-        LFinalCaptionToDraw := Self.FCaption
+      if Trim(CaptionSettings.Text) <> '' then
+        LFinalCaptionToDraw := CaptionSettings.Text
       else if Trim(LPresetDefaultCaption) <> '' then
         LFinalCaptionToDraw := LPresetDefaultCaption
       else
@@ -1983,32 +1573,31 @@ begin
       begin
         LCurrentTitleFont := TFont.Create;
         try
-          LCurrentTitleFont.Assign(FCaptionSettings.Font); // Use FCaptionSettings.Font
+          LCurrentTitleFont.Assign(CaptionSettings.Font);
 
-          if Enabled then // Font color/size adjustments based on state (hover, click), only if not processing
+          if Enabled then
           begin
-            if GetEnableHoverEffect and (LHoverProgress > 0) and not FProcessing then // Added not FProcessing
+            if HoverSettings.Enabled and (LHoverProgress > 0) and not FProcessing then
             begin
-              if FInternalHoverSettings.FontColor <> clNone then
-                LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, FInternalHoverSettings.FontColor, LHoverProgress) // Use FCaptionSettings.Font.Color
-              else if FInternalHoverSettings.HoverEffect = heFade then
-                LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, LighterColor(LActualFillColor, 80), LHoverProgress * 0.5); // Use FCaptionSettings.Font.Color
+              if HoverSettings.FontColor <> clNone then
+                LCurrentTitleFont.Color := BlendColors(CaptionSettings.Font.Color, HoverSettings.FontColor, LHoverProgress)
+              else if HoverSettings.HoverEffect = heFade then
+                LCurrentTitleFont.Color := BlendColors(CaptionSettings.Font.Color, LighterColor(LActualFillColor, 80), LHoverProgress * 0.5);
 
-              if FInternalHoverSettings.HoverEffect = heScale then
-                LCurrentTitleFont.Size := Round(FCaptionSettings.Font.Size * (1 + LHoverProgress * (1.05 - 1))); // Use FCaptionSettings.Font.Size
+              if HoverSettings.HoverEffect = heScale then
+                LCurrentTitleFont.Size := Round(CaptionSettings.Font.Size * (1 + LHoverProgress * (1.05 - 1)));
             end;
 
-            if FClickEffectActive and (LClickProgress > 0) and (FClickEffectDuration > 0) and not FProcessing then // Added not FProcessing
+            if FClickEffectActive and (LClickProgress > 0) and (FClickEffectDuration > 0) and not FProcessing then
             begin
               if FClickTitleColor <> clNone then
                 LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickTitleColor, LClickProgress);
             end;
           end
-          else if not Enabled then // Disabled state font color
+          else if not Enabled then
           begin
-            LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, clGray, 0.6); // Use FCaptionSettings.Font.Color
+            LCurrentTitleFont.Color := BlendColors(CaptionSettings.Font.Color, clGray, 0.6);
           end;
-          // If FProcessing, the original FCaptionSettings.Font.Color is used unless hidden
 
           if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
           if LTextArea.Bottom < LTextArea.Top then LTextArea.Bottom := LTextArea.Top;
@@ -2019,13 +1608,13 @@ begin
 
           if (LTextArea.Width > 0) and (LTextArea.Height > 0) then
           begin
-            DrawComponentCaption( Self.Canvas, LTextArea, LFinalCaptionToDraw, LCurrentTitleFont, LCurrentTitleFont.Color, FCaptionSettings.Alignment, cvaCenter, False, 255 ); // Use FCaptionSettings.Alignment
+            DrawComponentCaption( Self.Canvas, LTextArea, LFinalCaptionToDraw, LCurrentTitleFont, LCurrentTitleFont.Color, CaptionSettings.Alignment, cvaCenter, False, 255 );
           end;
         finally
           LCurrentTitleFont.Free;
         end;
       end;
-    end; // End of "if not (FProcessing and FShowProgress and FHideCaptionWhileProcessing) then"
+    end;
 
   finally
     LG.Free;

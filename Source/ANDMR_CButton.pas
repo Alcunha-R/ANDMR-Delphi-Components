@@ -1156,7 +1156,116 @@ begin
     else
       BorderColorToUse := clNone;
 
-    DrawEditBox(LG, DrawAreaRect, BgColorToUse, BorderColorToUse, LActualBorderThickness, BorderSettings.Style, Round(LRadiusValue), BorderSettings.RoundCornerType, 255);
+    // ===== NEW GRADIENT/SOLID FILL AND BORDER LOGIC START =====
+    var
+      ButtonBodyPath: TGPGraphicsPath;
+      PathRectF: TGPRectF; // This will be the rect for CreateGPRoundedPath
+      // LRadiusValue is already declared and calculated before the original DrawEditBox
+      // LPathInset is already declared
+
+    // Define PathRectF based on ButtonRectEffectiveF, adjusted for border thickness
+    if LActualBorderThickness > 0 then
+    begin
+      PathRectF.X      := ButtonRectEffectiveF.X + LActualBorderThickness / 2.0;
+      PathRectF.Y      := ButtonRectEffectiveF.Y + LActualBorderThickness / 2.0;
+      PathRectF.Width  := ButtonRectEffectiveF.Width - LActualBorderThickness;
+      PathRectF.Height := ButtonRectEffectiveF.Height - LActualBorderThickness;
+    end
+    else
+    begin
+      PathRectF.X      := ButtonRectEffectiveF.X;
+      PathRectF.Y      := ButtonRectEffectiveF.Y;
+      PathRectF.Width  := ButtonRectEffectiveF.Width;
+      PathRectF.Height := ButtonRectEffectiveF.Height;
+    end;
+    PathRectF.Width  := Max(0.0, PathRectF.Width);
+    PathRectF.Height := Max(0.0, PathRectF.Height);
+
+    // LRadiusValue should be confirmed to be in scope and correctly calculated
+    // based on the final ButtonRectEffectiveF before this block.
+    // Assuming LRadiusValue is already correctly calculated (as it was for the original DrawEditBox call).
+
+    if (PathRectF.Width > 0) and (PathRectF.Height > 0) then
+    begin
+      ButtonBodyPath := TGPGraphicsPath.Create;
+      try
+        // Note: LRadiusValue is used here, ensure it's the correct one for the current PathRectF context
+        CreateGPRoundedPath(ButtonBodyPath, PathRectF, LRadiusValue, BorderSettings.RoundCornerType);
+
+        if ButtonBodyPath.GetPointCount > 0 then
+        begin
+          // Fill Logic
+          if LDrawFill and not FTransparent then
+          begin
+            if LCurrentGradientEnabled and FGradientSettings.Enabled then
+            begin
+              var GradientBrush: TGPLinearGradientBrush;
+              var ResolvedStartColor, ResolvedEndColor: TColor;
+              var GradRect: TGPRectF;
+              var LinGradMode: Integer;
+
+              ResolvedStartColor := FGradientSettings.StartColor;
+              if ResolvedStartColor = clNone then
+                ResolvedStartColor := LActualFillColor;
+
+              ResolvedEndColor := FGradientSettings.EndColor;
+              if ResolvedEndColor = clNone then
+                ResolvedEndColor := DarkerColor(ResolvedStartColor, GRADIENT_DARK_FACTOR);
+
+              GradRect := PathRectF;
+
+              case FGradientSettings.GradientType of
+                gtLinearVertical: LinGradMode := 1;
+                gtLinearHorizontal: LinGradMode := 0;
+              else
+                LinGradMode := 1;
+              end;
+
+              GradientBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(ResolvedStartColor), ColorToARGB(ResolvedEndColor), LinGradMode);
+              try
+                LG.FillPath(GradientBrush, ButtonBodyPath);
+              finally
+                GradientBrush.Free;
+              end;
+            end
+            else // Solid Fill
+            begin
+              var FillBrush: TGPSolidBrush;
+              FillBrush := TGPSolidBrush.Create(ColorToARGB(LActualFillColor));
+              try
+                LG.FillPath(FillBrush, ButtonBodyPath);
+              finally
+                FillBrush.Free;
+              end;
+            end;
+          end;
+
+          // Border Drawing Logic
+          if LDrawBorder and (LActualBorderThickness > 0) and (LActualBorderColor <> clNone) and (BorderSettings.Style <> psClear) then
+          begin
+            var BorderPen: TGPPen;
+            BorderPen := TGPPen.Create(ColorToARGB(LActualBorderColor), LActualBorderThickness);
+            try
+              case BorderSettings.Style of
+                psSolid:      BorderPen.SetDashStyle(DashStyleSolid);
+                psDash:       BorderPen.SetDashStyle(DashStyleDash);
+                psDot:        BorderPen.SetDashStyle(DashStyleDot);
+                psDashDot:    BorderPen.SetDashStyle(DashStyleDashDot);
+                psDashDotDot: BorderPen.SetDashStyle(DashStyleDashDotDot);
+              else
+                BorderPen.SetDashStyle(DashStyleSolid);
+              end;
+              LG.DrawPath(BorderPen, ButtonBodyPath);
+            finally
+              BorderPen.Free;
+            end;
+          end;
+        end;
+      finally
+        ButtonBodyPath.Free;
+      end;
+    end;
+    // ===== NEW GRADIENT/SOLID FILL AND BORDER LOGIC END =====
 
     LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
                               Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),

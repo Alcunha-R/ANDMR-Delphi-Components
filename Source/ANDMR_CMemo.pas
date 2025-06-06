@@ -141,12 +141,12 @@ begin
 
   FBorderSettings := TBorderSettings.Create;
   FBorderSettings.OnChange := SettingsChanged;
-  FBorderSettings.CornerRadius := 8;
+  FBorderSettings.CornerRadius := 4; // Modernized
   FBorderSettings.RoundCornerType := rctAll;
-  FBorderSettings.Color := clBlack;
+  FBorderSettings.Color := clSilver; // Modernized
   FBorderSettings.Thickness := 1;
   FBorderSettings.Style := psSolid;
-  FBorderSettings.BackgroundColor := clBtnFace;
+  FBorderSettings.BackgroundColor := clWindow; // Modernized
 
   FFocusSettings := TFocusSettings.Create;
   FFocusSettings.OnChange := SettingsChanged;
@@ -155,7 +155,7 @@ begin
   FFocusSettings.BackgroundColorVisible := False;
   FFocusSettings.BackgroundColor := clWindow;
   FFocusSettings.UnderlineVisible := False;
-  FFocusSettings.UnderlineColor := clBlack;
+  FFocusSettings.UnderlineColor := clHighlight; // Modernized
   FFocusSettings.UnderlineThickness := 1;
   FFocusSettings.UnderlineStyle := psSolid;
 
@@ -169,7 +169,7 @@ begin
   FSeparatorSettings.CustomHeight := 0;
 
   FImageSettings := TImageSettings.Create(Self);
-  FImageSettings.OnChange := SettingsChanged; // Ensure this calls the general SettingsChanged
+  FImageSettings.OnChange := SettingsChanged;
   FImageSettings.Visible := True;
   FImageSettings.Position := ipsLeft;
   FImageSettings.AlignmentVertical := iavCenter;
@@ -178,6 +178,8 @@ begin
 
   FCaptionSettings := TCaptionSettings.Create(Self);
   FCaptionSettings.OnChange := CaptionSettingsChanged;
+  FCaptionSettings.Font.Style := [fsBold]; // Modernized
+  FCaptionSettings.Font.Color := clGrayText; // Modernized
   FHoverSettings := THoverSettings.Create(Self);
   FHoverSettings.OnChange := HoverSettingsChanged;
   FTextMargins := TANDMR_Margins.Create;
@@ -198,7 +200,7 @@ begin
   FInternalMemo.WordWrap := True;
   FInternalMemo.ScrollBars := ssVertical;
   FInternalMemo.Font.Assign(Self.Font);
-  FInternalMemo.Color := FBorderSettings.BackgroundColor;
+  FInternalMemo.Color := FBorderSettings.BackgroundColor; // Will now correctly be clWindow
 
   FInternalMemo.OnChange := InternalMemoChange;
   FInternalMemo.OnEnter := InternalMemoEnter;

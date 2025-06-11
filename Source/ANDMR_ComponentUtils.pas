@@ -47,68 +47,67 @@ type
     cepsSuccess
   );
 
-  TTagType = (ttDefault, ttString, ttExtended, ttObject);
-
   TProgressAnimationStyle = (pasRotatingSemiCircle, pasFullCircularSpinner, pasHorizontalBar, pasBouncingDots);
 
   TImageHorizontalAlignment = (ihaLeft, ihaCenter, ihaRight);
   TImageVerticalAlignment = (ivaTop, ivaCenter, ivaBottom);
 
-  TANDMR_Tag = class(TPersistent)
+  TClickSettings = class(TPersistent)
   private
-    FValue: Variant;
-    FType: TTagType;
+    FEnabled: Boolean;
+    FColor: TColor;
+    FBorderColor: TColor;
+    FFontColor: TColor;
+    FDuration: Integer;
     FOnChange: TNotifyEvent;
-    procedure SetValue(const AValue: Variant);
-    procedure SetType(const AValue: TTagType);
+    procedure SetEnabled(const Value: Boolean);
+    procedure SetColor(const Value: TColor);
+    procedure SetBorderColor(const Value: TColor);
+    procedure SetFontColor(const Value: TColor);
+    procedure SetDuration(const Value: Integer);
   protected
     procedure Changed; virtual;
   public
     constructor Create;
     procedure Assign(Source: TPersistent); override;
   published
-    property Value: Variant read FValue write SetValue;
-    property TagType: TTagType read FType write SetType default ttDefault;
+    property Enabled: Boolean read FEnabled write SetEnabled default True;
+    property Color: TColor read FColor write SetColor default clNone;
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clNone;
+    property FontColor: TColor read FFontColor write SetFontColor default clNone;
+    property Duration: Integer read FDuration write SetDuration default 100;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-  TANDMR_TagString = class(TANDMR_Tag)
+  TANDMR_MultiTag = class(TPersistent)
   private
-    procedure SetStringValue(const AValue: string);
-    function GetStringValue: string;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property AsString: string read GetStringValue write SetStringValue;
-  end;
+    // Campos privados para armazenar cada tipo de valor
+    FTag: NativeInt;
+    FString: string;
+    FExtended: TStringList;
+    FObject: TObject;
+    FOnChange: TNotifyEvent;
 
-  TANDMR_TagExtended = class(TANDMR_Tag)
-  private
-    FItems: TStringList;
-    function GetItems: TStringList;
-    procedure SetItems(const AValue: TStringList);
+    // Setters que notificam a mudança
+    procedure SetTag(const Value: NativeInt);
+    procedure SetString(const Value: string);
+    procedure SetExtended(const Value: TStringList);
+    procedure SetObject(const Value: TObject);
+    procedure ExtendedChanged(Sender: TObject);
   protected
-    procedure ItemsChanged(Sender: TObject);
+    procedure Changed; virtual;
   public
     constructor Create;
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
   published
-    property Items: TStringList read GetItems write SetItems;
-  end;
+    // Estas são as propriedades que aparecerão no Object Inspector
+    property AsTag: NativeInt read FTag write SetTag default 0;
+    property AsString: string read FString write SetString;
+    property AsExtended: TStringList read FExtended write SetExtended;
+    property AsObject: TObject read FObject write SetObject;
 
-  TANDMR_TagObject = class(TANDMR_Tag)
-  private
-    FObjectValue: TObject; // Keep a direct reference for type safety
-    procedure SetObjectValue(const AValue: TObject);
-    function GetObjectValue: TObject;
-  public
-    constructor Create;
-    destructor Destroy; override;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property ObjectValue: TObject read GetObjectValue write SetObjectValue;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
   TANDMR_Margins = class(TPersistent)
@@ -506,11 +505,55 @@ function ResolveStateColor(
   AFallbackToTransparent: Boolean = False
 ): TColor;
 
+function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: Integer): TRect;
+
 implementation
 
 uses
   System.Math,
   Winapi.ActiveX;
+
+{ TClickSettings }
+
+constructor TClickSettings.Create;
+begin
+  inherited Create;
+  FEnabled := True;
+  FColor := clNone;
+  FBorderColor := clNone;
+  FFontColor := clNone;
+  FDuration := 100;
+end;
+
+procedure TClickSettings.Assign(Source: TPersistent);
+var
+  LSource: TClickSettings;
+begin
+  if Source is TClickSettings then
+  begin
+    LSource := TClickSettings(Source);
+    Self.FEnabled := LSource.FEnabled;
+    Self.FColor := LSource.FColor;
+    Self.FBorderColor := LSource.FBorderColor;
+    Self.FFontColor := LSource.FFontColor;
+    Self.FDuration := LSource.FDuration;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TClickSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TClickSettings.SetEnabled(const Value: Boolean); begin if FEnabled <> Value then begin FEnabled := Value; Changed; end; end;
+procedure TClickSettings.SetColor(const Value: TColor); begin if FColor <> Value then begin FColor := Value; Changed; end; end;
+procedure TClickSettings.SetBorderColor(const Value: TColor); begin if FBorderColor <> Value then begin FBorderColor := Value; Changed; end; end;
+procedure TClickSettings.SetFontColor(const Value: TColor); begin if FFontColor <> Value then begin FFontColor := Value; Changed; end; end;
+procedure TClickSettings.SetDuration(const Value: Integer); begin if FDuration <> Max(0, Value) then begin FDuration := Max(0, Value); Changed; end; end;
 
 { TBorderSettings }
 
@@ -944,220 +987,86 @@ begin
   end;
 end;
 
-{ TANDMR_Tag }
+{ TANDMR_MultiTag }
 
-constructor TANDMR_Tag.Create;
+constructor TANDMR_MultiTag.Create;
 begin
   inherited Create;
-  FType := ttDefault;
-  FValue := Null;
+  FTag := 0;
+  FString := '';
+  FObject := nil;
+  // É crucial criar a instância do TStringList
+  FExtended := TStringList.Create;
+  // E atribuir o evento para que as mudanças dentro dele sejam detectadas
+  FExtended.OnChange := ExtendedChanged;
 end;
 
-procedure TANDMR_Tag.Assign(Source: TPersistent);
-var
-  LSource: TANDMR_Tag;
+destructor TANDMR_MultiTag.Destroy;
 begin
-  if Source is TANDMR_Tag then
+  FExtended.Free;
+  // FObject não é liberado aqui, pois o componente não é seu "dono".
+  inherited Destroy;
+end;
+
+procedure TANDMR_MultiTag.Assign(Source: TPersistent);
+var
+  LSource: TANDMR_MultiTag;
+begin
+  if Source is TANDMR_MultiTag then
   begin
-    LSource := TANDMR_Tag(Source);
-    SetType(LSource.TagType);
-    SetValue(LSource.Value);
+    LSource := TANDMR_MultiTag(Source);
+    Self.FTag := LSource.FTag;
+    Self.FString := LSource.FString;
+    Self.FObject := LSource.FObject;
+    Self.FExtended.Assign(LSource.FExtended);
+    Changed; // Notifica uma única vez após todas as atribuições
   end
   else
     inherited Assign(Source);
 end;
 
-procedure TANDMR_Tag.Changed;
+procedure TANDMR_MultiTag.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
-procedure TANDMR_Tag.SetValue(const AValue: Variant);
+procedure TANDMR_MultiTag.ExtendedChanged(Sender: TObject);
 begin
-  if FValue <> AValue then
+  Changed; // Repassa a notificação de mudança do TStringList
+end;
+
+procedure TANDMR_MultiTag.SetTag(const Value: NativeInt);
+begin
+  if FTag <> Value then
   begin
-    FValue := AValue;
+    FTag := Value;
     Changed;
   end;
 end;
 
-procedure TANDMR_Tag.SetType(const AValue: TTagType);
+procedure TANDMR_MultiTag.SetString(const Value: string);
 begin
-  if FType <> AValue then
+  if FString <> Value then
   begin
-    FType := AValue;
+    FString := Value;
     Changed;
   end;
 end;
 
-{ TANDMR_TagString }
-
-constructor TANDMR_TagString.Create;
+procedure TANDMR_MultiTag.SetExtended(const Value: TStringList);
 begin
-  inherited Create;
-  FType := ttString;
-  FValue := '';
+  FExtended.Assign(Value);
+  // O Assign já dispara o OnChange do FExtended, que chama o Changed.
 end;
 
-procedure TANDMR_TagString.Assign(Source: TPersistent);
+procedure TANDMR_MultiTag.SetObject(const Value: TObject);
 begin
-  inherited Assign(Source);
-  if Source is TANDMR_TagString then
+  if FObject <> Value then
   begin
-    // Parent assigns FValue and FType
-  end
-  else if Source is TANDMR_Tag then
-  begin
-    if TagType <> ttString then
-       SetType(ttString);
-  end;
-end;
-
-function TANDMR_TagString.GetStringValue: string;
-begin
-  if VarIsNull(FValue) or VarIsEmpty(FValue) then
-    Result := ''
-  else
-    Result := VarToStr(FValue);
-end;
-
-procedure TANDMR_TagString.SetStringValue(const AValue: string);
-begin
-  SetValue(AValue);
-  if TagType <> ttString then
-    SetType(ttString);
-end;
-
-{ TANDMR_TagExtended }
-
-constructor TANDMR_TagExtended.Create;
-begin
-  inherited Create;
-  FType := ttExtended;
-  FItems := TStringList.Create;
-  FItems.OnChange := ItemsChanged;
-end;
-
-destructor TANDMR_TagExtended.Destroy;
-begin
-  if Assigned(FItems) then
-  begin
-    FItems.OnChange := nil;
-    FItems.Free;
-    FItems := nil;
-  end;
-  inherited Destroy;
-end;
-
-procedure TANDMR_TagExtended.Assign(Source: TPersistent);
-begin
-  inherited Assign(Source);
-  if Source is TANDMR_TagExtended then
-  begin
-    SetItems(TANDMR_TagExtended(Source).Items);
-  end
-  else if Source is TANDMR_Tag then
-  begin
-     if TagType <> ttExtended then
-       SetType(ttExtended);
-  end;
-end;
-
-function TANDMR_TagExtended.GetItems: TStringList;
-begin
-  Result := FItems;
-end;
-
-procedure TANDMR_TagExtended.SetItems(const AValue: TStringList);
-begin
-  if AValue <> FItems then
-  begin
-    FItems.Assign(AValue);
+    FObject := Value;
     Changed;
   end;
-end;
-
-procedure TANDMR_TagExtended.ItemsChanged(Sender: TObject);
-begin
-  Changed;
-end;
-
-{ TANDMR_TagObject }
-
-constructor TANDMR_TagObject.Create;
-begin
-  inherited Create;
-  FType := ttObject;
-  FObjectValue := nil;
-end;
-
-destructor TANDMR_TagObject.Destroy;
-begin
-  FObjectValue := nil;
-  inherited Destroy;
-end;
-
-function TANDMR_TagObject.GetObjectValue: TObject;
-begin
-  Result := FObjectValue;
-end;
-
-procedure TANDMR_TagObject.Assign(Source: TPersistent);
-var
-  LSourceTagObject: TANDMR_TagObject;
-  LSourceTag: TANDMR_Tag;
-  OldObjectValue: TObject;
-begin
-  inherited Assign(Source);
-
-  if Source is TANDMR_TagObject then
-  begin
-    LSourceTagObject := TANDMR_TagObject(Source);
-    SetObjectValue(LSourceTagObject.ObjectValue);
-  end
-  else if Source is TANDMR_Tag then
-  begin
-    LSourceTag := TANDMR_Tag(Source);
-    OldObjectValue := FObjectValue;
-
-    if (LSourceTag.Value <> Null) then
-    begin
-      if VarType(LSourceTag.Value) = varObject then
-      begin
-        FObjectValue := System.TVarData(LSourceTag.Value).VDispatch;
-      end
-      else if VarType(LSourceTag.Value) = varUnknown then
-      begin
-        try
-          FObjectValue := IUnknown(LSourceTag.Value) as TObject;
-        except
-          FObjectValue := nil;
-        end;
-      end
-      else
-        FObjectValue := nil;
-    end
-    else
-      FObjectValue := nil;
-
-    if OldObjectValue <> FObjectValue then
-      Changed;
-
-    if TagType <> ttObject then
-      SetType(ttObject);
-  end;
-end;
-
-procedure TANDMR_TagObject.SetObjectValue(const AValue: TObject);
-begin
-  if FObjectValue <> AValue then
-  begin
-    FObjectValue := AValue;
-    Changed;
-  end;
-  if TagType <> ttObject then
-    SetType(ttObject);
 end;
 
 { TANDMR_Margins }
@@ -1209,7 +1118,7 @@ begin
   FColor := clWindowText;
   FWordWrap := False;
   FVerticalAlignment := cvaCenter;
-  FOffset.Create(0,0);
+  FOffset := System.Types.Point(0, 0);
   FDisabledColor := clGrayText;
   FMargins := TANDMR_Margins.Create; // Added
   FMargins.OnChange := InternalMarginsChanged; // Added
@@ -1834,46 +1743,7 @@ begin
   case ADrawMode of
     idmStretch:
       DrawImageRect := ADestRect;
-    idmProportional:
-      begin
-        if (GraphicH = 0) or (GraphicW = 0) then
-        begin
-            DrawImageRect := System.Types.Rect(ADestRect.Left, ADestRect.Top, ADestRect.Left, ADestRect.Top);
-        end else
-        begin
-          rRatio := GraphicW / GraphicH;
-          if ADestRect.Height > 0 then
-            rRectRatio := ADestRect.Width / ADestRect.Height
-          else
-            rRectRatio := MaxDouble;
-
-          if rRectRatio > rRatio then
-          begin
-            DrawImageRect.Height := ADestRect.Height;
-            tempCalculatedW := ADestRect.Height * rRatio;
-            DrawImageRect.Width := Round(tempCalculatedW);
-            if (DrawImageRect.Width = 0) and (tempCalculatedW > 0) and (ADestRect.Width > 0) then
-              DrawImageRect.Width := 1;
-          end
-          else
-          begin
-            DrawImageRect.Width := ADestRect.Width;
-            if rRatio > 0 then
-            begin
-              tempCalculatedH := ADestRect.Width / rRatio;
-              DrawImageRect.Height := Round(tempCalculatedH);
-              if (DrawImageRect.Height = 0) and (tempCalculatedH > 0) and (ADestRect.Height > 0) then
-                DrawImageRect.Height := 1;
-            end
-            else
-              DrawImageRect.Height := 0;
-          end;
-        end;
-        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2;
-        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2;
-        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
-        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
-      end;
+    idmProportional: DrawImageRect := CalculateProportionalRect(ADestRect, APNG.Width, APNG.Height);
     idmNormal:
       begin
         DrawImageRect.Width := GraphicW;
@@ -1914,7 +1784,7 @@ begin
   except
     on E: Exception do
     begin
-      // Log error
+      OutputDebugString(PChar('Erro ao desenhar PNG com GDI+: ' + E.Message)); // <<--- Adicione esta linha
     end;
   end;
   PngStream.Free;
@@ -1942,41 +1812,7 @@ begin
   case ADrawMode of
     idmStretch:
       DrawImageRect := ADestRect;
-    idmProportional:
-      begin
-        rRatio := GraphicW / GraphicH;
-        if ADestRect.Height > 0 then
-          rRectRatio := ADestRect.Width / ADestRect.Height
-        else
-          rRectRatio := MaxDouble;
-
-        if rRectRatio > rRatio then
-        begin
-          DrawImageRect.Height := ADestRect.Height;
-          tempCalculatedW := ADestRect.Height * rRatio;
-          DrawImageRect.Width := Round(tempCalculatedW);
-          if (DrawImageRect.Width = 0) and (tempCalculatedW > 0) and (ADestRect.Width > 0) then
-            DrawImageRect.Width := 1;
-        end
-        else
-        begin
-          DrawImageRect.Width := ADestRect.Width;
-          if rRatio > 0 then
-          begin
-            tempCalculatedH := ADestRect.Width / rRatio;
-            DrawImageRect.Height := Round(tempCalculatedH);
-            if (DrawImageRect.Height = 0) and (tempCalculatedH > 0) and (ADestRect.Height > 0) then
-              DrawImageRect.Height := 1;
-          end
-          else
-            DrawImageRect.Height := 0;
-        end;
-
-        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2;
-        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2;
-        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
-        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
-      end;
+    idmProportional: DrawImageRect := CalculateProportionalRect(ADestRect, AGraphic.Width, AGraphic.Height);
     idmNormal:
       begin
         DrawImageRect.Width := GraphicW;
@@ -2206,6 +2042,37 @@ begin
   begin
     Result := ABaseColor;
   end;
+end;
+
+// Adicionar esta função na seção de implementação
+function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: Integer): TRect;
+var
+  Ratio, RectRatio: Double;
+begin
+  if (ImgWidth <= 0) or (ImgHeight <= 0) or (DestRect.Width <= 0) or (DestRect.Height <= 0) then
+  begin
+    Result := System.Types.Rect(DestRect.Left, DestRect.Top, DestRect.Left, DestRect.Top);
+    Exit;
+  end;
+
+  Ratio := ImgWidth / ImgHeight;
+  RectRatio := DestRect.Width / DestRect.Height;
+
+  if RectRatio > Ratio then
+  begin
+    Result.Height := DestRect.Height;
+    Result.Width := Round(DestRect.Height * Ratio);
+  end
+  else
+  begin
+    Result.Width := DestRect.Width;
+    Result.Height := Round(DestRect.Width / Ratio);
+  end;
+
+  Result.Left := DestRect.Left + (DestRect.Width - Result.Width) div 2;
+  Result.Top := DestRect.Top + (DestRect.Height - Result.Height) div 2;
+  Result.Right := Result.Left + Result.Width;
+  Result.Bottom := Result.Top + Result.Height;
 end;
 
 end.

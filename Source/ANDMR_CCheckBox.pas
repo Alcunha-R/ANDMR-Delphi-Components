@@ -14,7 +14,7 @@ type
   TANDMR_CCheckBoxStyle = (cbsCustom, cbsLight, cbsDark, cbsMaterial, cbsFlat, cbsModern,
                           cbsGhost, cbsFaded, cbsBordered, cbsIOS, cbsWin11);
 
-  // Enumeração para a posição do indicador de "marcado" (o elemento de check)
+  // EnumeraÃ§Ã£o para a posiÃ§Ã£o do indicador de "marcado" (o elemento de check)
   TCheckBoxIndicatorPosition = (
     cipLeftTop, cipLeftCenter, cipLeftBottom,
     cipTopLeft, cipTopCenter, cipTopRight,

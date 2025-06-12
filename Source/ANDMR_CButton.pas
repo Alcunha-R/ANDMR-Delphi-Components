@@ -647,66 +647,158 @@ end;
 
 procedure TANDMR_CButton.PaintContent(AGraphics: TGPGraphics; const ADrawRect: TRect);
 var
-  LImageRect, LTextRect, LContentRect, DrawImageRect: TRect;
-  LImgW, LImgH: Integer;
+  LContentRect, LImageRect, LTextRect: TRect;
+  LImgW, LImgH, LDrawW, LDrawH, LImgX, LImgY: Integer;
+  AvailableWidth, AvailableHeight: Integer;
   LCurrentTitleFont: TFont;
+  imgRatio, availRatio: Double;
+  // Variáveis para a abordagem Híbrida com AlphaBlend
+  SourceBmp: Vcl.Graphics.TBitmap;
+  BlendFunc: TBlendFunction;
 begin
   LContentRect := ADrawRect;
-  InflateRect(LContentRect, -FBorderSettings.Thickness - FCaptionSettings.Margins.Left, -FBorderSettings.Thickness - FCaptionSettings.Margins.Top);
+  InflateRect(LContentRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
 
+  // --- 1. Calcular dimensões e posição da imagem (Lógica existente, que está correta) ---
   LImgW := 0; LImgH := 0;
+  LDrawW := 0; LDrawH := 0;
+  LImgX := 0; LImgY := 0;
+  LImageRect := System.Types.Rect(0,0,0,0);
+  LTextRect := Rect(LContentRect.Left + FCaptionSettings.Margins.Left,
+                    LContentRect.Top + FCaptionSettings.Margins.Top,
+                    LContentRect.Right - FCaptionSettings.Margins.Right,
+                    LContentRect.Bottom - FCaptionSettings.Margins.Bottom);
+
   if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and FImageSettings.Visible then
   begin
-    if FImageSettings.AutoSize then
+    LImgW := FImageSettings.Picture.Graphic.Width;
+    LImgH := FImageSettings.Picture.Graphic.Height;
+
+    AvailableWidth := LContentRect.Width - (FImageSettings.Margins.Left + FImageSettings.Margins.Right);
+    AvailableHeight := LContentRect.Height - (FImageSettings.Margins.Top + FImageSettings.Margins.Bottom);
+    AvailableWidth := Max(0, AvailableWidth);
+    AvailableHeight := Max(0, AvailableHeight);
+
+    if (LImgW > 0) and (LImgH > 0) and (AvailableWidth > 0) and (AvailableHeight > 0) then
     begin
-      LImgW := LContentRect.Height - (FImageSettings.Margins.Top + FImageSettings.Margins.Bottom);
-      LImgH := LImgW;
-    end else
-    begin
-      LImgW := FImageSettings.TargetWidth;
-      LImgH := FImageSettings.TargetHeight;
+        if FImageSettings.AutoSize then
+        begin
+          case FImageSettings.DrawMode of
+            idmStretch:
+            begin
+              LDrawW := AvailableWidth;
+              LDrawH := AvailableHeight;
+            end;
+            idmProportional:
+            begin
+              imgRatio := LImgW / LImgH;
+              availRatio := AvailableWidth / AvailableHeight;
+              if availRatio > imgRatio then
+              begin
+                LDrawH := AvailableHeight;
+                LDrawW := Round(LDrawH * imgRatio);
+              end else
+              begin
+                LDrawW := AvailableWidth;
+                LDrawH := Round(LDrawW / imgRatio);
+              end;
+            end;
+            idmNormal:
+            begin
+              LDrawW := LImgW;
+              LDrawH := LImgH;
+            end;
+          else
+            begin
+              imgRatio := LImgW / LImgH;
+              availRatio := AvailableWidth / AvailableHeight;
+              if availRatio > imgRatio then
+              begin
+                LDrawH := AvailableHeight;
+                LDrawW := Round(LDrawH * imgRatio);
+              end else
+              begin
+                LDrawW := AvailableWidth;
+                LDrawH := Round(LDrawW / imgRatio);
+              end;
+            end;
+          end;
+        end else
+        begin
+            LDrawW := IfThen(FImageSettings.TargetWidth > 0, FImageSettings.TargetWidth, LImgW);
+            LDrawH := IfThen(FImageSettings.TargetHeight > 0, FImageSettings.TargetHeight, LImgH);
+        end;
+
+        LDrawW := Min(LDrawW, AvailableWidth);
+        LDrawH := Min(LDrawH, AvailableHeight);
+
+        var ImageCanvasLeft, ImageCanvasTop: Integer;
+        ImageCanvasLeft := LContentRect.Left + FImageSettings.Margins.Left;
+        ImageCanvasTop := LContentRect.Top + FImageSettings.Margins.Top;
+
+        case FImageSettings.HorizontalAlign of
+          ihaLeft:   LImgX := ImageCanvasLeft;
+          ihaCenter: LImgX := ImageCanvasLeft + (AvailableWidth - LDrawW) div 2;
+          ihaRight:  LImgX := ImageCanvasLeft + AvailableWidth - LDrawW;
+        else         LImgX := ImageCanvasLeft;
+        end;
+
+        case FImageSettings.VerticalAlign of
+          ivaTop:    LImgY := ImageCanvasTop;
+          ivaCenter: LImgY := ImageCanvasTop + (AvailableHeight - LDrawH) div 2;
+          ivaBottom: LImgY := ImageCanvasTop + AvailableHeight - LDrawH;
+        else         LImgY := ImageCanvasTop;
+        end;
+
+        LImageRect := System.Types.Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
     end;
   end;
 
-  case FImagePosition of
-    ipLeft:
-    begin
-      LImageRect := Rect(LContentRect.Left + FImageSettings.Margins.Left, LContentRect.Top, LContentRect.Left + FImageSettings.Margins.Left + LImgW, LContentRect.Bottom);
-      LTextRect := Rect(LImageRect.Right + FCaptionSettings.Margins.Left, LContentRect.Top, LContentRect.Right - FCaptionSettings.Margins.Right, LContentRect.Bottom);
-    end;
-    ipRight:
-    begin
-      LImageRect := Rect(LContentRect.Right - FImageSettings.Margins.Right - LImgW, LContentRect.Top, LContentRect.Right - FImageSettings.Margins.Right, LContentRect.Bottom);
-      LTextRect := Rect(LContentRect.Left + FCaptionSettings.Margins.Left, LContentRect.Top, LImageRect.Left - FCaptionSettings.Margins.Right, LContentRect.Bottom);
-    end;
-    ipTop:
-    begin
-      LImageRect := Rect(LContentRect.Left, LContentRect.Top, LContentRect.Right, LContentRect.Top + LImgH);
-      LTextRect := Rect(LContentRect.Left, LImageRect.Bottom + FCaptionSettings.Margins.Top, LContentRect.Right, LContentRect.Bottom);
-    end;
-    ipBottom:
-    begin
-      LTextRect := Rect(LContentRect.Left, LContentRect.Top, LContentRect.Right, LContentRect.Bottom - LImgH - FCaptionSettings.Margins.Bottom);
-      LImageRect := Rect(LContentRect.Left, LTextRect.Bottom + FCaptionSettings.Margins.Top, LContentRect.Right, LContentRect.Bottom);
-    end;
-    ipCenter:
-    begin
-      LImageRect := LContentRect;
-      LTextRect := LContentRect;
-    end;
-  else
-    LTextRect := LContentRect;
-  end;
-
-  if (LImgW > 0) and (LImgH > 0) then
+  // --- 2. Calcular área do texto com base na imagem ---
+  if not IsRectEmpty(LImageRect) and (FImagePosition <> ipBehind) and (FImagePosition <> ipCenter) then
   begin
-    DrawImageRect := CalculateProportionalRect(LImageRect, FImageSettings.Picture.Width, FImageSettings.Picture.Height);
-    if FImageSettings.Picture.Graphic is TPNGImage then
-      DrawPNGImageWithGDI(AGraphics, FImageSettings.Picture.Graphic as TPNGImage, DrawImageRect, idmProportional)
-    else
-      DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, DrawImageRect, idmProportional);
+    case FImagePosition of
+      ipLeft:   LTextRect.Left   := LImageRect.Right + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left;
+      ipRight:  LTextRect.Right  := LImageRect.Left - FImageSettings.Margins.Left - FCaptionSettings.Margins.Right;
+      ipTop, ipAbove:    LTextRect.Top    := LImageRect.Bottom + FImageSettings.Margins.Bottom + FCaptionSettings.Margins.Top;
+      ipBottom, ipBelow: LTextRect.Bottom := LImageRect.Top - FImageSettings.Margins.Top - FCaptionSettings.Margins.Bottom;
+    end;
   end;
 
+  // --- 3. Desenhar a Imagem (NOVA ABORDAGEM HÍBRIDA) ---
+  if not IsRectEmpty(LImageRect) and (FImageSettings.Picture.Graphic <> nil) then
+  begin
+    // Se for PNG, usamos a API AlphaBlend do Windows, que é a mais confiável.
+    if FImageSettings.Picture.Graphic is TPNGImage then
+    begin
+      SourceBmp := Vcl.Graphics.TBitmap.Create;
+      try
+        // Atribui o PNG a um bitmap temporário para obter um HDC (Handle to Device Context)
+        SourceBmp.Assign(FImageSettings.Picture.Graphic);
+
+        // Configura a função de blend para usar o canal alfa da origem
+        BlendFunc.BlendOp := AC_SRC_OVER;
+        BlendFunc.BlendFlags := 0;
+        BlendFunc.SourceConstantAlpha := 255; // 255 = usa o alfa por pixel da imagem
+        BlendFunc.AlphaFormat := AC_SRC_ALPHA; // Indica que a fonte tem um canal alfa
+
+        // Chama a API do Windows diretamente para desenhar no canvas do nosso botão
+        AlphaBlend(Self.Canvas.Handle,
+                           LImageRect.Left, LImageRect.Top, LImageRect.Width, LImageRect.Height,
+                           SourceBmp.Canvas.Handle,
+                           0, 0, SourceBmp.Width, SourceBmp.Height,
+                           BlendFunc);
+      finally
+        SourceBmp.Free;
+      end;
+    end
+    else // Para outras imagens sem transparência, GDI+ ainda é uma boa opção.
+    begin
+       ANDMR_ComponentUtils.DrawGraphicWithGDI(AGraphics, FImageSettings.Picture.Graphic, LImageRect, idmStretch);
+    end;
+  end;
+
+  // --- 4. Desenhar o Texto (usando GDI+ para anti-aliasing) ---
   if (FCaptionSettings.Text <> '') and (LTextRect.Width > 0) and (LTextRect.Height > 0) then
   begin
     LCurrentTitleFont := TFont.Create;

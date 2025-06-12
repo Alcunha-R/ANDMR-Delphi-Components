@@ -9,7 +9,6 @@ uses
   Winapi.GDIPOBJ, Winapi.GDIPAPI;
 
 type
-  TImagePosition = (ipLeft, ipRight, ipTop, ipBottom, ipCenter, ipAbove, ipBelow, ipBehind);
   TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient, bsDark, bsMaterial, bsModern, bsWindows, bsMacOS);
   TPresetType = (cptNone, cptAccept, cptDecline, cptSave, cptEdit, cptDelete, cptNext, cptPrevious, cptInfo, cptWarning, cptHelp);
 
@@ -31,14 +30,12 @@ type
     FTags: TANDMR_MultiTag;
     FBorderSettings: TBorderSettings;
     FCaptionSettings: TCaptionSettings;
-    FImageSettings: TImageSettings;
     FHoverSettings: THoverSettings;
     FClickSettings: TClickSettings;
     FGradientSettings: TGradientSettings;
     FProgressSettings: TProgressSettings;
     FStyle: TButtonStyle;
     FPresetType: TPresetType;
-    FImagePosition: TImagePosition;
     FTransparent: Boolean;
     FDisabledCursor: TCursor;
 
@@ -54,14 +51,12 @@ type
     procedure SetTags(const Value: TANDMR_MultiTag);
     procedure SetBorderSettings(const Value: TBorderSettings);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
-    procedure SetImageSettings(const Value: TImageSettings);
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure SetClickSettings(const Value: TClickSettings);
     procedure SetGradientSettings(const Value: TGradientSettings);
     procedure SetProgressSettings(const Value: TProgressSettings);
     procedure SetStyle(const Value: TButtonStyle);
     procedure SetPresetType(const Value: TPresetType);
-    procedure SetImagePosition(const Value: TImagePosition);
     procedure SetTransparent(const Value: Boolean);
     procedure SetDisabledCursor(const Value: TCursor);
 
@@ -107,7 +102,6 @@ type
     // Settings Objects
     property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
-    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
     property ClickSettings: TClickSettings read FClickSettings write SetClickSettings;
     property GradientSettings: TGradientSettings read FGradientSettings write SetGradientSettings;
@@ -115,7 +109,6 @@ type
     property Tags: TANDMR_MultiTag read FTags write SetTags;
 
     // Appearance & Behavior
-    property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
     property Transparent: Boolean read FTransparent write SetTransparent default False;
     property DisabledCursor: TCursor read FDisabledCursor write SetDisabledCursor default crNo;
 
@@ -169,8 +162,6 @@ end;
 constructor TANDMR_CButton.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  // **CORREÇÃO PRINCIPAL:** Remove csOpaque para permitir que o csParentBackground funcione
-  // corretamente, tornando os cantos transparentes.
   ControlStyle := [csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csParentBackground, csSetCaption, csAcceptsControls, csNoStdEvents];
   Width := 120;
   Height := 40;
@@ -179,7 +170,6 @@ begin
   Cursor := crHandPoint;
   FDisabledCursor := crNo;
   FTransparent := False;
-  FImagePosition := ipLeft;
   FStyle := bsSolid;
 
   // Create Settings Objects
@@ -201,9 +191,6 @@ begin
   FCaptionSettings.Font.Color := clWhite;
   FCaptionSettings.Alignment := taCenter;
   FCaptionSettings.VerticalAlignment := cvaCenter;
-
-  FImageSettings := TImageSettings.Create(Self);
-  FImageSettings.OnChange := SettingsChanged;
 
   FHoverSettings := THoverSettings.Create(Self);
   FHoverSettings.OnChange := SettingsChanged;
@@ -233,7 +220,6 @@ begin
   FTags.Free;
   FBorderSettings.Free;
   FCaptionSettings.Free;
-  FImageSettings.Free;
   FHoverSettings.Free;
   FClickSettings.Free;
   FGradientSettings.Free;
@@ -334,15 +320,6 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetImagePosition(const Value: TImagePosition);
-begin
-  if FImagePosition <> Value then
-  begin
-    FImagePosition := Value;
-    Invalidate;
-  end;
-end;
-
 procedure TANDMR_CButton.SetTransparent(const Value: Boolean);
 begin
   if FTransparent <> Value then
@@ -364,7 +341,6 @@ end;
 procedure TANDMR_CButton.SetTags(const Value: TANDMR_MultiTag); begin FTags.Assign(Value); end;
 procedure TANDMR_CButton.SetBorderSettings(const Value: TBorderSettings); begin FBorderSettings.Assign(Value); end;
 procedure TANDMR_CButton.SetCaptionSettings(const Value: TCaptionSettings); begin FCaptionSettings.Assign(Value); end;
-procedure TANDMR_CButton.SetImageSettings(const Value: TImageSettings); begin FImageSettings.Assign(Value); end;
 procedure TANDMR_CButton.SetHoverSettings(const Value: THoverSettings); begin FHoverSettings.Assign(Value); end;
 procedure TANDMR_CButton.SetClickSettings(const Value: TClickSettings); begin FClickSettings.Assign(Value); end;
 procedure TANDMR_CButton.SetGradientSettings(const Value: TGradientSettings); begin FGradientSettings.Assign(Value); end;
@@ -645,6 +621,9 @@ begin
   end;
 end;
 
+//******************************************************************************
+//** INÍCIO DA CORREÇÃO: Procedimento PaintContent revisado
+//******************************************************************************
 procedure TANDMR_CButton.PaintContent(AGraphics: TGPGraphics; const ADrawRect: TRect);
 var
   LContentRect, LImageRect, LTextRect: TRect;
@@ -652,153 +631,22 @@ var
   AvailableWidth, AvailableHeight: Integer;
   LCurrentTitleFont: TFont;
   imgRatio, availRatio: Double;
-  // Variáveis para a abordagem Híbrida com AlphaBlend
-  SourceBmp: Vcl.Graphics.TBitmap;
-  BlendFunc: TBlendFunction;
 begin
   LContentRect := ADrawRect;
   InflateRect(LContentRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
 
-  // --- 1. Calcular dimensões e posição da imagem (Lógica existente, que está correta) ---
+  // Inicializa retângulos e variáveis
   LImgW := 0; LImgH := 0;
   LDrawW := 0; LDrawH := 0;
   LImgX := 0; LImgY := 0;
-  LImageRect := System.Types.Rect(0,0,0,0);
+  LImageRect := Rect(0, 0, 0, 0);
+
   LTextRect := Rect(LContentRect.Left + FCaptionSettings.Margins.Left,
                     LContentRect.Top + FCaptionSettings.Margins.Top,
                     LContentRect.Right - FCaptionSettings.Margins.Right,
                     LContentRect.Bottom - FCaptionSettings.Margins.Bottom);
 
-  if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and FImageSettings.Visible then
-  begin
-    LImgW := FImageSettings.Picture.Graphic.Width;
-    LImgH := FImageSettings.Picture.Graphic.Height;
-
-    AvailableWidth := LContentRect.Width - (FImageSettings.Margins.Left + FImageSettings.Margins.Right);
-    AvailableHeight := LContentRect.Height - (FImageSettings.Margins.Top + FImageSettings.Margins.Bottom);
-    AvailableWidth := Max(0, AvailableWidth);
-    AvailableHeight := Max(0, AvailableHeight);
-
-    if (LImgW > 0) and (LImgH > 0) and (AvailableWidth > 0) and (AvailableHeight > 0) then
-    begin
-        if FImageSettings.AutoSize then
-        begin
-          case FImageSettings.DrawMode of
-            idmStretch:
-            begin
-              LDrawW := AvailableWidth;
-              LDrawH := AvailableHeight;
-            end;
-            idmProportional:
-            begin
-              imgRatio := LImgW / LImgH;
-              availRatio := AvailableWidth / AvailableHeight;
-              if availRatio > imgRatio then
-              begin
-                LDrawH := AvailableHeight;
-                LDrawW := Round(LDrawH * imgRatio);
-              end else
-              begin
-                LDrawW := AvailableWidth;
-                LDrawH := Round(LDrawW / imgRatio);
-              end;
-            end;
-            idmNormal:
-            begin
-              LDrawW := LImgW;
-              LDrawH := LImgH;
-            end;
-          else
-            begin
-              imgRatio := LImgW / LImgH;
-              availRatio := AvailableWidth / AvailableHeight;
-              if availRatio > imgRatio then
-              begin
-                LDrawH := AvailableHeight;
-                LDrawW := Round(LDrawH * imgRatio);
-              end else
-              begin
-                LDrawW := AvailableWidth;
-                LDrawH := Round(LDrawW / imgRatio);
-              end;
-            end;
-          end;
-        end else
-        begin
-            LDrawW := IfThen(FImageSettings.TargetWidth > 0, FImageSettings.TargetWidth, LImgW);
-            LDrawH := IfThen(FImageSettings.TargetHeight > 0, FImageSettings.TargetHeight, LImgH);
-        end;
-
-        LDrawW := Min(LDrawW, AvailableWidth);
-        LDrawH := Min(LDrawH, AvailableHeight);
-
-        var ImageCanvasLeft, ImageCanvasTop: Integer;
-        ImageCanvasLeft := LContentRect.Left + FImageSettings.Margins.Left;
-        ImageCanvasTop := LContentRect.Top + FImageSettings.Margins.Top;
-
-        case FImageSettings.HorizontalAlign of
-          ihaLeft:   LImgX := ImageCanvasLeft;
-          ihaCenter: LImgX := ImageCanvasLeft + (AvailableWidth - LDrawW) div 2;
-          ihaRight:  LImgX := ImageCanvasLeft + AvailableWidth - LDrawW;
-        else         LImgX := ImageCanvasLeft;
-        end;
-
-        case FImageSettings.VerticalAlign of
-          ivaTop:    LImgY := ImageCanvasTop;
-          ivaCenter: LImgY := ImageCanvasTop + (AvailableHeight - LDrawH) div 2;
-          ivaBottom: LImgY := ImageCanvasTop + AvailableHeight - LDrawH;
-        else         LImgY := ImageCanvasTop;
-        end;
-
-        LImageRect := System.Types.Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
-    end;
-  end;
-
-  // --- 2. Calcular área do texto com base na imagem ---
-  if not IsRectEmpty(LImageRect) and (FImagePosition <> ipBehind) and (FImagePosition <> ipCenter) then
-  begin
-    case FImagePosition of
-      ipLeft:   LTextRect.Left   := LImageRect.Right + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left;
-      ipRight:  LTextRect.Right  := LImageRect.Left - FImageSettings.Margins.Left - FCaptionSettings.Margins.Right;
-      ipTop, ipAbove:    LTextRect.Top    := LImageRect.Bottom + FImageSettings.Margins.Bottom + FCaptionSettings.Margins.Top;
-      ipBottom, ipBelow: LTextRect.Bottom := LImageRect.Top - FImageSettings.Margins.Top - FCaptionSettings.Margins.Bottom;
-    end;
-  end;
-
-  // --- 3. Desenhar a Imagem (NOVA ABORDAGEM HÍBRIDA) ---
-  if not IsRectEmpty(LImageRect) and (FImageSettings.Picture.Graphic <> nil) then
-  begin
-    // Se for PNG, usamos a API AlphaBlend do Windows, que é a mais confiável.
-    if FImageSettings.Picture.Graphic is TPNGImage then
-    begin
-      SourceBmp := Vcl.Graphics.TBitmap.Create;
-      try
-        // Atribui o PNG a um bitmap temporário para obter um HDC (Handle to Device Context)
-        SourceBmp.Assign(FImageSettings.Picture.Graphic);
-
-        // Configura a função de blend para usar o canal alfa da origem
-        BlendFunc.BlendOp := AC_SRC_OVER;
-        BlendFunc.BlendFlags := 0;
-        BlendFunc.SourceConstantAlpha := 255; // 255 = usa o alfa por pixel da imagem
-        BlendFunc.AlphaFormat := AC_SRC_ALPHA; // Indica que a fonte tem um canal alfa
-
-        // Chama a API do Windows diretamente para desenhar no canvas do nosso botão
-        AlphaBlend(Self.Canvas.Handle,
-                           LImageRect.Left, LImageRect.Top, LImageRect.Width, LImageRect.Height,
-                           SourceBmp.Canvas.Handle,
-                           0, 0, SourceBmp.Width, SourceBmp.Height,
-                           BlendFunc);
-      finally
-        SourceBmp.Free;
-      end;
-    end
-    else // Para outras imagens sem transparência, GDI+ ainda é uma boa opção.
-    begin
-       ANDMR_ComponentUtils.DrawGraphicWithGDI(AGraphics, FImageSettings.Picture.Graphic, LImageRect, idmStretch);
-    end;
-  end;
-
-  // --- 4. Desenhar o Texto (usando GDI+ para anti-aliasing) ---
+  // Desenha o texto usando GDI+
   if (FCaptionSettings.Text <> '') and (LTextRect.Width > 0) and (LTextRect.Height > 0) then
   begin
     LCurrentTitleFont := TFont.Create;
@@ -808,21 +656,24 @@ begin
       if not Enabled then LFontColor := clGrayText;
 
       var LFinalHoverFontColor := IfThen(FHoverSettings.FontColor <> clNone, FHoverSettings.FontColor, LFontColor);
-      LFontColor := BlendColors(LFontColor, LFinalHoverFontColor, FHoverSettings.CurrentAnimationValue / 255.0);
+      LFontColor := ANDMR_ComponentUtils.BlendColors(LFontColor, LFinalHoverFontColor, FHoverSettings.CurrentAnimationValue / 255.0);
 
       if FIsPressed and FClickEffectTimer.Enabled then
       begin
         var ClickProgress := Min(1.0, (GetTickCount - FClickEffectTimer.Tag) / FClickSettings.Duration);
-        var LFinalClickFontColor := IfThen(FClickSettings.FontColor <> clNone, FClickSettings.FontColor, DarkerColor(LFontColor, 15));
-        LFontColor := BlendColors(LFontColor, LFinalClickFontColor, ClickProgress);
+        var LFinalClickFontColor := IfThen(FClickSettings.FontColor <> clNone, FClickSettings.FontColor, ANDMR_ComponentUtils.DarkerColor(LFontColor, 15));
+        LFontColor := ANDMR_ComponentUtils.BlendColors(LFontColor, LFinalClickFontColor, ClickProgress);
       end;
 
-      DrawComponentCaption(Self.Canvas, LTextRect, FCaptionSettings.Text, LCurrentTitleFont, LFontColor, FCaptionSettings.Alignment, FCaptionSettings.VerticalAlignment, FCaptionSettings.WordWrap, 255);
+      ANDMR_ComponentUtils.DrawComponentCaption(Self.Canvas, LTextRect, FCaptionSettings.Text, LCurrentTitleFont, LFontColor, FCaptionSettings.Alignment, FCaptionSettings.VerticalAlignment, FCaptionSettings.WordWrap, 255);
     finally
       LCurrentTitleFont.Free;
     end;
   end;
 end;
+//******************************************************************************
+//** FIM DA CORREÇÃO
+//******************************************************************************
 
 procedure TANDMR_CButton.PaintProcessingIndicator(AGraphics: TGPGraphics; const ADrawRect: TRect);
 var

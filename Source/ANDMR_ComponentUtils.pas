@@ -5,53 +5,27 @@ interface
 uses
   System.SysUtils, System.Classes, Vcl.Graphics, Vcl.Themes, Vcl.Controls, Vcl.StdCtrls, Winapi.Windows,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Vcl.Imaging.pngimage,
-  System.UITypes, Vcl.ExtCtrls, System.Types, System.Variants; // Ensure GDIP units are here, Added Vcl.ExtCtrls for TTimer, Added System.Types for TPoint
+  System.UITypes, Vcl.ExtCtrls, System.Types, System.Variants;
 
+// ... (todas as suas declarações de 'type' permanecem as mesmas aqui) ...
 type
   THoverEffect = (heNone, heFade, heScale);
-
   TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom);
-
   TImagePositionSide = (ipsLeft, ipsRight);
   TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
   TImagePlacement = (iplInsideBounds, iplOutsideBounds);
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
-
   TGradientType = (gtLinearVertical, gtLinearHorizontal, gtRadial, gtDiagonalDown, gtDiagonalUp, gtCenterBurst);
-
-  TRoundCornerType = (
-    rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight,
-    rctTop, rctBottom, rctLeft, rctRight,
-    rctTopLeftBottomRight, rctTopRightBottomLeft
-  );
-
+  TRoundCornerType = (rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight, rctTop, rctBottom, rctLeft, rctRight, rctTopLeftBottomRight, rctTopRightBottomLeft);
   TInputType = (itNormal, itLettersOnly, itNumbersOnly, itNoSpecialChars, itAlphaNumericOnly);
   TTextCase = (tcNormal, tcUppercase, tcLowercase);
   TCaptionPosition = (cpAbove, cpBelow, cpLeft, cpRight);
-
-  TPredefinedMaskType = (
-    pmtNone,
-    pmtCustom,
-    pmtCPF,
-    pmtCNPJ,
-    pmtCEP,
-    pmtPhoneBR,
-    pmtDateDMY
-  );
-
-  TCEditStatus = (
-    cepsNormal,
-    cepsError,
-    cepsWarning,
-    cepsSuccess
-  );
-
+  TPredefinedMaskType = (pmtNone, pmtCustom, pmtCPF, pmtCNPJ, pmtCEP, pmtPhoneBR, pmtDateDMY);
+  TCEditStatus = (cepsNormal, cepsError, cepsWarning, cepsSuccess);
   TProgressAnimationStyle = (pasRotatingSemiCircle, pasFullCircularSpinner, pasHorizontalBar, pasBouncingDots);
-
   TImageHorizontalAlignment = (ihaLeft, ihaCenter, ihaRight);
   TImageVerticalAlignment = (ivaTop, ivaCenter, ivaBottom);
-
   TClickSettings = class(TPersistent)
   private
     FEnabled: Boolean;
@@ -78,17 +52,13 @@ type
     property Duration: Integer read FDuration write SetDuration default 100;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TANDMR_MultiTag = class(TPersistent)
   private
-    // Campos privados para armazenar cada tipo de valor
     FTag: NativeInt;
     FString: string;
     FExtended: TStringList;
     FObject: TObject;
     FOnChange: TNotifyEvent;
-
-    // Setters que notificam a mudança
     procedure SetTag(const Value: NativeInt);
     procedure SetString(const Value: string);
     procedure SetExtended(const Value: TStringList);
@@ -101,15 +71,12 @@ type
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
   published
-    // Estas são as propriedades que aparecerão no Object Inspector
     property AsTag: NativeInt read FTag write SetTag default 0;
     property AsString: string read FString write SetString;
     property AsExtended: TStringList read FExtended write SetExtended;
     property AsObject: TObject read FObject write SetObject;
-
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TANDMR_Margins = class(TPersistent)
   private
     FLeft, FTop, FRight, FBottom: Integer;
@@ -129,13 +96,12 @@ type
     property Bottom: Integer read FBottom write SetBottom default 2;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TCaptionSettings = class(TPersistent)
   private
     FVisible: Boolean;
     FText: string;
     FPosition: TCaptionPosition;
-    FAlignment: TAlignment; // Vcl.Themes.TAlignment
+    FAlignment: TAlignment;
     FFont: TFont;
     FColor: TColor;
     FWordWrap: Boolean;
@@ -144,8 +110,7 @@ type
     FVerticalAlignment: TCaptionVerticalAlignment;
     FOffset: TPoint;
     FDisabledColor: TColor;
-    FMargins: TANDMR_Margins; // Added
-
+    FMargins: TANDMR_Margins;
     procedure SetVisible(const Value: Boolean);
     procedure SetText(const Value: string);
     procedure SetPosition(const Value: TCaptionPosition);
@@ -157,10 +122,10 @@ type
     procedure SetOffset(const Value: TPoint);
     procedure SetDisabledColor(const Value: TColor);
     procedure FontChanged(Sender: TObject);
-    procedure SetMargins(const Value: TANDMR_Margins); // Added
+    procedure SetMargins(const Value: TANDMR_Margins);
   protected
     procedure Changed; virtual;
-    procedure InternalMarginsChanged(Sender: TObject); // Added
+    procedure InternalMarginsChanged(Sender: TObject);
   public
     constructor Create(AOwner: TWinControl);
     destructor Destroy; override;
@@ -176,10 +141,9 @@ type
     property DisabledColor: TColor read FDisabledColor write SetDisabledColor default clGrayText;
     property Offset: TPoint read FOffset write SetOffset;
     property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
-    property Margins: TANDMR_Margins read FMargins write SetMargins; // Added
+    property Margins: TANDMR_Margins read FMargins write SetMargins;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   THoverSettings = class(TPersistent)
   private
     FBackgroundColor: TColor;
@@ -188,7 +152,6 @@ type
     FCaptionFontColor: TColor;
     FEnabled: Boolean;
     FOnChange: TNotifyEvent;
-
     FHoverEffect: THoverEffect;
     FAnimationTimerInterval: Integer;
     FAnimationStep: Integer;
@@ -197,7 +160,6 @@ type
     FAnimationDirection: Integer;
     FOwnerControl: TWinControl;
     FOnAnimationProgress: TNotifyEvent;
-
     procedure SetBackgroundColor(const Value: TColor);
     procedure SetBorderColor(const Value: TColor);
     procedure SetFontColor(const Value: TColor);
@@ -221,14 +183,12 @@ type
     property FontColor: TColor read FFontColor write SetFontColor default clBlack;
     property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clBlack;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
-
     property HoverEffect: THoverEffect read FHoverEffect write SetHoverEffect default heFade;
     property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 15;
     property AnimationStep: Integer read FAnimationStep write SetAnimationStep default 20;
     property CurrentAnimationValue: Integer read FCurrentAnimationValue;
     property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
   end;
-
   TImageSettings = class(TPersistent)
   private
     FPicture: TPicture;
@@ -245,7 +205,6 @@ type
     FAutoSize: Boolean;
     FHorizontalAlign: TImageHorizontalAlignment;
     FVerticalAlign: TImageVerticalAlignment;
-
     procedure SetPicture(const Value: TPicture);
     procedure SetVisible(const Value: Boolean);
     procedure SetDrawMode(const Value: TImageDrawMode);
@@ -281,7 +240,6 @@ type
     property VerticalAlign: TImageVerticalAlignment read FVerticalAlign write SetVerticalAlign default ivaCenter;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TBorderSettings = class(TPersistent)
   private
     FColor: TColor;
@@ -314,7 +272,6 @@ type
     property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clNone;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TFocusSettings = class(TPersistent)
   private
     FBorderColor: TColor;
@@ -350,7 +307,6 @@ type
     property UnderlineStyle: TPenStyle read FUnderlineStyle write SetUnderlineStyle default psSolid;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TSeparatorSettings = class(TPersistent)
   private
     FVisible: Boolean;
@@ -380,7 +336,6 @@ type
     property CustomHeight: Integer read FCustomHeight write SetCustomHeight default 0;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TDropShadowSettings = class(TPersistent)
   private
     FEnabled: Boolean;
@@ -404,7 +359,6 @@ type
     property BlurRadius: Integer read FBlurRadius write SetBlurRadius default 3;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TGradientSettings = class(TPersistent)
   private
     FEnabled: Boolean;
@@ -428,7 +382,6 @@ type
     property EndColor: TColor read FEndColor write SetEndColor default clNone;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
-
   TProgressSettings = class(TPersistent)
   private
     FShowProgress: Boolean;
@@ -441,7 +394,6 @@ type
     FAnimationStyle: TProgressAnimationStyle;
     FProgressText: string;
     FShowProgressText: Boolean;
-
     procedure SetShowProgress(const Value: Boolean);
     procedure SetProgressColor(const Value: TColor);
     procedure SetHideCaptionWhileProcessing(const Value: Boolean);
@@ -468,44 +420,29 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+// **INÍCIO DAS ALTERAÇÕES**
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
 procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
-procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
-procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
-
 function DarkerColor(AColor: TColor; APercent: Byte = 30): TColor;
 function LighterColor(AColor: TColor; APercent: Byte = 30): TColor;
 function BlendColors(AColor1, AColor2: TColor; AFactor: Single): TColor;
-
-procedure DrawComponentCaption(
-  ACanvas: TCanvas;
-  const ARect: TRect;
-  const ACaption: string;
-  AFont: TFont;
-  AFontColor: TColor;
-  AAlignmentHorizontal: TAlignment;
-  AAlignmentVertical: TCaptionVerticalAlignment;
-  AWordWrap: Boolean;
-  AOpacity: Byte
-);
-
-function ResolveStateColor(
-  AIsEnabled: Boolean;
-  AIsHovering: Boolean;
-  AIsFocused: Boolean;
-  ABaseColor: TColor;
-  AHoverColor: TColor;
-  AFocusColor: TColor;
-  ADisabledColor: TColor;
-  AAllowHoverEffect: Boolean = True;
-  AAllowFocusEffect: Boolean = True;
-  AHoverEffectOverridesFocus: Boolean = False;
-  AFallbackToTransparent: Boolean = False
-): TColor;
-
+procedure DrawComponentCaption(ACanvas: TCanvas; const ARect: TRect; const ACaption: string; AFont: TFont; AFontColor: TColor; AAlignmentHorizontal: TAlignment; AAlignmentVertical: TCaptionVerticalAlignment; AWordWrap: Boolean; AOpacity: Byte);
+function ResolveStateColor(AIsEnabled: Boolean; AIsHovering: Boolean; AIsFocused: Boolean; ABaseColor: TColor; AHoverColor: TColor; AFocusColor: TColor; ADisabledColor: TColor; AAllowHoverEffect: Boolean = True; AAllowFocusEffect: Boolean = True; AHoverEffectOverridesFocus: Boolean = False; AFallbackToTransparent: Boolean = False): TColor;
 function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: Integer): TRect;
+
+// NOVA FUNÇÃO UNIFICADA
+procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+
+const
+  ColorMatrixIdentity: TColorMatrix =
+   ((1.0, 0.0, 0.0, 0.0, 0.0),
+    (0.0, 1.0, 0.0, 0.0, 0.0),
+    (0.0, 0.0, 1.0, 0.0, 0.0),
+    (0.0, 0.0, 0.0, 1.0, 0.0),
+    (0.0, 0.0, 0.0, 0.0, 1.0));
+
 
 implementation
 
@@ -513,6 +450,7 @@ uses
   System.Math,
   Winapi.ActiveX;
 
+// ... (Implementação de todas as classes de settings: TClickSettings, TBorderSettings, etc. - sem alterações) ...
 { TClickSettings }
 
 constructor TClickSettings.Create;
@@ -945,14 +883,6 @@ end;
 
 procedure TProgressSettings.SetAnimationProgressStep(const Value: Integer);
 begin
-  // The published property default is 5, but Max(10, Value) will make it at least 10.
-  // This seems like a mismatch. If default is 5, setter should allow it.
-  // Assuming the Max(1, Value) or similar was intended for step.
-  // For now, I'll keep Max(10, Value) but acknowledge the default property value might not be reachable if set via property editor with a value < 10.
-  // Or, the default property value should be 10.
-  // Let's assume default published property is the source of truth for initial value.
-  // So, if FAnimationProgressStep is not initialized in constructor, it will be 0.
-  // The property has "default 5". So it should be initialized to 5.
   if FAnimationProgressStep <> Max(1, Value) then // Changed from Max(10, Value) to Max(1, Value) to allow values like 5
   begin
     FAnimationProgressStep := Max(1, Value);
@@ -995,16 +925,13 @@ begin
   FTag := 0;
   FString := '';
   FObject := nil;
-  // É crucial criar a instância do TStringList
   FExtended := TStringList.Create;
-  // E atribuir o evento para que as mudanças dentro dele sejam detectadas
   FExtended.OnChange := ExtendedChanged;
 end;
 
 destructor TANDMR_MultiTag.Destroy;
 begin
   FExtended.Free;
-  // FObject não é liberado aqui, pois o componente não é seu "dono".
   inherited Destroy;
 end;
 
@@ -1019,7 +946,7 @@ begin
     Self.FString := LSource.FString;
     Self.FObject := LSource.FObject;
     Self.FExtended.Assign(LSource.FExtended);
-    Changed; // Notifica uma única vez após todas as atribuições
+    Changed;
   end
   else
     inherited Assign(Source);
@@ -1033,7 +960,7 @@ end;
 
 procedure TANDMR_MultiTag.ExtendedChanged(Sender: TObject);
 begin
-  Changed; // Repassa a notificação de mudança do TStringList
+  Changed;
 end;
 
 procedure TANDMR_MultiTag.SetTag(const Value: NativeInt);
@@ -1057,7 +984,6 @@ end;
 procedure TANDMR_MultiTag.SetExtended(const Value: TStringList);
 begin
   FExtended.Assign(Value);
-  // O Assign já dispara o OnChange do FExtended, que chama o Changed.
 end;
 
 procedure TANDMR_MultiTag.SetObject(const Value: TObject);
@@ -1120,8 +1046,8 @@ begin
   FVerticalAlignment := cvaCenter;
   FOffset := System.Types.Point(0, 0);
   FDisabledColor := clGrayText;
-  FMargins := TANDMR_Margins.Create; // Added
-  FMargins.OnChange := InternalMarginsChanged; // Added
+  FMargins := TANDMR_Margins.Create;
+  FMargins.OnChange := InternalMarginsChanged;
 end;
 
 destructor TCaptionSettings.Destroy;
@@ -1132,12 +1058,12 @@ begin
     FFont.Free;
     FFont := nil;
   end;
-  if Assigned(FMargins) then // Added
-  begin                        // Added
-    FMargins.OnChange := nil;  // Added
-    FMargins.Free;             // Added
-    FMargins := nil;           // Added
-  end;                         // Added
+  if Assigned(FMargins) then
+  begin
+    FMargins.OnChange := nil;
+    FMargins.Free;
+    FMargins := nil;
+  end;
   inherited Destroy;
 end;
 
@@ -1158,7 +1084,7 @@ begin
     SetVerticalAlignment(LSource.VerticalAlignment);
     SetOffset(LSource.Offset);
     SetDisabledColor(LSource.DisabledColor);
-    SetMargins(LSource.Margins); // Added
+    SetMargins(LSource.Margins);
   end
   else
     inherited Assign(Source);
@@ -1175,27 +1101,18 @@ begin
   Changed;
 end;
 
-procedure TCaptionSettings.InternalMarginsChanged(Sender: TObject); // Added
-begin                                                              // Added
-  Changed;                                                         // Added
-end;                                                               // Added
+procedure TCaptionSettings.InternalMarginsChanged(Sender: TObject);
+begin
+  Changed;
+end;
 
 procedure TCaptionSettings.SetAlignment(const Value: TAlignment); begin if FAlignment <> Value then begin FAlignment := Value; Changed; end; end;
 procedure TCaptionSettings.SetColor(const Value: TColor); begin if FColor <> Value then begin FColor := Value; Changed; end; end;
-procedure TCaptionSettings.SetFont(const Value: TFont); begin FFont.Assign(Value); end; // Font.Assign calls FontChanged -> Changed
-
-procedure TCaptionSettings.SetMargins(const Value: TANDMR_Margins); // Added
-begin                                                              // Added
-  FMargins.Assign(Value);                                          // Added
-  // FMargins.Assign calls its own OnChange, which calls InternalMarginsChanged, which calls Self.Changed.
-  // If direct assignment is preferred + single Self.Changed:
-  // if (Value <> nil) and (FMargins <> Value) then
-  // begin
-  //   FMargins.Assign(Value); // This might trigger internal OnChange if implemented in TANDMR_Margins
-  //   Changed; // Explicitly call Self.Changed
-  // end;
-end;                                                               // Added
-
+procedure TCaptionSettings.SetFont(const Value: TFont); begin FFont.Assign(Value); end;
+procedure TCaptionSettings.SetMargins(const Value: TANDMR_Margins);
+begin
+  FMargins.Assign(Value);
+end;
 procedure TCaptionSettings.SetPosition(const Value: TCaptionPosition); begin if FPosition <> Value then begin FPosition := Value; Changed; end; end;
 procedure TCaptionSettings.SetText(const Value: string); begin if FText <> Value then begin FText := Value; Changed; end; end;
 procedure TCaptionSettings.SetVisible(const Value: Boolean); begin if FVisible <> Value then begin FVisible := Value; Changed; end; end;
@@ -1204,20 +1121,19 @@ procedure TCaptionSettings.SetVerticalAlignment(const Value: TCaptionVerticalAli
 procedure TCaptionSettings.SetOffset(const Value: TPoint); begin if FOffset <> Value then begin FOffset := Value; Changed; end; end;
 procedure TCaptionSettings.SetDisabledColor(const Value: TColor); begin if FDisabledColor <> Value then begin FDisabledColor := Value; Changed; end; end;
 
-
 { THoverSettings }
 constructor THoverSettings.Create(AOwnerControl: TWinControl);
 begin
   inherited Create;
   FOwnerControl := AOwnerControl;
   FEnabled := True;
-  FBackgroundColor := TColor($00E6E6E6); // Modernized from clSkyBlue to a light gray
-  FBorderColor := clGrayText;           // Modernized from clHighlight to a standard gray text color
+  FBackgroundColor := TColor($00E6E6E6);
+  FBorderColor := clGrayText;
   FFontColor := clBlack;
   FCaptionFontColor := clBlack;
   FHoverEffect := heFade;
-  FAnimationTimerInterval := 15; // Default from property is 15
-  FAnimationStep := 20;          // Default from property is 20
+  FAnimationTimerInterval := 15;
+  FAnimationStep := 20;
   FCurrentAnimationValue := 0;
   FAnimationDirection := 0;
   FAnimationTimer := TTimer.Create(nil);
@@ -1718,38 +1634,34 @@ begin
   end;
 end;
 
-{ DrawPNGImageWithGDI }
-procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
+// **INÍCIO DA NOVA FUNÇÃO**
+procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 var
   DrawImageRect: TRect;
-  GraphicW, GraphicH: Integer;
-  rRatio, rRectRatio: Double;
-  tempCalculatedW, tempCalculatedH: Double;
+  SourceBitmap: TGPBitmap;
   PngStream: TMemoryStream;
   Adapter: IStream;
-  GpSourceBitmap: TGPBitmap;
+  TempBitmap: Vcl.Graphics.TBitmap;
+  y: Integer;
+  pLine: PRGBQuad;
+  ImageAttr: TGPImageAttributes; // Objeto para controlar o desenho
 begin
-  if (AGraphics = nil) or (APNG = nil) or APNG.Empty then Exit;
-  if (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+  if (AGraphics = nil) or (AGraphic = nil) or AGraphic.Empty or
+     (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then
+    Exit;
 
-  GraphicW := APNG.Width;
-  GraphicH := APNG.Height;
-
-  if (GraphicW <= 0) or (GraphicH <= 0) then
-  begin
-    if ADrawMode <> idmNormal then Exit;
-  end;
-
+  // 1. Calcula o retângulo de destino final da imagem na tela.
   case ADrawMode of
     idmStretch:
       DrawImageRect := ADestRect;
-    idmProportional: DrawImageRect := CalculateProportionalRect(ADestRect, APNG.Width, APNG.Height);
+    idmProportional:
+      DrawImageRect := CalculateProportionalRect(ADestRect, AGraphic.Width, AGraphic.Height);
     idmNormal:
       begin
-        DrawImageRect.Width := GraphicW;
-        DrawImageRect.Height := GraphicH;
-        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2;
-        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2;
+        DrawImageRect.Width := AGraphic.Width;
+        DrawImageRect.Height := AGraphic.Height;
+        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - AGraphic.Width) div 2;
+        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - AGraphic.Height) div 2;
         DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
         DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
       end;
@@ -1760,87 +1672,67 @@ begin
   if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then
     Exit;
 
-  PngStream := TMemoryStream.Create;
+  SourceBitmap := nil;
   try
-    APNG.SaveToStream(PngStream);
-    PngStream.Position := 0;
-    Adapter := TStreamAdapter.Create(PngStream, soReference);
-    GpSourceBitmap := TGPBitmap.Create(Adapter);
-    try
-      if (GpSourceBitmap = nil) or (GpSourceBitmap.GetLastStatus <> Ok) then
-      begin
-        Exit;
-      end;
-
-      if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then
-        AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic)
-      else
-        AGraphics.SetInterpolationMode(InterpolationModeDefault);
-
-      AGraphics.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height);
-    finally
-      GpSourceBitmap.Free;
-    end;
-  except
-    on E: Exception do
+    // Usamos o tratamento otimizado para PNGs, que é o mais confiável.
+    if AGraphic is TPNGImage then
     begin
-      OutputDebugString(PChar('Erro ao desenhar PNG com GDI+: ' + E.Message)); // <<--- Adicione esta linha
-    end;
-  end;
-  PngStream.Free;
-end;
-
-procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
-var
-  DrawImageRect: TRect;
-  GraphicW, GraphicH: Integer;
-  rRatio, rRectRatio: Double;
-  tempCalculatedW, tempCalculatedH: Double;
-  E: Exception;
-begin
-  if (ACanvas = nil) or (AGraphic = nil) or (AGraphic.Empty) then Exit;
-  if (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
-
-  GraphicW := AGraphic.Width;
-  GraphicH := AGraphic.Height;
-
-  if (GraphicW <= 0) or (GraphicH <= 0) then
-  begin
-    if ADrawMode <> idmNormal then Exit;
-  end;
-
-  case ADrawMode of
-    idmStretch:
-      DrawImageRect := ADestRect;
-    idmProportional: DrawImageRect := CalculateProportionalRect(ADestRect, AGraphic.Width, AGraphic.Height);
-    idmNormal:
-      begin
-        DrawImageRect.Width := GraphicW;
-        DrawImageRect.Height := GraphicH;
-        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2;
-        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2;
-        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
-        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+      PngStream := TMemoryStream.Create;
+      try
+        TPNGImage(AGraphic).SaveToStream(PngStream);
+        PngStream.Position := 0;
+        Adapter := TStreamAdapter.Create(PngStream, soReference);
+        SourceBitmap := TGPBitmap.Create(Adapter);
+      finally
+        PngStream.Free;
       end;
-  else
-    DrawImageRect := ADestRect;
-  end;
-
-  if ((DrawImageRect.Right <= DrawImageRect.Left) or (DrawImageRect.Bottom <= DrawImageRect.Top) or (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0)) then
-    Exit;
-
-  try
-    if ADrawMode = idmNormal then
-      ACanvas.Draw(DrawImageRect.Left, DrawImageRect.Top, AGraphic)
-    else
-      ACanvas.StretchDraw(DrawImageRect, AGraphic);
-  except
-    on E: Exception do
+    end
+    else // Tratamento robusto para outros formatos
     begin
-      // Log error
+      TempBitmap := Vcl.Graphics.TBitmap.Create;
+      try
+        TempBitmap.SetSize(AGraphic.Width, AGraphic.Height);
+        TempBitmap.PixelFormat := pf32bit;
+        TempBitmap.AlphaFormat := afDefined;
+        for y := 0 to TempBitmap.Height - 1 do
+        begin
+          pLine := TempBitmap.ScanLine[y];
+          FillChar(pLine^, TempBitmap.Width * SizeOf(TRGBQuad), 0);
+        end;
+        TempBitmap.Canvas.Draw(0, 0, AGraphic);
+        SourceBitmap := TGPBitmap.Create(TempBitmap.Handle, 0);
+      finally
+        TempBitmap.Free;
+      end;
     end;
+
+    // 3. Desenha o TGPBitmap na tela usando TGPImageAttributes.
+    if (SourceBitmap <> nil) and (SourceBitmap.GetLastStatus = Ok) then
+    begin
+      ImageAttr := TGPImageAttributes.Create;
+      try
+        // Esta chamada "limpa" qualquer ajuste de cor, forçando o GDI+
+        // a usar o canal alfa original da imagem.
+        ImageAttr.SetColorMatrix(ColorMatrixIdentity, ColorMatrixFlagsDefault, ColorAdjustTypeBitmap);
+
+        AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+
+        // Usa a sobrecarga do DrawImage que aceita ImageAttributes.
+        AGraphics.DrawImage(SourceBitmap,
+                              MakeRect(DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height),
+                              0, 0, SourceBitmap.GetWidth, SourceBitmap.GetHeight,
+                              UnitPixel,
+                              ImageAttr);
+      finally
+        ImageAttr.Free;
+      end;
+    end;
+  finally
+    if SourceBitmap <> nil then
+      SourceBitmap.Free;
   end;
 end;
+// **FIM DA NOVA FUNÇÃO**
 
 { DrawSeparatorWithCanvas }
 procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
@@ -2044,7 +1936,6 @@ begin
   end;
 end;
 
-// Adicionar esta função na seção de implementação
 function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: Integer): TRect;
 var
   Ratio, RectRatio: Double;
@@ -2074,5 +1965,6 @@ begin
   Result.Right := Result.Left + Result.Width;
   Result.Bottom := Result.Top + Result.Height;
 end;
+
 
 end.

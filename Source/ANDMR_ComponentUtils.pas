@@ -7,7 +7,7 @@ uses
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Vcl.Imaging.pngimage,
   System.UITypes, Vcl.ExtCtrls, System.Types, System.Variants;
 
-// ... (todas as suas declarações de 'type' permanecem as mesmas aqui) ...
+// TYPE DECLARATIONS
 type
   THoverEffect = (heNone, heFade, heScale);
   TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom);
@@ -26,6 +26,7 @@ type
   TProgressAnimationStyle = (pasRotatingSemiCircle, pasFullCircularSpinner, pasHorizontalBar, pasBouncingDots);
   TImageHorizontalAlignment = (ihaLeft, ihaCenter, ihaRight);
   TImageVerticalAlignment = (ivaTop, ivaCenter, ivaBottom);
+
   TClickSettings = class(TPersistent)
   private
     FEnabled: Boolean;
@@ -52,6 +53,7 @@ type
     property Duration: Integer read FDuration write SetDuration default 100;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TANDMR_MultiTag = class(TPersistent)
   private
     FTag: NativeInt;
@@ -77,6 +79,7 @@ type
     property AsObject: TObject read FObject write SetObject;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TANDMR_Margins = class(TPersistent)
   private
     FLeft, FTop, FRight, FBottom: Integer;
@@ -96,6 +99,7 @@ type
     property Bottom: Integer read FBottom write SetBottom default 2;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TCaptionSettings = class(TPersistent)
   private
     FVisible: Boolean;
@@ -144,6 +148,7 @@ type
     property Margins: TANDMR_Margins read FMargins write SetMargins;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   THoverSettings = class(TPersistent)
   private
     FBackgroundColor: TColor;
@@ -189,6 +194,7 @@ type
     property CurrentAnimationValue: Integer read FCurrentAnimationValue;
     property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
   end;
+
   TImageSettings = class(TPersistent)
   private
     FPicture: TPicture;
@@ -240,6 +246,7 @@ type
     property VerticalAlign: TImageVerticalAlignment read FVerticalAlign write SetVerticalAlign default ivaCenter;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TBorderSettings = class(TPersistent)
   private
     FColor: TColor;
@@ -272,6 +279,7 @@ type
     property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clNone;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TFocusSettings = class(TPersistent)
   private
     FBorderColor: TColor;
@@ -307,6 +315,7 @@ type
     property UnderlineStyle: TPenStyle read FUnderlineStyle write SetUnderlineStyle default psSolid;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TSeparatorSettings = class(TPersistent)
   private
     FVisible: Boolean;
@@ -336,6 +345,7 @@ type
     property CustomHeight: Integer read FCustomHeight write SetCustomHeight default 0;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TDropShadowSettings = class(TPersistent)
   private
     FEnabled: Boolean;
@@ -359,6 +369,7 @@ type
     property BlurRadius: Integer read FBlurRadius write SetBlurRadius default 3;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TGradientSettings = class(TPersistent)
   private
     FEnabled: Boolean;
@@ -382,6 +393,7 @@ type
     property EndColor: TColor read FEndColor write SetEndColor default clNone;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
+
   TProgressSettings = class(TPersistent)
   private
     FShowProgress: Boolean;
@@ -420,7 +432,7 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-// **INÍCIO DAS ALTERAÇÕES**
+// HELPER FUNCTIONS
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
 procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
@@ -431,8 +443,6 @@ function BlendColors(AColor1, AColor2: TColor; AFactor: Single): TColor;
 procedure DrawComponentCaption(ACanvas: TCanvas; const ARect: TRect; const ACaption: string; AFont: TFont; AFontColor: TColor; AAlignmentHorizontal: TAlignment; AAlignmentVertical: TCaptionVerticalAlignment; AWordWrap: Boolean; AOpacity: Byte);
 function ResolveStateColor(AIsEnabled: Boolean; AIsHovering: Boolean; AIsFocused: Boolean; ABaseColor: TColor; AHoverColor: TColor; AFocusColor: TColor; ADisabledColor: TColor; AAllowHoverEffect: Boolean = True; AAllowFocusEffect: Boolean = True; AHoverEffectOverridesFocus: Boolean = False; AFallbackToTransparent: Boolean = False): TColor;
 function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: Integer): TRect;
-
-// NOVA FUNÇÃO UNIFICADA
 procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 
 const
@@ -443,14 +453,12 @@ const
     (0.0, 0.0, 0.0, 1.0, 0.0),
     (0.0, 0.0, 0.0, 0.0, 1.0));
 
-
 implementation
 
 uses
   System.Math,
   Winapi.ActiveX;
 
-// ... (Implementação de todas as classes de settings: TClickSettings, TBorderSettings, etc. - sem alterações) ...
 { TClickSettings }
 
 constructor TClickSettings.Create;
@@ -499,11 +507,11 @@ constructor TBorderSettings.Create;
 begin
   inherited Create;
   FVisible := True;
-  FColor := clDkGray; // Modernized from clBlack
+  FColor := clDkGray;
   FThickness := 1;
   FStyle := psSolid;
-  FCornerRadius := 4; // Modernized from 0
-  FRoundCornerType := rctAll; // Modernized from rctNone
+  FCornerRadius := 4;
+  FRoundCornerType := rctAll;
   FBackgroundColor := clNone;
 end;
 
@@ -600,11 +608,11 @@ end;
 constructor TFocusSettings.Create;
 begin
   inherited Create;
-  FBorderColor := clHighlight; // Modernized from clBlack
+  FBorderColor := clHighlight;
   FBorderColorVisible := False;
   FBackgroundColor := clNone;
   FBackgroundColorVisible := False;
-  FUnderlineColor := clHighlight; // Modernized from clBlack
+  FUnderlineColor := clHighlight;
   FUnderlineVisible := False;
   FUnderlineThickness := 1;
   FUnderlineStyle := psSolid;
@@ -695,8 +703,8 @@ constructor TDropShadowSettings.Create;
 begin
   inherited Create;
   FEnabled := False;
-  FColor := clGray; // Modernized from clBlack
-  FOffset := System.Types.Point(2, 2); // Fixed TPoint initialization and gave a slight default offset
+  FColor := clGray;
+  FOffset := System.Types.Point(2, 2);
   FBlurRadius := 3;
 end;
 
@@ -805,13 +813,13 @@ begin
   inherited Create;
   FOwnerControl := AOwnerControl;
   FShowProgress := True;
-  FProgressColor := clGray; // Changed from clWhite to match published default
+  FProgressColor := clGray;
   FHideCaptionWhileProcessing := True;
-  FAnimationTimerInterval := 40; // Changed from 100 to match published default
-  FAnimationProgressStep := 5; // Initialized to match published default
-  FAnimationStyle := pasRotatingSemiCircle; // Initialized to match published default
-  FProgressText := ''; // Explicitly initialize
-  FShowProgressText := False; // Explicitly initialize
+  FAnimationTimerInterval := 40;
+  FAnimationProgressStep := 5;
+  FAnimationStyle := pasRotatingSemiCircle;
+  FProgressText := '';
+  FShowProgressText := False;
 end;
 
 destructor TProgressSettings.Destroy;
@@ -830,6 +838,10 @@ begin
     SetProgressColor(LSource.ProgressColor);
     SetHideCaptionWhileProcessing(LSource.HideCaptionWhileProcessing);
     SetAnimationTimerInterval(LSource.AnimationTimerInterval);
+    SetAnimationProgressStep(LSource.AnimationProgressStep);
+    SetAnimationStyle(LSource.AnimationStyle);
+    SetProgressText(LSource.ProgressText);
+    SetShowProgressText(LSource.ShowProgressText);
   end
   else
     inherited Assign(Source);
@@ -839,10 +851,13 @@ procedure TProgressSettings.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
-  if Assigned(FOwnerControl) and (FOwnerControl.HandleAllocated) and (csDesigning in FOwnerControl.ComponentState) then
-    FOwnerControl.Invalidate
-  else if Assigned(FOwnerControl) and (FOwnerControl.HandleAllocated) and not (csDesigning in FOwnerControl.ComponentState) then
-     FOwnerControl.Repaint;
+  if Assigned(FOwnerControl) and (FOwnerControl.HandleAllocated) then
+  begin
+    if (csDesigning in FOwnerControl.ComponentState) then
+      FOwnerControl.Invalidate
+    else
+      FOwnerControl.Repaint;
+  end;
 end;
 
 procedure TProgressSettings.SetShowProgress(const Value: Boolean);
@@ -883,7 +898,7 @@ end;
 
 procedure TProgressSettings.SetAnimationProgressStep(const Value: Integer);
 begin
-  if FAnimationProgressStep <> Max(1, Value) then // Changed from Max(10, Value) to Max(1, Value) to allow values like 5
+  if FAnimationProgressStep <> Max(1, Value) then
   begin
     FAnimationProgressStep := Max(1, Value);
     Changed;
@@ -1109,10 +1124,7 @@ end;
 procedure TCaptionSettings.SetAlignment(const Value: TAlignment); begin if FAlignment <> Value then begin FAlignment := Value; Changed; end; end;
 procedure TCaptionSettings.SetColor(const Value: TColor); begin if FColor <> Value then begin FColor := Value; Changed; end; end;
 procedure TCaptionSettings.SetFont(const Value: TFont); begin FFont.Assign(Value); end;
-procedure TCaptionSettings.SetMargins(const Value: TANDMR_Margins);
-begin
-  FMargins.Assign(Value);
-end;
+procedure TCaptionSettings.SetMargins(const Value: TANDMR_Margins); begin FMargins.Assign(Value); end;
 procedure TCaptionSettings.SetPosition(const Value: TCaptionPosition); begin if FPosition <> Value then begin FPosition := Value; Changed; end; end;
 procedure TCaptionSettings.SetText(const Value: string); begin if FText <> Value then begin FText := Value; Changed; end; end;
 procedure TCaptionSettings.SetVisible(const Value: Boolean); begin if FVisible <> Value then begin FVisible := Value; Changed; end; end;
@@ -1634,23 +1646,20 @@ begin
   end;
 end;
 
-// **INÍCIO DA NOVA FUNÇÃO**
+// **INÍCIO DA IMPLEMENTAÇÃO CORRIGIDA**
 procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 var
   DrawImageRect: TRect;
   SourceBitmap: TGPBitmap;
-  PngStream: TMemoryStream;
-  Adapter: IStream;
   TempBitmap: Vcl.Graphics.TBitmap;
+  ImageAttr: TGPImageAttributes;
   y: Integer;
   pLine: PRGBQuad;
-  ImageAttr: TGPImageAttributes; // Objeto para controlar o desenho
 begin
   if (AGraphics = nil) or (AGraphic = nil) or AGraphic.Empty or
      (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then
     Exit;
 
-  // 1. Calcula o retângulo de destino final da imagem na tela.
   case ADrawMode of
     idmStretch:
       DrawImageRect := ADestRect;
@@ -1662,67 +1671,43 @@ begin
         DrawImageRect.Height := AGraphic.Height;
         DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - AGraphic.Width) div 2;
         DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - AGraphic.Height) div 2;
-        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
-        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
       end;
   else
     DrawImageRect := ADestRect;
   end;
 
-  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then
-    Exit;
+  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
 
-  SourceBitmap := nil;
+  TempBitmap := Vcl.Graphics.TBitmap.Create;
   try
-    // Usamos o tratamento otimizado para PNGs, que é o mais confiável.
-    if AGraphic is TPNGImage then
+    TempBitmap.SetSize(AGraphic.Width, AGraphic.Height);
+    TempBitmap.PixelFormat := pf32bit; // Garantir que o bitmap suporte transparência
+    TempBitmap.AlphaFormat := afDefined; // Definir o formato alpha
+
+    // Limpar manualmente o bitmap com cor transparente (ARGB = 0)
+    for y := 0 to TempBitmap.Height - 1 do
     begin
-      PngStream := TMemoryStream.Create;
-      try
-        TPNGImage(AGraphic).SaveToStream(PngStream);
-        PngStream.Position := 0;
-        Adapter := TStreamAdapter.Create(PngStream, soReference);
-        SourceBitmap := TGPBitmap.Create(Adapter);
-      finally
-        PngStream.Free;
-      end;
-    end
-    else // Tratamento robusto para outros formatos
-    begin
-      TempBitmap := Vcl.Graphics.TBitmap.Create;
-      try
-        TempBitmap.SetSize(AGraphic.Width, AGraphic.Height);
-        TempBitmap.PixelFormat := pf32bit;
-        TempBitmap.AlphaFormat := afDefined;
-        for y := 0 to TempBitmap.Height - 1 do
-        begin
-          pLine := TempBitmap.ScanLine[y];
-          FillChar(pLine^, TempBitmap.Width * SizeOf(TRGBQuad), 0);
-        end;
-        TempBitmap.Canvas.Draw(0, 0, AGraphic);
-        SourceBitmap := TGPBitmap.Create(TempBitmap.Handle, 0);
-      finally
-        TempBitmap.Free;
-      end;
+      pLine := TempBitmap.ScanLine[y];
+      FillChar(pLine^, TempBitmap.Width * SizeOf(TRGBQuad), 0);
     end;
 
-    // 3. Desenha o TGPBitmap na tela usando TGPImageAttributes.
+    // Copiar a imagem original para o bitmap temporário
+    TempBitmap.Canvas.Draw(0, 0, AGraphic);
+
+    // Criar bitmap GDI+ a partir do bitmap temporário
+    SourceBitmap := TGPBitmap.Create(TempBitmap.Handle, 0);
+
     if (SourceBitmap <> nil) and (SourceBitmap.GetLastStatus = Ok) then
     begin
       ImageAttr := TGPImageAttributes.Create;
       try
-        // Esta chamada "limpa" qualquer ajuste de cor, forçando o GDI+
-        // a usar o canal alfa original da imagem.
         ImageAttr.SetColorMatrix(ColorMatrixIdentity, ColorMatrixFlagsDefault, ColorAdjustTypeBitmap);
-
         AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-
-        // Usa a sobrecarga do DrawImage que aceita ImageAttributes.
         AGraphics.DrawImage(SourceBitmap,
-                              MakeRect(DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height),
-                              0, 0, SourceBitmap.GetWidth, SourceBitmap.GetHeight,
-                              UnitPixel,
-                              ImageAttr);
+                            MakeRect(DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height),
+                            0, 0, SourceBitmap.GetWidth, SourceBitmap.GetHeight,
+                            UnitPixel,
+                            ImageAttr);
       finally
         ImageAttr.Free;
       end;
@@ -1730,9 +1715,10 @@ begin
   finally
     if SourceBitmap <> nil then
       SourceBitmap.Free;
+    TempBitmap.Free;
   end;
 end;
-// **FIM DA NOVA FUNÇÃO**
+// **FIM DA IMPLEMENTAÇÃO CORRIGIDA**
 
 { DrawSeparatorWithCanvas }
 procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
@@ -1965,6 +1951,5 @@ begin
   Result.Right := Result.Left + Result.Width;
   Result.Bottom := Result.Top + Result.Height;
 end;
-
 
 end.

@@ -34,6 +34,7 @@ type
     FClickSettings: TClickSettings;
     FGradientSettings: TGradientSettings;
     FProgressSettings: TProgressSettings;
+    FImageSettings: TImageSettings; // <<-- NOVA PROPRIEDADE DE IMAGEM
     FStyle: TButtonStyle;
     FPresetType: TPresetType;
     FTransparent: Boolean;
@@ -55,6 +56,7 @@ type
     procedure SetClickSettings(const Value: TClickSettings);
     procedure SetGradientSettings(const Value: TGradientSettings);
     procedure SetProgressSettings(const Value: TProgressSettings);
+    procedure SetImageSettings(const Value: TImageSettings); // <<-- NOVO SETTER
     procedure SetStyle(const Value: TButtonStyle);
     procedure SetPresetType(const Value: TPresetType);
     procedure SetTransparent(const Value: Boolean);
@@ -102,6 +104,7 @@ type
     // Settings Objects
     property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
+    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings; // <<-- PROPRIEDADE PUBLICADA
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
     property ClickSettings: TClickSettings read FClickSettings write SetClickSettings;
     property GradientSettings: TGradientSettings read FGradientSettings write SetGradientSettings;
@@ -192,6 +195,11 @@ begin
   FCaptionSettings.Alignment := taCenter;
   FCaptionSettings.VerticalAlignment := cvaCenter;
 
+  // <<-- INÍCIO: CRIAÇÃO DO IMAGE SETTINGS
+  FImageSettings := TImageSettings.Create(Self);
+  FImageSettings.OnChange := SettingsChanged;
+  // <<-- FIM: CRIAÇÃO DO IMAGE SETTINGS
+
   FHoverSettings := THoverSettings.Create(Self);
   FHoverSettings.OnChange := SettingsChanged;
   FHoverSettings.OnAnimationProgress := SettingsChanged;
@@ -217,6 +225,7 @@ end;
 
 destructor TANDMR_CButton.Destroy;
 begin
+  FImageSettings.Free; // <<-- LIBERA O IMAGE SETTINGS
   FTags.Free;
   FBorderSettings.Free;
   FCaptionSettings.Free;
@@ -345,6 +354,7 @@ procedure TANDMR_CButton.SetHoverSettings(const Value: THoverSettings); begin FH
 procedure TANDMR_CButton.SetClickSettings(const Value: TClickSettings); begin FClickSettings.Assign(Value); end;
 procedure TANDMR_CButton.SetGradientSettings(const Value: TGradientSettings); begin FGradientSettings.Assign(Value); end;
 procedure TANDMR_CButton.SetProgressSettings(const Value: TProgressSettings); begin FProgressSettings.Assign(Value); end;
+procedure TANDMR_CButton.SetImageSettings(const Value: TImageSettings); begin FImageSettings.Assign(Value); end; // <<-- IMPLEMENTAÇÃO DO SETTER
 
 procedure TANDMR_CButton.Click;
 begin
@@ -622,31 +632,72 @@ begin
 end;
 
 //******************************************************************************
-//** INÍCIO DA CORREÇÃO: Procedimento PaintContent revisado
+//** INÍCIO DA IMPLEMENTAÇÃO DA IMAGEM
 //******************************************************************************
 procedure TANDMR_CButton.PaintContent(AGraphics: TGPGraphics; const ADrawRect: TRect);
 var
-  LContentRect, LImageRect, LTextRect: TRect;
-  LImgW, LImgH, LDrawW, LDrawH, LImgX, LImgY: Integer;
-  AvailableWidth, AvailableHeight: Integer;
+  LContentRect, LImageRect, LTextRect, LImageSpace, LTextSpace: TRect;
+  LImgW, LImgH, LDrawW, LDrawH: Integer;
   LCurrentTitleFont: TFont;
-  imgRatio, availRatio: Double;
+  AvailableWidth, ImageSpaceWidth: Integer;
 begin
   LContentRect := ADrawRect;
-  InflateRect(LContentRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
+  InflateRect(LContentRect, -FBorderSettings.Thickness - FCaptionSettings.Margins.Left, -FBorderSettings.Thickness - FCaptionSettings.Margins.Top);
+  InflateRect(LContentRect, -FCaptionSettings.Margins.Right, -FCaptionSettings.Margins.Bottom);
 
-  // Inicializa retângulos e variáveis
-  LImgW := 0; LImgH := 0;
-  LDrawW := 0; LDrawH := 0;
-  LImgX := 0; LImgY := 0;
-  LImageRect := Rect(0, 0, 0, 0);
+  LImageRect := Rect(0,0,0,0);
+  LTextRect := LContentRect; // Por padrão, o texto ocupa toda a área de conteúdo
 
-  LTextRect := Rect(LContentRect.Left + FCaptionSettings.Margins.Left,
-                    LContentRect.Top + FCaptionSettings.Margins.Top,
-                    LContentRect.Right - FCaptionSettings.Margins.Right,
-                    LContentRect.Bottom - FCaptionSettings.Margins.Bottom);
+  // 1. Verifica se a imagem deve ser desenhada
+  if FImageSettings.Visible and (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then
+  begin
+    LImgW := FImageSettings.Picture.Width;
+    LImgH := FImageSettings.Picture.Height;
 
-  // Desenha o texto usando GDI+
+    // 2. Calcula o tamanho final da imagem a ser desenhada (LDrawW, LDrawH)
+    if FImageSettings.AutoSize then
+    begin
+        // A imagem se ajusta ao espaço disponível, respeitando a proporção
+        var TempRect: TRect;
+        TempRect := CalculateProportionalRect(LContentRect, LImgW, LImgH);
+        LDrawW := TempRect.Width;
+        LDrawH := TempRect.Height;
+    end
+    else
+    begin
+        // Usa o tamanho definido em TargetWidth/TargetHeight
+        LDrawW := FImageSettings.TargetWidth;
+        LDrawH := FImageSettings.TargetHeight;
+    end;
+
+    // Garante que a imagem não seja maior que a área de conteúdo
+    LDrawW := Min(LDrawW, LContentRect.Width);
+    LDrawH := Min(LDrawH, LContentRect.Height);
+
+    // 3. Calcula os retângulos para a imagem e para o texto
+    ImageSpaceWidth := LDrawW + FImageSettings.Margins.Left + FImageSettings.Margins.Right;
+    AvailableWidth := LContentRect.Width - ImageSpaceWidth;
+
+    if FImageSettings.Position = ipsLeft then
+    begin
+      LImageSpace := Rect(LContentRect.Left, LContentRect.Top, LContentRect.Left + ImageSpaceWidth, LContentRect.Bottom);
+      LTextSpace := Rect(LImageSpace.Right, LContentRect.Top, LContentRect.Right, LContentRect.Bottom);
+    end
+    else // ipsRight
+    begin
+      LImageSpace := Rect(LContentRect.Right - ImageSpaceWidth, LContentRect.Top, LContentRect.Right, LContentRect.Bottom);
+      LTextSpace := Rect(LContentRect.Left, LContentRect.Top, LImageSpace.Left, LContentRect.Bottom);
+    end;
+
+    // 4. Alinha a imagem dentro do seu espaço (LImageSpace)
+    LImageRect := CalculateProportionalRect(LImageSpace, LDrawW, LDrawH);
+    LTextRect := LTextSpace;
+
+    // 5. Desenha a imagem
+    DrawGraphicWithGDI(AGraphics, FImageSettings.Picture.Graphic, LImageRect, FImageSettings.DrawMode);
+  end;
+
+  // 6. Desenha o texto no espaço restante (LTextRect)
   if (FCaptionSettings.Text <> '') and (LTextRect.Width > 0) and (LTextRect.Height > 0) then
   begin
     LCurrentTitleFont := TFont.Create;
@@ -656,23 +707,23 @@ begin
       if not Enabled then LFontColor := clGrayText;
 
       var LFinalHoverFontColor := IfThen(FHoverSettings.FontColor <> clNone, FHoverSettings.FontColor, LFontColor);
-      LFontColor := ANDMR_ComponentUtils.BlendColors(LFontColor, LFinalHoverFontColor, FHoverSettings.CurrentAnimationValue / 255.0);
+      LFontColor := BlendColors(LFontColor, LFinalHoverFontColor, FHoverSettings.CurrentAnimationValue / 255.0);
 
       if FIsPressed and FClickEffectTimer.Enabled then
       begin
         var ClickProgress := Min(1.0, (GetTickCount - FClickEffectTimer.Tag) / FClickSettings.Duration);
-        var LFinalClickFontColor := IfThen(FClickSettings.FontColor <> clNone, FClickSettings.FontColor, ANDMR_ComponentUtils.DarkerColor(LFontColor, 15));
-        LFontColor := ANDMR_ComponentUtils.BlendColors(LFontColor, LFinalClickFontColor, ClickProgress);
+        var LFinalClickFontColor := IfThen(FClickSettings.FontColor <> clNone, FClickSettings.FontColor, DarkerColor(LFontColor, 15));
+        LFontColor := BlendColors(LFontColor, LFinalClickFontColor, ClickProgress);
       end;
 
-      ANDMR_ComponentUtils.DrawComponentCaption(Self.Canvas, LTextRect, FCaptionSettings.Text, LCurrentTitleFont, LFontColor, FCaptionSettings.Alignment, FCaptionSettings.VerticalAlignment, FCaptionSettings.WordWrap, 255);
+      DrawComponentCaption(Self.Canvas, LTextRect, FCaptionSettings.Text, LCurrentTitleFont, LFontColor, FCaptionSettings.Alignment, FCaptionSettings.VerticalAlignment, FCaptionSettings.WordWrap, 255);
     finally
       LCurrentTitleFont.Free;
     end;
   end;
 end;
 //******************************************************************************
-//** FIM DA CORREÇÃO
+//** FIM DA IMPLEMENTAÇÃO DA IMAGEM
 //******************************************************************************
 
 procedure TANDMR_CButton.PaintProcessingIndicator(AGraphics: TGPGraphics; const ADrawRect: TRect);

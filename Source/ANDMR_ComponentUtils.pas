@@ -11,8 +11,7 @@ uses
 type
   THoverEffect = (heNone, heFade, heScale);
   TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom);
-  TImagePositionSide = (ipsLeft, ipsRight);
-  TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
+  TImagePosition = (ipLeft, ipRight, ipTop, ipBottom, ipFill, ipCenter);
   TImagePlacement = (iplInsideBounds, iplOutsideBounds);
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
@@ -203,8 +202,7 @@ type
     FMargins: TANDMR_Margins;
     FOnChange: TNotifyEvent;
     FOwnerControl: TWinControl;
-    FPosition: TImagePositionSide;
-    FAlignmentVertical: TImageAlignmentVertical;
+    FPosition: TImagePosition;
     FPlacement: TImagePlacement;
     FTargetWidth: Integer;
     FTargetHeight: Integer;
@@ -215,8 +213,7 @@ type
     procedure SetVisible(const Value: Boolean);
     procedure SetDrawMode(const Value: TImageDrawMode);
     procedure SetMargins(const Value: TANDMR_Margins);
-    procedure SetPosition(const Value: TImagePositionSide);
-    procedure SetAlignmentVertical(const Value: TImageAlignmentVertical);
+    procedure SetPosition(const Value: TImagePosition);
     procedure SetPlacement(const Value: TImagePlacement);
     procedure SetTargetWidth(const Value: Integer);
     procedure SetTargetHeight(const Value: Integer);
@@ -236,8 +233,7 @@ type
     property Visible: Boolean read FVisible write SetVisible default True;
     property DrawMode: TImageDrawMode read FDrawMode write SetDrawMode default idmProportional;
     property Margins: TANDMR_Margins read FMargins write SetMargins;
-    property Position: TImagePositionSide read FPosition write SetPosition default ipsLeft;
-    property AlignmentVertical: TImageAlignmentVertical read FAlignmentVertical write SetAlignmentVertical default iavCenter;
+    property Position: TImagePosition read FPosition write SetPosition default ipLeft;
     property Placement: TImagePlacement read FPlacement write SetPlacement default iplInsideBounds;
     property TargetWidth: Integer read FTargetWidth write SetTargetWidth default 0;
     property TargetHeight: Integer read FTargetHeight write SetTargetHeight default 0;
@@ -443,7 +439,9 @@ function BlendColors(AColor1, AColor2: TColor; AFactor: Single): TColor;
 procedure DrawComponentCaption(ACanvas: TCanvas; const ARect: TRect; const ACaption: string; AFont: TFont; AFontColor: TColor; AAlignmentHorizontal: TAlignment; AAlignmentVertical: TCaptionVerticalAlignment; AWordWrap: Boolean; AOpacity: Byte);
 function ResolveStateColor(AIsEnabled: Boolean; AIsHovering: Boolean; AIsFocused: Boolean; ABaseColor: TColor; AHoverColor: TColor; AFocusColor: TColor; ADisabledColor: TColor; AAllowHoverEffect: Boolean = True; AAllowFocusEffect: Boolean = True; AHoverEffectOverridesFocus: Boolean = False; AFallbackToTransparent: Boolean = False): TColor;
 function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: Integer): TRect;
-procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+
+procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
+procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 
 const
   ColorMatrixIdentity: TColorMatrix =
@@ -1366,8 +1364,7 @@ begin
   FMargins.OnChange := InternalMarginsChanged;
   FVisible := True;
   FDrawMode := idmProportional;
-  FPosition := ipsLeft;
-  FAlignmentVertical := iavCenter;
+  FPosition := ipLeft;
   FPlacement := iplInsideBounds;
   FTargetWidth := 0;
   FTargetHeight := 0;
@@ -1405,7 +1402,6 @@ begin
     SetPicture(LSource.Picture);
     SetMargins(LSource.Margins);
     SetPosition(LSource.Position);
-    SetAlignmentVertical(LSource.AlignmentVertical);
     SetPlacement(LSource.Placement);
     SetTargetWidth(LSource.TargetWidth);
     SetTargetHeight(LSource.TargetHeight);
@@ -1429,9 +1425,16 @@ procedure TImageSettings.SetDrawMode(const Value: TImageDrawMode); begin if FDra
 procedure TImageSettings.SetMargins(const Value: TANDMR_Margins); begin FMargins.Assign(Value); end;
 procedure TImageSettings.SetPicture(const Value: TPicture); begin FPicture.Assign(Value); end;
 procedure TImageSettings.SetVisible(const Value: Boolean); begin if FVisible <> Value then begin FVisible := Value; DoChange; end; end;
-procedure TImageSettings.SetPosition(const Value: TImagePositionSide); begin if FPosition <> Value then begin FPosition := Value; DoChange; end; end;
-procedure TImageSettings.SetAlignmentVertical(const Value: TImageAlignmentVertical); begin if FAlignmentVertical <> Value then begin FAlignmentVertical := Value; DoChange; end; end;
 procedure TImageSettings.SetPlacement(const Value: TImagePlacement); begin if FPlacement <> Value then begin FPlacement := Value; DoChange; end; end;
+
+procedure TImageSettings.SetPosition(const Value: TImagePosition);
+begin
+  if FPosition <> Value then
+  begin
+    FPosition := Value;
+    DoChange;
+  end;
+end;
 
 procedure TImageSettings.SetTargetWidth(const Value: Integer);
 begin
@@ -1646,79 +1649,228 @@ begin
   end;
 end;
 
-// **INÍCIO DA IMPLEMENTAÇÃO CORRIGIDA**
-procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
 var
   DrawImageRect: TRect;
-  SourceBitmap: TGPBitmap;
-  TempBitmap: Vcl.Graphics.TBitmap;
-  ImageAttr: TGPImageAttributes;
-  y: Integer;
-  pLine: PRGBQuad;
+  GraphicW, GraphicH: Integer;
+  rRatio, rRectRatio: Double;
+  tempCalculatedW, tempCalculatedH: Double;
+  PngStream: TMemoryStream;
+  Adapter: IStream; // Interface, will be reference counted
+  GpSourceBitmap: TGPBitmap;
+  // E: Exception; // Removed, using structured exception handling
 begin
-  if (AGraphics = nil) or (AGraphic = nil) or AGraphic.Empty or
-     (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then
-    Exit;
+  if (AGraphics = nil) or (APNG = nil) or APNG.Empty then Exit; // Added APNG.Empty check
+  if (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+
+  GraphicW := APNG.Width;
+  GraphicH := APNG.Height;
+
+  if (GraphicW <= 0) or (GraphicH <= 0) then
+  begin
+    // For idmNormal, an empty graphic might still be "drawn" (as nothing) at a point.
+    // For other modes, it's usually an error or no-op.
+    // Current logic exits if not idmNormal. This seems fine.
+    if ADrawMode <> idmNormal then Exit;
+    // If idmNormal, allow to proceed, DrawImageRect will be 0x0 or based on GraphicW/H.
+  end;
+
+  // ... (Calculation of DrawImageRect as before, ensure it's robust for GraphicW/H = 0 in idmNormal)
+case ADrawMode of
+  idmStretch:
+    DrawImageRect := ADestRect;
+  idmProportional:
+    begin
+      if (GraphicH = 0) or (GraphicW = 0) then // Avoid division by zero if image is empty
+      begin
+          DrawImageRect := System.Types.Rect(ADestRect.Left, ADestRect.Top, ADestRect.Left, ADestRect.Top); // Empty rect
+          // Or center a 0x0 rect:
+          // DrawImageRect.Width := 0; DrawImageRect.Height := 0;
+      end else
+      begin
+        rRatio := GraphicW / GraphicH;
+        if ADestRect.Height > 0 then
+          rRectRatio := ADestRect.Width / ADestRect.Height
+        else
+          rRectRatio := MaxDouble; // Effectively fit to width if DestRect height is 0
+
+        if rRectRatio > rRatio then // Fit to height
+        begin
+          DrawImageRect.Height := ADestRect.Height;
+          tempCalculatedW := ADestRect.Height * rRatio;
+          DrawImageRect.Width := Round(tempCalculatedW);
+          if (DrawImageRect.Width = 0) and (tempCalculatedW > 0) and (ADestRect.Width > 0) then
+            DrawImageRect.Width := 1; // Ensure minimum 1px if calculated positive
+        end
+        else // Fit to width (or if DestRect height is 0)
+        begin
+          DrawImageRect.Width := ADestRect.Width;
+          if rRatio > 0 then // Avoid division by zero if rRatio is 0 (e.g. GraphicW = 0, GraphicH > 0)
+          begin
+            tempCalculatedH := ADestRect.Width / rRatio;
+            DrawImageRect.Height := Round(tempCalculatedH);
+            if (DrawImageRect.Height = 0) and (tempCalculatedH > 0) and (ADestRect.Height > 0) then
+              DrawImageRect.Height := 1; // Ensure minimum 1px
+          end
+          else // rRatio is 0 or invalid (e.g. GraphicW=0)
+            DrawImageRect.Height := 0;
+        end;
+      end;
+      // Common centering logic for proportional and normal (if GraphicW/H valid)
+      DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2;
+      DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2;
+      DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+      DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+    end;
+  idmNormal:
+    begin
+      DrawImageRect.Width := GraphicW;
+      DrawImageRect.Height := GraphicH;
+      DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2;
+      DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2;
+      DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+      DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+    end;
+else // Should not happen if enum is complete
+  DrawImageRect := ADestRect;
+end;
+
+
+  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then
+    Exit; // Nothing to draw if calculated rect is empty or invalid
+
+  PngStream := TMemoryStream.Create;
+  try
+    APNG.SaveToStream(PngStream);
+    PngStream.Position := 0;
+    // TStreamAdapter (if creating an instance) should be managed if not assigned to an interface.
+    // Assigning to IStream handles its lifetime via reference counting.
+    Adapter := TStreamAdapter.Create(PngStream, soReference); // soReference: Adapter does not own PngStream.
+                                                              // PngStream must be freed manually.
+    GpSourceBitmap := TGPBitmap.Create(Adapter); // GDI+ bitmap from stream
+    try
+      if (GpSourceBitmap = nil) or (GpSourceBitmap.GetLastStatus <> Ok) then
+      begin
+        // Optional: Log GpSourceBitmap.GetLastStatus error
+        Exit;
+      end;
+
+      // Set interpolation mode for scaling
+      if (DrawImageRect.Width <> GpSourceBitmap.GetWidth()) or (DrawImageRect.Height <> GpSourceBitmap.GetHeight()) then
+        AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic)
+      else
+        AGraphics.SetInterpolationMode(InterpolationModeDefault); // Or InterpolationModeNearestNeighbor for non-scaled
+
+      AGraphics.DrawImage(GpSourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height);
+    finally
+      GpSourceBitmap.Free; // GpSourceBitmap must be freed.
+      // Adapter (IStream) will be released automatically by ARC when it goes out of scope.
+    end;
+  except
+    on E: Exception do
+    begin
+      // Optional: Log or handle exception E.
+      // Example: Log.Error('Error in DrawPNGImageWithGDI: ' + E.Message);
+    end;
+  end; // Outer try..except
+  // PngStream MUST be freed regardless of exceptions during GDI+ operations.
+
+     PngStream.Free;
+
+end;
+
+procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+var
+  DrawImageRect: TRect;
+  GraphicW, GraphicH: Integer;
+  rRatio, rRectRatio: Double;
+  tempCalculatedW, tempCalculatedH: Double;
+  E: Exception;
+begin
+  if (ACanvas = nil) or (AGraphic = nil) or (AGraphic.Empty) then Exit;
+  if (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then Exit;
+
+  GraphicW := AGraphic.Width;
+  GraphicH := AGraphic.Height;
+
+  if (GraphicW <= 0) or (GraphicH <= 0) then
+  begin
+    if ADrawMode = idmNormal then
+    begin
+      // For idmNormal, proceed.
+    end
+    else // For idmProportional or idmStretch, a 0-area source is invalid
+    begin
+      Exit;
+    end;
+  end;
 
   case ADrawMode of
     idmStretch:
       DrawImageRect := ADestRect;
     idmProportional:
-      DrawImageRect := CalculateProportionalRect(ADestRect, AGraphic.Width, AGraphic.Height);
+      begin
+        rRatio := GraphicW / GraphicH;
+        if ADestRect.Height > 0 then
+          rRectRatio := ADestRect.Width / ADestRect.Height
+        else
+          rRectRatio := MaxDouble;
+
+        if rRectRatio > rRatio then // Fit to height
+        begin
+          DrawImageRect.Height := ADestRect.Height;
+          tempCalculatedW := ADestRect.Height * rRatio;
+          DrawImageRect.Width := Round(tempCalculatedW);
+          if (DrawImageRect.Width = 0) and (tempCalculatedW > 0) and (ADestRect.Width > 0) then
+            DrawImageRect.Width := 1;
+        end
+        else // Fit to width
+        begin
+          DrawImageRect.Width := ADestRect.Width;
+          if rRatio > 0 then
+          begin
+            tempCalculatedH := ADestRect.Width / rRatio;
+            DrawImageRect.Height := Round(tempCalculatedH);
+            if (DrawImageRect.Height = 0) and (tempCalculatedH > 0) and (ADestRect.Height > 0) then
+              DrawImageRect.Height := 1;
+          end
+          else
+            DrawImageRect.Height := 0;
+        end;
+
+        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - DrawImageRect.Width) div 2;
+        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - DrawImageRect.Height) div 2;
+        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
+      end;
     idmNormal:
       begin
-        DrawImageRect.Width := AGraphic.Width;
-        DrawImageRect.Height := AGraphic.Height;
-        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - AGraphic.Width) div 2;
-        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - AGraphic.Height) div 2;
+        DrawImageRect.Width := GraphicW;
+        DrawImageRect.Height := GraphicH;
+        DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - GraphicW) div 2;
+        DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - GraphicH) div 2;
+        DrawImageRect.Right := DrawImageRect.Left + DrawImageRect.Width;
+        DrawImageRect.Bottom := DrawImageRect.Top + DrawImageRect.Height;
       end;
   else
     DrawImageRect := ADestRect;
   end;
 
-  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then Exit;
+  if ((DrawImageRect.Right <= DrawImageRect.Left) or (DrawImageRect.Bottom <= DrawImageRect.Top) or (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0)) then
+    Exit;
 
-  TempBitmap := Vcl.Graphics.TBitmap.Create;
   try
-    TempBitmap.SetSize(AGraphic.Width, AGraphic.Height);
-    TempBitmap.PixelFormat := pf32bit; // Garantir que o bitmap suporte transparência
-    TempBitmap.AlphaFormat := afDefined; // Definir o formato alpha
-
-    // Limpar manualmente o bitmap com cor transparente (ARGB = 0)
-    for y := 0 to TempBitmap.Height - 1 do
+    if ADrawMode = idmNormal then
+      ACanvas.Draw(DrawImageRect.Left, DrawImageRect.Top, AGraphic)
+    else
+      ACanvas.StretchDraw(DrawImageRect, AGraphic);
+  except
+    on E: Exception do
     begin
-      pLine := TempBitmap.ScanLine[y];
-      FillChar(pLine^, TempBitmap.Width * SizeOf(TRGBQuad), 0);
+      // Optional: Log or handle
     end;
-
-    // Copiar a imagem original para o bitmap temporário
-    TempBitmap.Canvas.Draw(0, 0, AGraphic);
-
-    // Criar bitmap GDI+ a partir do bitmap temporário
-    SourceBitmap := TGPBitmap.Create(TempBitmap.Handle, 0);
-
-    if (SourceBitmap <> nil) and (SourceBitmap.GetLastStatus = Ok) then
-    begin
-      ImageAttr := TGPImageAttributes.Create;
-      try
-        ImageAttr.SetColorMatrix(ColorMatrixIdentity, ColorMatrixFlagsDefault, ColorAdjustTypeBitmap);
-        AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-        AGraphics.DrawImage(SourceBitmap,
-                            MakeRect(DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height),
-                            0, 0, SourceBitmap.GetWidth, SourceBitmap.GetHeight,
-                            UnitPixel,
-                            ImageAttr);
-      finally
-        ImageAttr.Free;
-      end;
-    end;
-  finally
-    if SourceBitmap <> nil then
-      SourceBitmap.Free;
-    TempBitmap.Free;
   end;
 end;
-// **FIM DA IMPLEMENTAÇÃO CORRIGIDA**
 
 { DrawSeparatorWithCanvas }
 procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);

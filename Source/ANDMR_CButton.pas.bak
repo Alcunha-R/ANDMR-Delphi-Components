@@ -9,17 +9,12 @@ uses
   Winapi.GDIPOBJ, Winapi.GDIPAPI;
 
 type
-  TImagePosition = (ipLeft, ipRight, ipAbove, ipBelow, ipBehind); // Added
   TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient, bsDark, bsMaterial, bsModern, bsWindows, bsMacOS);
   TPresetType = (cptNone, cptAccept, cptDecline, cptSave, cptEdit, cptDelete, cptNext, cptPrevious, cptInfo, cptWarning, cptHelp);
 
   TANDMR_CButton = class(TCustomControl)
   private
-    // Private helper for old image drawing logic
-    procedure PaintImage_OldLogic(AGraphics: TGPGraphics; const ADrawRect: TRect; CurrentCaptionSettings: TCaptionSettings; CurrentImageSettings: TImageSettings; CurrentBorderSettings: TBorderSettings; IsButtonEnabled: Boolean; AImagePosition: TImagePosition; var OutTextArea: TRect);
-
     // State Fields
-    FImagePosition: TImagePosition; // Added
     FIsHovering: Boolean;
     FIsPressed: Boolean;
     FProcessing: Boolean;
@@ -49,7 +44,6 @@ type
     procedure SettingsChanged(Sender: TObject);
 
     // Setters
-    procedure SetImagePosition(const Value: TImagePosition); // Added Setter
     procedure SetAlign(const Value: TAlign);
     procedure SetEnabled(const Value: Boolean);
     function GetEnabled: Boolean;
@@ -120,7 +114,6 @@ type
     // Appearance & Behavior
     property Transparent: Boolean read FTransparent write SetTransparent default False;
     property DisabledCursor: TCursor read FDisabledCursor write SetDisabledCursor default crNo;
-    property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft; // Added Property
 
     // Standard Events and Properties
     property OnClick;
@@ -162,189 +155,6 @@ implementation
 
 uses Winapi.GDIPUTIL;
 
-procedure TANDMR_CButton.PaintImage_OldLogic(AGraphics: TGPGraphics; const ADrawRect: TRect; CurrentCaptionSettings: TCaptionSettings; CurrentImageSettings: TImageSettings; CurrentBorderSettings: TBorderSettings; IsButtonEnabled: Boolean; AImagePosition: TImagePosition; var OutTextArea: TRect);
-var
-  LImgW, LImgH, LDrawW, LDrawH, LImgX, LImgY, AvailableWidth, AvailableHeight: Integer;
-  imageCanvasX, imageCanvasY: Integer;
-  imgAspectRatio, availAspectRatio, targetAspectRatio: Single;
-  LDestRect, LImageClipRect: TRect;
-begin
-  LImageClipRect := ADrawRect;
-
-  if CurrentImageSettings.Placement = iplInsideBounds then
-  begin
-    if CurrentBorderSettings.Visible and (CurrentBorderSettings.Thickness > 0) then
-      InflateRect(LImageClipRect, -CurrentBorderSettings.Thickness, -CurrentBorderSettings.Thickness);
-  end;
-
-  LImgW := 0; LImgH := 0; LDrawW := 0; LDrawH := 0; LImgX := 0; LImgY := 0;
-  AvailableWidth := 0; AvailableHeight := 0;
-
-  if (CurrentImageSettings.Picture.Graphic <> nil) and not CurrentImageSettings.Picture.Graphic.Empty and CurrentImageSettings.Visible then
-  begin
-    LImgW := CurrentImageSettings.Picture.Width;
-    LImgH := CurrentImageSettings.Picture.Height;
-
-    AvailableWidth  := Max(0, LImageClipRect.Width - CurrentImageSettings.Margins.Left - CurrentImageSettings.Margins.Right);
-    AvailableHeight := Max(0, LImageClipRect.Height - CurrentImageSettings.Margins.Top - CurrentImageSettings.Margins.Bottom);
-
-    if CurrentImageSettings.AutoSize then
-    begin
-      case CurrentImageSettings.DrawMode of
-        idmStretch:
-        begin
-          LDrawW := AvailableWidth;
-          LDrawH := AvailableHeight;
-        end;
-        idmProportional:
-        begin
-          if (LImgW = 0) or (LImgH = 0) or (AvailableWidth <= 0) or (AvailableHeight <= 0) then
-          begin LDrawW := 0; LDrawH := 0; end
-          else
-          begin
-            imgAspectRatio := LImgW / LImgH;
-            availAspectRatio := AvailableWidth / AvailableHeight;
-            if availAspectRatio > imgAspectRatio then // Fit to height
-            begin
-              LDrawH := AvailableHeight;
-              LDrawW := Round(LDrawH * imgAspectRatio);
-            end
-            else // Fit to width
-            begin
-              LDrawW := AvailableWidth;
-              LDrawH := Round(LDrawW / imgAspectRatio);
-            end;
-          end;
-        end;
-        idmNormal:
-        begin
-          LDrawW := LImgW;
-          LDrawH := LImgH;
-        end;
-      else
-        LDrawW := LImgW; LDrawH := LImgH; // Default for safety
-      end;
-    end
-    else // Not AutoSize
-    begin
-      var targetW, targetH: Integer;
-      targetW := CurrentImageSettings.TargetWidth;
-      targetH := CurrentImageSettings.TargetHeight;
-
-      case CurrentImageSettings.DrawMode of
-        idmStretch:
-        begin
-          LDrawW := targetW;
-          LDrawH := targetH;
-        end;
-        idmProportional:
-        begin
-          if (LImgW = 0) or (LImgH = 0) or (targetW <= 0) or (targetH <= 0) then
-          begin LDrawW := 0; LDrawH := 0; end
-          else
-          begin
-            imgAspectRatio := LImgW / LImgH;
-            targetAspectRatio := targetW / targetH;
-            if targetAspectRatio > imgAspectRatio then // Fit to target height
-            begin
-              LDrawH := targetH;
-              LDrawW := Round(LDrawH * imgAspectRatio);
-            end
-            else // Fit to target width
-            begin
-              LDrawW := targetW;
-              LDrawH := Round(LDrawW / imgAspectRatio);
-            end;
-          end;
-        end;
-        idmNormal:
-        begin
-          LDrawW := LImgW;
-          LDrawH := LImgH;
-        end;
-      else
-        LDrawW := LImgW; LDrawH := LImgH; // Default for safety
-      end;
-    end;
-
-    LDrawW := Max(0, LDrawW);
-    LDrawH := Max(0, LDrawH);
-
-    if LDrawW > AvailableWidth then LDrawW := AvailableWidth;
-    if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
-
-    imageCanvasX := LImageClipRect.Left + CurrentImageSettings.Margins.Left;
-    imageCanvasY := LImageClipRect.Top + CurrentImageSettings.Margins.Top;
-
-    case CurrentImageSettings.HorizontalAlign of
-      ihaLeft:   LImgX := imageCanvasX;
-      ihaCenter: LImgX := imageCanvasX + (AvailableWidth - LDrawW) div 2;
-      ihaRight:  LImgX := imageCanvasX + AvailableWidth - LDrawW;
-    else LImgX := imageCanvasX; // Default
-    end;
-
-    case CurrentImageSettings.VerticalAlign of
-      ivaTop:    LImgY := imageCanvasY;
-      ivaCenter: LImgY := imageCanvasY + (AvailableHeight - LDrawH) div 2;
-      ivaBottom: LImgY := imageCanvasY + AvailableHeight - LDrawH;
-    else LImgY := imageCanvasY; // Default
-    end;
-
-    case AImagePosition of
-      ipLeft:
-        OutTextArea := Rect(LImgX + LDrawW + CurrentImageSettings.Margins.Right + CurrentCaptionSettings.Margins.Left,
-                          LImageClipRect.Top + CurrentCaptionSettings.Margins.Top,
-                          LImageClipRect.Right - CurrentCaptionSettings.Margins.Right,
-                          LImageClipRect.Bottom - CurrentCaptionSettings.Margins.Bottom);
-      ipRight:
-        OutTextArea := Rect(LImageClipRect.Left + CurrentCaptionSettings.Margins.Left,
-                          LImageClipRect.Top + CurrentCaptionSettings.Margins.Top,
-                          LImgX - CurrentImageSettings.Margins.Left - CurrentCaptionSettings.Margins.Right,
-                          LImageClipRect.Bottom - CurrentCaptionSettings.Margins.Bottom);
-      ipAbove:
-        OutTextArea := Rect(LImageClipRect.Left + CurrentCaptionSettings.Margins.Left,
-                          LImgY + LDrawH + CurrentImageSettings.Margins.Bottom + CurrentCaptionSettings.Margins.Top,
-                          LImageClipRect.Right - CurrentCaptionSettings.Margins.Right,
-                          LImageClipRect.Bottom - CurrentCaptionSettings.Margins.Bottom);
-      ipBelow:
-        OutTextArea := Rect(LImageClipRect.Left + CurrentCaptionSettings.Margins.Left,
-                          LImageClipRect.Top + CurrentCaptionSettings.Margins.Top,
-                          LImageClipRect.Right - CurrentCaptionSettings.Margins.Right,
-                          LImgY - CurrentImageSettings.Margins.Top - CurrentCaptionSettings.Margins.Bottom);
-      ipBehind:
-        OutTextArea := Rect(LImageClipRect.Left + CurrentCaptionSettings.Margins.Left, LImageClipRect.Top + CurrentCaptionSettings.Margins.Top,
-                          LImageClipRect.Right - CurrentCaptionSettings.Margins.Right, LImageClipRect.Bottom - CurrentCaptionSettings.Margins.Bottom);
-    else // Default to ipLeft
-       OutTextArea := Rect(LImgX + LDrawW + CurrentImageSettings.Margins.Right + CurrentCaptionSettings.Margins.Left,
-                          LImageClipRect.Top + CurrentCaptionSettings.Margins.Top,
-                          LImageClipRect.Right - CurrentCaptionSettings.Margins.Right,
-                          LImageClipRect.Bottom - CurrentCaptionSettings.Margins.Bottom);
-    end;
-    LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
-
-    if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
-    begin
-      DrawGraphicWithGDI(AGraphics, CurrentImageSettings.Picture.Graphic, LDestRect, CurrentImageSettings.DrawMode);
-    end;
-  end
-  else // No image or image not visible
-  begin
-    OutTextArea := Rect(LImageClipRect.Left + CurrentCaptionSettings.Margins.Left,
-                      LImageClipRect.Top + CurrentCaptionSettings.Margins.Top,
-                      LImageClipRect.Right - CurrentCaptionSettings.Margins.Right,
-                      LImageClipRect.Bottom - CurrentCaptionSettings.Margins.Bottom);
-  end;
-
-  // Ensure OutTextArea is valid and within LImageClipRect bounds
-  if OutTextArea.Right < OutTextArea.Left then OutTextArea.Right := OutTextArea.Left;
-  if OutTextArea.Bottom < OutTextArea.Top then OutTextArea.Bottom := OutTextArea.Top;
-
-  OutTextArea.Left   := Max(LImageClipRect.Left, OutTextArea.Left);
-  OutTextArea.Top    := Max(LImageClipRect.Top, OutTextArea.Top);
-  OutTextArea.Right  := Min(LImageClipRect.Right, OutTextArea.Right);
-  OutTextArea.Bottom := Min(LImageClipRect.Bottom, OutTextArea.Bottom);
-end;
-
 procedure Register;
 begin
   RegisterComponents('ANDMR', [TANDMR_CButton]);
@@ -364,7 +174,6 @@ begin
   FDisabledCursor := crNo;
   FTransparent := False;
   FStyle := bsSolid;
-  FImagePosition := ipLeft; // Added initialization
 
   // Create Settings Objects
   FTags := TANDMR_MultiTag.Create;
@@ -412,15 +221,6 @@ begin
   FProgressTimer := TTimer.Create(Self);
   FProgressTimer.Enabled := False;
   FProgressTimer.OnTimer := ProgressTimerHandler;
-end;
-
-procedure TANDMR_CButton.SetImagePosition(const Value: TImagePosition);
-begin
-  if FImagePosition <> Value then
-  begin
-    FImagePosition := Value;
-    Invalidate;
-  end;
 end;
 
 destructor TANDMR_CButton.Destroy;
@@ -846,20 +646,58 @@ begin
   InflateRect(LContentRect, -FCaptionSettings.Margins.Right, -FCaptionSettings.Margins.Bottom);
 
   LImageRect := Rect(0,0,0,0);
-  LTextRect := LContentRect; // Ensure LTextRect is initialized
+  LTextRect := LContentRect; // Por padrão, o texto ocupa toda a área de conteúdo
 
-  // Call the legacy image painting logic
-  Self.PaintImage_OldLogic(AGraphics,
-                            LContentRect, // Pass LContentRect as ADrawRect for the helper
-                            FCaptionSettings,
-                            FImageSettings,
-                            FBorderSettings,
-                            Self.Enabled, // Pass current enabled state
-                            FImagePosition, // Pass the new field
-                            LTextRect); // LTextRect will be modified by the helper
+  // 1. Verifica se a imagem deve ser desenhada
+  if FImageSettings.Visible and (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then
+  begin
+    LImgW := FImageSettings.Picture.Width;
+    LImgH := FImageSettings.Picture.Height;
+
+    // 2. Calcula o tamanho final da imagem a ser desenhada (LDrawW, LDrawH)
+    if FImageSettings.AutoSize then
+    begin
+        // A imagem se ajusta ao espaço disponível, respeitando a proporção
+        var TempRect: TRect;
+        TempRect := CalculateProportionalRect(LContentRect, LImgW, LImgH);
+        LDrawW := TempRect.Width;
+        LDrawH := TempRect.Height;
+    end
+    else
+    begin
+        // Usa o tamanho definido em TargetWidth/TargetHeight
+        LDrawW := FImageSettings.TargetWidth;
+        LDrawH := FImageSettings.TargetHeight;
+    end;
+
+    // Garante que a imagem não seja maior que a área de conteúdo
+    LDrawW := Min(LDrawW, LContentRect.Width);
+    LDrawH := Min(LDrawH, LContentRect.Height);
+
+    // 3. Calcula os retângulos para a imagem e para o texto
+    ImageSpaceWidth := LDrawW + FImageSettings.Margins.Left + FImageSettings.Margins.Right;
+    AvailableWidth := LContentRect.Width - ImageSpaceWidth;
+
+    if FImageSettings.Position = ipsLeft then
+    begin
+      LImageSpace := Rect(LContentRect.Left, LContentRect.Top, LContentRect.Left + ImageSpaceWidth, LContentRect.Bottom);
+      LTextSpace := Rect(LImageSpace.Right, LContentRect.Top, LContentRect.Right, LContentRect.Bottom);
+    end
+    else // ipsRight
+    begin
+      LImageSpace := Rect(LContentRect.Right - ImageSpaceWidth, LContentRect.Top, LContentRect.Right, LContentRect.Bottom);
+      LTextSpace := Rect(LContentRect.Left, LContentRect.Top, LImageSpace.Left, LContentRect.Bottom);
+    end;
+
+    // 4. Alinha a imagem dentro do seu espaço (LImageSpace)
+    LImageRect := CalculateProportionalRect(LImageSpace, LDrawW, LDrawH);
+    LTextRect := LTextSpace;
+
+    // 5. Desenha a imagem
+    DrawGraphicWithGDI(AGraphics, FImageSettings.Picture.Graphic, LImageRect, FImageSettings.DrawMode);
+  end;
 
   // 6. Desenha o texto no espaço restante (LTextRect)
-  // LTextRect is now already adjusted by PaintImage_OldLogic
   if (FCaptionSettings.Text <> '') and (LTextRect.Width > 0) and (LTextRect.Height > 0) then
   begin
     LCurrentTitleFont := TFont.Create;

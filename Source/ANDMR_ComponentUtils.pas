@@ -13,6 +13,7 @@ type
   TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom);
   TImagePosition = (ipLeft, ipRight, ipTop, ipBottom, ipFill, ipCenter);
   TImagePlacement = (iplInsideBounds, iplOutsideBounds);
+  TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
   TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
   TGradientType = (gtLinearVertical, gtLinearHorizontal, gtRadial, gtDiagonalDown, gtDiagonalUp, gtCenterBurst);
@@ -194,26 +195,29 @@ type
     property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
   end;
 
+  { TImageSettings }
   TImageSettings = class(TPersistent)
   private
-    FPicture: TPicture;
     FVisible: Boolean;
+    FPicture: TPicture;
     FDrawMode: TImageDrawMode;
     FMargins: TANDMR_Margins;
-    FOnChange: TNotifyEvent;
-    FOwnerControl: TWinControl;
     FPosition: TImagePosition;
+    FAlignmentVertical: TImageAlignmentVertical;
     FPlacement: TImagePlacement;
     FTargetWidth: Integer;
     FTargetHeight: Integer;
     FAutoSize: Boolean;
     FHorizontalAlign: TImageHorizontalAlignment;
     FVerticalAlign: TImageVerticalAlignment;
-    procedure SetPicture(const Value: TPicture);
+    FOwnerControl: TWinControl;
+    FOnChange: TNotifyEvent;
     procedure SetVisible(const Value: Boolean);
+    procedure SetPicture(const Value: TPicture);
     procedure SetDrawMode(const Value: TImageDrawMode);
     procedure SetMargins(const Value: TANDMR_Margins);
     procedure SetPosition(const Value: TImagePosition);
+    procedure SetAlignmentVertical(const Value: TImageAlignmentVertical);
     procedure SetPlacement(const Value: TImagePlacement);
     procedure SetTargetWidth(const Value: Integer);
     procedure SetTargetHeight(const Value: Integer);
@@ -229,15 +233,16 @@ type
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
   published
-    property Picture: TPicture read FPicture write SetPicture;
     property Visible: Boolean read FVisible write SetVisible default True;
+    property Picture: TPicture read FPicture write SetPicture;
     property DrawMode: TImageDrawMode read FDrawMode write SetDrawMode default idmProportional;
     property Margins: TANDMR_Margins read FMargins write SetMargins;
     property Position: TImagePosition read FPosition write SetPosition default ipLeft;
+    property AlignmentVertical: TImageAlignmentVertical read FAlignmentVertical write SetAlignmentVertical default iavCenter;
     property Placement: TImagePlacement read FPlacement write SetPlacement default iplInsideBounds;
+    property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
     property TargetWidth: Integer read FTargetWidth write SetTargetWidth default 0;
     property TargetHeight: Integer read FTargetHeight write SetTargetHeight default 0;
-    property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
     property HorizontalAlign: TImageHorizontalAlignment read FHorizontalAlign write SetHorizontalAlign default ihaCenter;
     property VerticalAlign: TImageVerticalAlignment read FVerticalAlign write SetVerticalAlign default ivaCenter;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
@@ -1353,24 +1358,29 @@ begin
   end;
 end;
 
+
 { TImageSettings }
+
 constructor TImageSettings.Create(AOwnerControl: TWinControl);
 begin
   inherited Create;
   FOwnerControl := AOwnerControl;
-  FPicture := TPicture.Create;
-  FPicture.OnChange := InternalPictureChanged;
-  FMargins := TANDMR_Margins.Create;
-  FMargins.OnChange := InternalMarginsChanged;
   FVisible := True;
   FDrawMode := idmProportional;
   FPosition := ipLeft;
+  FAlignmentVertical := iavCenter;
   FPlacement := iplInsideBounds;
+  FAutoSize := True;
   FTargetWidth := 0;
   FTargetHeight := 0;
-  FAutoSize := True;
   FHorizontalAlign := ihaCenter;
   FVerticalAlign := ivaCenter;
+
+  FPicture := TPicture.Create;
+  FPicture.OnChange := InternalPictureChanged;
+
+  FMargins := TANDMR_Margins.Create;
+  FMargins.OnChange := InternalMarginsChanged;
 end;
 
 destructor TImageSettings.Destroy;
@@ -1397,17 +1407,19 @@ begin
   if Source is TImageSettings then
   begin
     LSource := TImageSettings(Source);
-    SetVisible(LSource.Visible);
-    SetDrawMode(LSource.DrawMode);
-    SetPicture(LSource.Picture);
-    SetMargins(LSource.Margins);
-    SetPosition(LSource.Position);
-    SetPlacement(LSource.Placement);
-    SetTargetWidth(LSource.TargetWidth);
-    SetTargetHeight(LSource.TargetHeight);
-    SetAutoSize(LSource.AutoSize);
-    SetHorizontalAlign(LSource.HorizontalAlign);
-    SetVerticalAlign(LSource.VerticalAlign);
+    Self.Visible := LSource.Visible;
+    Self.DrawMode := LSource.DrawMode;
+    Self.Picture.Assign(LSource.Picture);
+    Self.Margins.Assign(LSource.Margins);
+    Self.Position := LSource.Position;
+    Self.AlignmentVertical := LSource.AlignmentVertical;
+    Self.Placement := LSource.Placement;
+    Self.AutoSize := LSource.AutoSize;
+    Self.TargetWidth := LSource.TargetWidth;
+    Self.TargetHeight := LSource.TargetHeight;
+    Self.HorizontalAlign := LSource.HorizontalAlign;
+    Self.VerticalAlign := LSource.VerticalAlign;
+    DoChange;
   end
   else
     inherited Assign(Source);
@@ -1419,13 +1431,43 @@ begin
     FOnChange(Self);
 end;
 
-procedure TImageSettings.InternalMarginsChanged(Sender: TObject); begin DoChange; end;
-procedure TImageSettings.InternalPictureChanged(Sender: TObject); begin DoChange; end;
-procedure TImageSettings.SetDrawMode(const Value: TImageDrawMode); begin if FDrawMode <> Value then begin FDrawMode := Value; DoChange; end; end;
-procedure TImageSettings.SetMargins(const Value: TANDMR_Margins); begin FMargins.Assign(Value); end;
-procedure TImageSettings.SetPicture(const Value: TPicture); begin FPicture.Assign(Value); end;
-procedure TImageSettings.SetVisible(const Value: Boolean); begin if FVisible <> Value then begin FVisible := Value; DoChange; end; end;
-procedure TImageSettings.SetPlacement(const Value: TImagePlacement); begin if FPlacement <> Value then begin FPlacement := Value; DoChange; end; end;
+procedure TImageSettings.InternalPictureChanged(Sender: TObject);
+begin
+  DoChange;
+end;
+
+procedure TImageSettings.InternalMarginsChanged(Sender: TObject);
+begin
+  DoChange;
+end;
+
+procedure TImageSettings.SetVisible(const Value: Boolean);
+begin
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetPicture(const Value: TPicture);
+begin
+  FPicture.Assign(Value);
+end;
+
+procedure TImageSettings.SetDrawMode(const Value: TImageDrawMode);
+begin
+  if FDrawMode <> Value then
+  begin
+    FDrawMode := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetMargins(const Value: TANDMR_Margins);
+begin
+  FMargins.Assign(Value);
+end;
 
 procedure TImageSettings.SetPosition(const Value: TImagePosition);
 begin
@@ -1436,9 +1478,27 @@ begin
   end;
 end;
 
+procedure TImageSettings.SetAlignmentVertical(const Value: TImageAlignmentVertical);
+begin
+  if FAlignmentVertical <> Value then
+  begin
+    FAlignmentVertical := Value;
+    DoChange;
+  end;
+end;
+
+procedure TImageSettings.SetPlacement(const Value: TImagePlacement);
+begin
+  if FPlacement <> Value then
+  begin
+    FPlacement := Value;
+    DoChange;
+  end;
+end;
+
 procedure TImageSettings.SetTargetWidth(const Value: Integer);
 begin
-  if FTargetWidth <> Value then
+  if FTargetWidth <> Max(0, Value) then
   begin
     FTargetWidth := Max(0, Value);
     DoChange;
@@ -1447,7 +1507,7 @@ end;
 
 procedure TImageSettings.SetTargetHeight(const Value: Integer);
 begin
-  if FTargetHeight <> Value then
+  if FTargetHeight <> Max(0, Value) then
   begin
     FTargetHeight := Max(0, Value);
     DoChange;

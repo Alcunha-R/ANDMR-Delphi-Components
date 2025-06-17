@@ -82,12 +82,7 @@ type
     function GetEnabled: Boolean;
     procedure SetEnabled(Value: Boolean);
     procedure SetCaption(const Value: string);
-    function GetCornerRadius: Integer;
-    procedure SetCornerRadius(const Value: Integer);
-    function GetRoundCornerType: TRoundCornerType;
-    procedure SetRoundCornerType(const Value: TRoundCornerType);
-    function GetActiveColor: TColor;
-    procedure SetActiveColor(const Value: TColor);
+    // REMOVED: Getters/Setters for individual border properties
     procedure SetHoverColor(const Value: TColor);
     function GetTitleFont: TFont;
     procedure SetTitleFont(const Value: TFont);
@@ -106,12 +101,7 @@ type
     procedure SetHoverEffect(const Value: THoverEffect);
     procedure SetDisabledCursor(const Value: TCursor);
     procedure SetTextMargins(const Value: TANDMR_Margins);
-    function GetBorderColor: TColor;
-    procedure SetBorderColor(const Value: TColor);
-    function GetBorderThickness: Integer;
-    procedure SetBorderThickness(const Value: Integer);
-    function GetBorderStyle: TPenStyle;
-    procedure SetBorderStyle(const Value: TPenStyle);
+    // REMOVED: Getters/Setters for individual border properties
     procedure SetClickColor(const Value: TColor);
     procedure SetHoverBorderColor(const Value: TColor);
     procedure SetClickBorderColor(const Value: TColor);
@@ -126,6 +116,9 @@ type
     function GetHoverBorderColor: TColor;
     function GetHoverTitleColor: TColor;
     function GetHoverEffect: THoverEffect;
+
+    // ADDED: Setter for the new BorderSettings property
+    procedure SetBorderSettings(const Value: TBorderSettings);
 
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
@@ -152,9 +145,18 @@ type
     property Align;
     property Enabled read GetEnabled write SetEnabled stored IsEnabledStored;
     property Caption: string read FCaption write SetCaption;
-    property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 12;
-    property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    property ActiveColor: TColor read GetActiveColor write SetActiveColor default clTeal;
+
+    // ADDED: New unified BorderSettings property
+    property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
+
+    // REMOVED: Old individual border properties
+    // property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 12;
+    // property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
+    // property ActiveColor: TColor read GetActiveColor write SetActiveColor default clTeal;
+    // property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
+    // property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
+    // property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
+
     property HoverColor: TColor read GetHoverColor write SetHoverColor;
     property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
     property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
@@ -170,9 +172,6 @@ type
 
     property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
 
-    property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
-    property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
-    property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
     property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor;
     property ClickColor: TColor read FClickColor write SetClickColor default clNone;
     property ClickBorderColor: TColor read FClickBorderColor write SetClickBorderColor default clNone;
@@ -564,37 +563,14 @@ begin
   end;
 end;
 
-function TANDMR_CButton.GetCornerRadius: Integer; begin Result := FBorderSettings.CornerRadius; end;
-procedure TANDMR_CButton.SetCornerRadius(const Value: Integer);
-var MaxRadius: Integer;
+// ADDED: Setter for BorderSettings
+procedure TANDMR_CButton.SetBorderSettings(const Value: TBorderSettings);
 begin
-  if (Width > 0) and (Height > 0) then MaxRadius := Min(Width, Height) div 2
-  else MaxRadius := Value;
-  FBorderSettings.CornerRadius := EnsureRange(Value, 0, MaxRadius);
+  FBorderSettings.Assign(Value);
 end;
 
-function TANDMR_CButton.GetRoundCornerType: TRoundCornerType; begin Result := FBorderSettings.RoundCornerType; end;
-procedure TANDMR_CButton.SetRoundCornerType(const Value: TRoundCornerType); begin FBorderSettings.RoundCornerType := Value; end;
-
-function TANDMR_CButton.GetActiveColor: TColor; begin Result := FBorderSettings.BackgroundColor; end;
-procedure TANDMR_CButton.SetActiveColor(const Value: TColor);
-var
-  OldActiveColor: TColor;
-  OldDerivedEndColor: TColor;
-begin
-  if FBorderSettings.BackgroundColor <> Value then
-  begin
-    OldActiveColor := FBorderSettings.BackgroundColor;
-    FBorderSettings.BackgroundColor := Value;
-
-    if (FGradientSettings.StartColor = OldActiveColor) or (FGradientSettings.StartColor = clNone) then
-      FGradientSettings.StartColor := FBorderSettings.BackgroundColor;
-
-    OldDerivedEndColor := DarkerColor(OldActiveColor, 30);
-    if (FGradientSettings.EndColor = OldDerivedEndColor) or (FGradientSettings.EndColor = clNone) then
-      FGradientSettings.EndColor := DarkerColor(FBorderSettings.BackgroundColor, 30);
-  end;
-end;
+// REMOVED: SetCornerRadius, SetRoundCornerType, SetActiveColor, SetBorderColor,
+// SetBorderThickness, SetBorderStyle and their corresponding Getters.
 
 procedure TANDMR_CButton.SetPresetType(const Value: TPresetType);
 var
@@ -765,15 +741,6 @@ begin
       Cursor := FDisabledCursor;
   end;
 end;
-
-function TANDMR_CButton.GetBorderColor: TColor; begin Result := FBorderSettings.Color; end;
-procedure TANDMR_CButton.SetBorderColor(const Value: TColor); begin FBorderSettings.Color := Value; end;
-
-function TANDMR_CButton.GetBorderThickness: Integer; begin Result := FBorderSettings.Thickness; end;
-procedure TANDMR_CButton.SetBorderThickness(const Value: Integer); begin FBorderSettings.Thickness := Max(0, Value); end;
-
-function TANDMR_CButton.GetBorderStyle: TPenStyle; begin Result := FBorderSettings.Style; end;
-procedure TANDMR_CButton.SetBorderStyle(const Value: TPenStyle); begin FBorderSettings.Style := Value; end;
 
 procedure TANDMR_CButton.SetClickColor(const Value: TColor);
 begin
@@ -1727,10 +1694,6 @@ begin
 
         if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
         begin
-          // FIX: The Paint method already calculated the final destination rectangle (LDestRect)
-          // based on the DrawMode. We now just need to draw the image into that rectangle.
-          // We pass idmStretch to the drawing functions to make them use the provided rectangle as-is,
-          // without them performing their own (duplicated) calculations.
           if FImageSettings.Picture.Graphic is TPNGImage then
             DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, LDestRect, idmStretch)
           else if FImageSettings.Picture.Graphic <> nil then

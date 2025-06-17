@@ -873,11 +873,11 @@ begin
 
     LClickProgress := 0;
     if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and FClickSettings.Enabled and (FClickSettings.Duration > 0) and not FProcessing then
-      LClickProgress := (255 - FClickEffectProgress) / 255.0;
+      LClickProgress := FClickEffectProgress / 255.0; // FADE-OUT: 1.0 -> 0.0
 
-  LInitialFillColor := ResolveStateColor(Enabled, False, False, FBorderSettings.BackgroundColor, clNone, clNone, BlendColors(FBorderSettings.BackgroundColor, clGray, 0.65), False, False);
-  LInitialBorderColor := ResolveStateColor(Enabled, False, False, FBorderSettings.Color, clNone, clNone, BlendColors(FBorderSettings.Color, clGray, 0.7), False, False);
-  LActualBorderThickness := FBorderSettings.Thickness;
+    LInitialFillColor := ResolveStateColor(Enabled, False, False, FBorderSettings.BackgroundColor, clNone, clNone, BlendColors(FBorderSettings.BackgroundColor, clGray, 0.65), False, False);
+    LInitialBorderColor := ResolveStateColor(Enabled, False, False, FBorderSettings.Color, clNone, clNone, BlendColors(FBorderSettings.Color, clGray, 0.7), False, False);
+    LActualBorderThickness := FBorderSettings.Thickness;
 
     if FInternalHoverSettings.BackgroundColor <> clNone then
       LFinalHoverColor := FInternalHoverSettings.BackgroundColor
@@ -894,10 +894,26 @@ begin
 
     LActualFillColor := LInitialFillColor;
     LActualBorderColor := LInitialBorderColor;
+
+    // --- Determine Hover State Color FIRST ---
+    if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
+    begin
+        LActualFillColor := BlendColors(LInitialFillColor, LFinalHoverColor, LHoverProgress);
+        LActualBorderColor := BlendColors(LInitialBorderColor, LFinalHoverBorderColor, LHoverProgress);
+    end;
+
+    // --- THEN, if clicking, blend FROM Click Color TO the calculated Actual Color (Hover or Base) ---
+    if (LClickProgress > 0) and Enabled and FClickSettings.Enabled and (FClickSettings.Duration > 0) then
+    begin
+      LActualFillColor := BlendColors(LActualFillColor, LFinalClickColor, LClickProgress);
+      LActualBorderColor := BlendColors(LActualBorderColor, LFinalClickBorderColor, LClickProgress);
+    end;
+
     LCurrentGradientEnabled := FGradientSettings.Enabled;
     LDrawFill := True;
     LDrawBorder := LActualBorderThickness > 0;
 
+    // ... Style logic remains the same ...
     case FStyle of
       bsSolid:
       begin
@@ -1068,28 +1084,6 @@ begin
         LFinalClickColor := IfThen(FClickSettings.Color = clNone, DarkerColor(LActualFillColor, 12), FClickSettings.Color);
         LFinalClickBorderColor := IfThen(FClickSettings.BorderColor = clNone, DarkerColor(LActualBorderColor, 12), FClickSettings.BorderColor);
       end;
-    end;
-
-    if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
-    begin
-      if LDrawFill or (FStyle = bsBordered) or (FStyle = bsGhost) then
-        LActualFillColor := BlendColors(LActualFillColor, LFinalHoverColor, LHoverProgress);
-
-      if LDrawBorder then
-        LActualBorderColor := BlendColors(LActualBorderColor, LFinalHoverBorderColor, LHoverProgress)
-      else if FStyle = bsFlat then
-      begin
-        LActualBorderColor := BlendColors(clNone, LFinalHoverBorderColor, LHoverProgress);
-        LActualBorderThickness := Max(1, FBorderSettings.Thickness);
-        LDrawBorder := True;
-      end;
-    end;
-
-    if (LClickProgress > 0) and Enabled and FClickSettings.Enabled and (FClickSettings.Duration > 0) then
-    begin
-      LActualFillColor := BlendColors(LActualFillColor, LFinalClickColor, LClickProgress);
-      if LDrawBorder then
-        LActualBorderColor := BlendColors(LActualBorderColor, LFinalClickBorderColor, LClickProgress);
     end;
 
     if FTransparent then
@@ -1636,7 +1630,7 @@ begin
             if FClickEffectActive and (LClickProgress > 0) and FClickSettings.Enabled and (FClickSettings.Duration > 0) and not FProcessing then
             begin
               if FClickSettings.FontColor <> clNone then
-                LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickSettings.FontColor, LClickProgress);
+                LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickSettings.FontColor, 1.0 - LClickProgress); // Fade out from click color
             end;
           end
           else if not Enabled then

@@ -1,1378 +1,489 @@
-unit ANDMR_ComponentUtils;
-
-{
-  *****************************************************************************
-  * *
-  * Unit de Utilitários para Componentes Visuais ANDMR                *
-  * *
-  * Esta unidade fornece um conjunto de classes, tipos e rotinas auxiliares  *
-  * para facilitar a criação de componentes VCL customizados com aparência   *
-  * moderna. Inclui suporte a GDI+ para renderização avançada (cantos       *
-  * arredondados, transparência, anti-aliasing), gerenciamento de estados    *
-  * visuais (hover, focus, disabled), animações e configurações detalhadas   *
-  * de aparência como bordas, sombras, gradientes e imagens.                 *
-  * *
-  *****************************************************************************
-}
+unit ANDMR_CButtonGroup;
 
 interface
 
 uses
-  System.SysUtils, System.Classes, System.UITypes, System.Types, System.Variants,
-  Vcl.Graphics, Vcl.Themes, Vcl.Controls, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.Imaging.pngimage,
-  Winapi.Windows, Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL;
+  System.SysUtils, System.Classes, System.Types, System.Math, System.UITypes,
+  System.Win.ComObj, // Added for TStreamAdapter
+  Winapi.Windows, Winapi.Messages, Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Winapi.ActiveX,
+  Vcl.Controls, Vcl.Graphics, Vcl.ExtCtrls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
+  Vcl.Imaging.pngimage, Vcl.Imaging.jpeg, Vcl.GraphUtil,
+  ANDMR_ComponentUtils, ANDMR_CButton;
 
 type
-  // Efeitos de Animação
-  THoverEffect = (heNone, heFade, heScale);
+  TANDMR_CButtonGroup = class; // Forward declaration
+  TButtonAppearance = class;
+  TButtonStateColors = class;
+  TGroupBorderSettings = class;
+  TSelectionSettings = class;
+  TANDMR_CGroupButtonItem = class;
 
-  // Alinhamentos
-  TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom);
-  TImagePositionSide = (ipsLeft, ipsRight);
-  TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
-  TImagePlacement = (iplInsideBounds, iplOutsideBounds);
-  TImageHorizontalAlignment = (ihaLeft, ihaCenter, ihaRight);
-  TImageVerticalAlignment = (ivaTop, ivaCenter, ivaBottom);
+  { Forward declaration from ANDMR_ComponentUtils for clarity }
+  TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsDark, bsMaterial, bsModern, bsWindows, bsMacOS);
 
-  // Modos de Desenho e Aparência
-  TImageDrawMode = (idmStretch, idmProportional, idmNormal);
-  TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
-  TGradientType = (gtLinearVertical, gtLinearHorizontal, gtRadial, gtDiagonalDown, gtDiagonalUp, gtCenterBurst);
-  TRoundCornerType = (
-    rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight,
-    rctTop, rctBottom, rctLeft, rctRight,
-    rctTopLeftBottomRight, rctTopRightBottomLeft
-  );
-  TProgressAnimationStyle = (pasRotatingSemiCircle, pasFullCircularSpinner, pasHorizontalBar, pasBouncingDots);
-
-  // Tipos de Input e Texto
-  TInputType = (itNormal, itLettersOnly, itNumbersOnly, itNoSpecialChars, itAlphaNumericOnly);
-  TTextCase = (tcNormal, tcUppercase, tcLowercase);
-  TCaptionPosition = (cpAbove, cpBelow, cpLeft, cpRight);
-  TPredefinedMaskType = (pmtNone, pmtCustom, pmtCPF, pmtCNPJ, pmtCEP, pmtPhoneBR, pmtDateDMY);
-
-  // Estados
-  TCEditStatus = (cepsNormal, cepsError, cepsWarning, cepsSuccess);
-
-  // Declaração antecipada para uso em TCaptionSettings
-  TANDMR_Margins = class;
-
-  { TClickSettings }
-  TClickSettings = class(TPersistent)
+  // Class to hold state-specific colors for a button
+  TButtonStateColors = class(TPersistent)
   private
-    FEnabled: Boolean;
+    FOnChange: TNotifyEvent;
+    FHoverColor: TColor;
+    FHoverFontColor: TColor;
+    FHoverBorderColor: TColor;
+    FClickColor: TColor;
+    procedure SetHoverColor(const Value: TColor);
+    procedure SetHoverFontColor(const Value: TColor);
+    procedure SetHoverBorderColor(const Value: TColor);
+    procedure SetClickColor(const Value: TColor);
+  protected
+    procedure Changed;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  published
+    property HoverColor: TColor read FHoverColor write SetHoverColor default clNone;
+    property HoverFontColor: TColor read FHoverFontColor write SetHoverFontColor default clNone;
+    property HoverBorderColor: TColor read FHoverBorderColor write SetHoverBorderColor default clNone;
+    property ClickColor: TColor read FClickColor write SetClickColor default clNone;
+  end;
+
+  // Class to hold general appearance properties for a button
+  TButtonAppearance = class(TPersistent)
+  private
+    FOnChange: TNotifyEvent;
     FColor: TColor;
     FBorderColor: TColor;
-    FFontColor: TColor;
-    FDuration: Integer;
-    FOnChange: TNotifyEvent;
-    procedure SetEnabled(const Value: Boolean);
-    procedure SetColor(const Value: TColor);
-    procedure SetBorderColor(const Value: TColor);
-    procedure SetFontColor(const Value: TColor);
-    procedure SetDuration(const Value: Integer);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Enabled: Boolean read FEnabled write SetEnabled default True;
-    property Color: TColor read FColor write SetColor default clNone;
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clNone;
-    property FontColor: TColor read FFontColor write SetFontColor default clNone;
-    property Duration: Integer read FDuration write SetDuration default 100;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TANDMR_MultiTag }
-  TANDMR_MultiTag = class(TPersistent)
-  private
-    FTag: NativeInt;
-    FString: string;
-    FExtended: TStringList;
-    FObject: TObject;
-    FOnChange: TNotifyEvent;
-    procedure SetTag(const Value: NativeInt);
-    procedure SetString(const Value: string);
-    procedure SetExtended(const Value: TStringList);
-    procedure SetObject(const Value: TObject);
-    procedure ExtendedChanged(Sender: TObject);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create;
-    destructor Destroy; override;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property AsTag: NativeInt read FTag write SetTag default 0;
-    property AsString: string read FString write SetString;
-    property AsExtended: TStringList read FExtended write SetExtended;
-    property AsObject: TObject read FObject write SetObject;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TANDMR_Margins }
-  TANDMR_Margins = class(TPersistent)
-  private
-    FLeft, FTop, FRight, FBottom: Integer;
-    FOnChange: TNotifyEvent;
-    procedure SetLeft(const Value: Integer);
-    procedure SetTop(const Value: Integer);
-    procedure SetRight(const Value: Integer);
-    procedure SetBottom(const Value: Integer);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Left: Integer read FLeft write SetLeft default 2;
-    property Top: Integer read FTop write SetTop default 2;
-    property Right: Integer read FRight write SetRight default 2;
-    property Bottom: Integer read FBottom write SetBottom default 2;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TCaptionSettings }
-  TCaptionSettings = class(TPersistent)
-  private
-    FVisible: Boolean;
-    FText: string;
-    FPosition: TCaptionPosition;
-    FAlignment: TAlignment;
-    FVerticalAlignment: TCaptionVerticalAlignment;
-    FFont: TFont;
-    FColor: TColor;
-    FDisabledColor: TColor;
-    FWordWrap: Boolean;
-    FOffset: TPoint;
-    FMargins: TANDMR_Margins;
-    FOnChange: TNotifyEvent;
-    FOwnerControl: TWinControl;
-    procedure SetVisible(const Value: Boolean);
-    procedure SetText(const Value: string);
-    procedure SetPosition(const Value: TCaptionPosition);
-    procedure SetAlignment(const Value: TAlignment);
-    procedure SetVerticalAlignment(const Value: TCaptionVerticalAlignment);
-    procedure SetFont(const Value: TFont);
-    procedure SetColor(const Value: TColor);
-    procedure SetDisabledColor(const Value: TColor);
-    procedure SetWordWrap(const Value: Boolean);
-    procedure SetOffset(const Value: TPoint);
-    procedure SetMargins(const Value: TANDMR_Margins);
-    procedure FontChanged(Sender: TObject);
-    procedure InternalMarginsChanged(Sender: TObject);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create(AOwner: TWinControl);
-    destructor Destroy; override;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Visible: Boolean read FVisible write SetVisible default True;
-    property Text: string read FText write SetText;
-    property Position: TCaptionPosition read FPosition write SetPosition default cpAbove;
-    property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify;
-    property VerticalAlignment: TCaptionVerticalAlignment read FVerticalAlignment write SetVerticalAlignment default cvaCenter;
-    property Font: TFont read FFont write SetFont;
-    property Color: TColor read FColor write SetColor default clWindowText;
-    property DisabledColor: TColor read FDisabledColor write SetDisabledColor default clGrayText;
-    property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
-    property Offset: TPoint read FOffset write SetOffset;
-    property Margins: TANDMR_Margins read FMargins write SetMargins;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { THoverSettings }
-  THoverSettings = class(TPersistent)
-  private
-    FEnabled: Boolean;
-    FBackgroundColor: TColor;
-    FBorderColor: TColor;
-    FFontColor: TColor;
-    FCaptionFontColor: TColor;
-    FHoverEffect: THoverEffect;
-    FAnimationTimerInterval: Integer;
-    FAnimationStep: Integer;
-    FCurrentAnimationValue: Integer;
-    FAnimationDirection: Integer;
-    FAnimationTimer: TTimer;
-    FOwnerControl: TWinControl;
-    FOnChange: TNotifyEvent;
-    FOnAnimationProgress: TNotifyEvent;
-    procedure SetEnabled(const Value: Boolean);
-    procedure SetBackgroundColor(const Value: TColor);
-    procedure SetBorderColor(const Value: TColor);
-    procedure SetFontColor(const Value: TColor);
-    procedure SetCaptionFontColor(const Value: TColor);
-    procedure SetHoverEffect(const Value: THoverEffect);
-    procedure SetAnimationTimerInterval(const Value: Integer);
-    procedure SetAnimationStep(const Value: Integer);
-    procedure DoAnimate(Sender: TObject);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create(AOwnerControl: TWinControl);
-    destructor Destroy; override;
-    procedure Assign(Source: TPersistent); override;
-    procedure StartAnimation(IsHovering: Boolean);
-  published
-    property Enabled: Boolean read FEnabled write SetEnabled default True;
-    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clSkyBlue;
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clHighlight;
-    property FontColor: TColor read FFontColor write SetFontColor default clBlack;
-    property CaptionFontColor: TColor read FCaptionFontColor write SetCaptionFontColor default clBlack;
-    property HoverEffect: THoverEffect read FHoverEffect write SetHoverEffect default heFade;
-    property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 15;
-    property AnimationStep: Integer read FAnimationStep write SetAnimationStep default 20;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-    property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
-    property CurrentAnimationValue: Integer read FCurrentAnimationValue;
-  end;
-
-  { TImageSettings }
-  TImageSettings = class(TPersistent)
-  private
-    FVisible: Boolean;
-    FPicture: TPicture;
-    FDrawMode: TImageDrawMode;
-    FMargins: TANDMR_Margins;
-    FPosition: TImagePositionSide;
-    FAlignmentVertical: TImageAlignmentVertical;
-    FPlacement: TImagePlacement;
-    FTargetWidth: Integer;
-    FTargetHeight: Integer;
-    FAutoSize: Boolean;
-    FHorizontalAlign: TImageHorizontalAlignment;
-    FVerticalAlign: TImageVerticalAlignment;
-    FOwnerControl: TWinControl;
-    FOnChange: TNotifyEvent;
-    procedure SetVisible(const Value: Boolean);
-    procedure SetPicture(const Value: TPicture);
-    procedure SetDrawMode(const Value: TImageDrawMode);
-    procedure SetMargins(const Value: TANDMR_Margins);
-    procedure SetPosition(const Value: TImagePositionSide);
-    procedure SetAlignmentVertical(const Value: TImageAlignmentVertical);
-    procedure SetPlacement(const Value: TImagePlacement);
-    procedure SetTargetWidth(const Value: Integer);
-    procedure SetTargetHeight(const Value: Integer);
-    procedure SetAutoSize(const Value: Boolean);
-    procedure SetHorizontalAlign(const Value: TImageHorizontalAlignment);
-    procedure SetVerticalAlign(const Value: TImageVerticalAlignment);
-    procedure InternalPictureChanged(Sender: TObject);
-    procedure InternalMarginsChanged(Sender: TObject);
-  protected
-    procedure DoChange; virtual;
-  public
-    constructor Create(AOwnerControl: TWinControl);
-    destructor Destroy; override;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Visible: Boolean read FVisible write SetVisible default True;
-    property Picture: TPicture read FPicture write SetPicture;
-    property DrawMode: TImageDrawMode read FDrawMode write SetDrawMode default idmProportional;
-    property Margins: TANDMR_Margins read FMargins write SetMargins;
-    property Position: TImagePositionSide read FPosition write SetPosition default ipsLeft;
-    property AlignmentVertical: TImageAlignmentVertical read FAlignmentVertical write SetAlignmentVertical default iavCenter;
-    property Placement: TImagePlacement read FPlacement write SetPlacement default iplInsideBounds;
-    property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
-    property TargetWidth: Integer read FTargetWidth write SetTargetWidth default 0;
-    property TargetHeight: Integer read FTargetHeight write SetTargetHeight default 0;
-    property HorizontalAlign: TImageHorizontalAlignment read FHorizontalAlign write SetHorizontalAlign default ihaCenter;
-    property VerticalAlign: TImageVerticalAlignment read FVerticalAlign write SetVerticalAlign default ivaCenter;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TBorderSettings }
-  TBorderSettings = class(TPersistent)
-  private
-    FVisible: Boolean;
-    FColor: TColor;
-    FThickness: Integer;
-    FStyle: TPenStyle;
+    FBorderWidth: Integer;
     FCornerRadius: Integer;
-    FRoundCornerType: TRoundCornerType;
-    FBackgroundColor: TColor;
-    FOnChange: TNotifyEvent;
-    procedure SetVisible(const Value: Boolean);
+    FStateColors: TButtonStateColors;
     procedure SetColor(const Value: TColor);
-    procedure SetThickness(const Value: Integer);
-    procedure SetStyle(const Value: TPenStyle);
-    procedure SetCornerRadius(const Value: Integer);
-    procedure SetRoundCornerType(const Value: TRoundCornerType);
-    procedure SetBackgroundColor(const Value: TColor);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Visible: Boolean read FVisible write SetVisible default True;
-    property Color: TColor read FColor write SetColor default clBlack;
-    property Thickness: Integer read FThickness write SetThickness default 1;
-    property Style: TPenStyle read FStyle write SetStyle default psSolid;
-    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 0;
-    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctNone;
-    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clNone;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TFocusSettings }
-  TFocusSettings = class(TPersistent)
-  private
-    FBorderColorVisible: Boolean;
-    FBorderColor: TColor;
-    FBackgroundColorVisible: Boolean;
-    FBackgroundColor: TColor;
-    FUnderlineVisible: Boolean;
-    FUnderlineColor: TColor;
-    FUnderlineThickness: Integer;
-    FUnderlineStyle: TPenStyle;
-    FOnChange: TNotifyEvent;
-    procedure SetBorderColorVisible(const Value: Boolean);
     procedure SetBorderColor(const Value: TColor);
-    procedure SetBackgroundColorVisible(const Value: Boolean);
-    procedure SetBackgroundColor(const Value: TColor);
-    procedure SetUnderlineVisible(const Value: Boolean);
-    procedure SetUnderlineColor(const Value: TColor);
-    procedure SetUnderlineThickness(const Value: Integer);
-    procedure SetUnderlineStyle(const Value: TPenStyle);
+    procedure SetBorderWidth(const Value: Integer);
+    procedure SetCornerRadius(const Value: Integer);
+    procedure SetStateColors(const Value: TButtonStateColors);
+    procedure StateColorsChanged(Sender: TObject);
   protected
-    procedure Changed; virtual;
+    procedure Changed;
   public
     constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property BorderColorVisible: Boolean read FBorderColorVisible write SetBorderColorVisible default False;
-    property BorderColor: TColor read FBorderColor write SetBorderColor default clBlack;
-    property BackgroundColorVisible: Boolean read FBackgroundColorVisible write SetBackgroundColorVisible default False;
-    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clNone;
-    property UnderlineVisible: Boolean read FUnderlineVisible write SetUnderlineVisible default False;
-    property UnderlineColor: TColor read FUnderlineColor write SetUnderlineColor default clBlack;
-    property UnderlineThickness: Integer read FUnderlineThickness write SetUnderlineThickness default 1;
-    property UnderlineStyle: TPenStyle read FUnderlineStyle write SetUnderlineStyle default psSolid;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TSeparatorSettings }
-  TSeparatorSettings = class(TPersistent)
-  private
-    FVisible: Boolean;
-    FColor: TColor;
-    FThickness: Integer;
-    FPadding: Integer;
-    FHeightMode: TSeparatorHeightMode;
-    FCustomHeight: Integer;
-    FOnChange: TNotifyEvent;
-    procedure SetVisible(const Value: Boolean);
-    procedure SetColor(const Value: TColor);
-    procedure SetThickness(const Value: Integer);
-    procedure SetPadding(const Value: Integer);
-    procedure SetHeightMode(const Value: TSeparatorHeightMode);
-    procedure SetCustomHeight(const Value: Integer);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Visible: Boolean read FVisible write SetVisible default False;
-    property Color: TColor read FColor write SetColor default clGray;
-    property Thickness: Integer read FThickness write SetThickness default 1;
-    property Padding: Integer read FPadding write SetPadding default 2;
-    property HeightMode: TSeparatorHeightMode read FHeightMode write SetHeightMode default shmFull;
-    property CustomHeight: Integer read FCustomHeight write SetCustomHeight default 0;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TDropShadowSettings }
-  TDropShadowSettings = class(TPersistent)
-  private
-    FEnabled: Boolean;
-    FColor: TColor;
-    FOffset: TPoint;
-    FBlurRadius: Integer;
-    FOnChange: TNotifyEvent;
-    procedure SetEnabled(const Value: Boolean);
-    procedure SetColor(const Value: TColor);
-    procedure SetOffset(const Value: TPoint);
-    procedure SetBlurRadius(const Value: Integer);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Enabled: Boolean read FEnabled write SetEnabled default False;
-    property Color: TColor read FColor write SetColor default clBlack;
-    property Offset: TPoint read FOffset write SetOffset;
-    property BlurRadius: Integer read FBlurRadius write SetBlurRadius default 3;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TGradientSettings }
-  TGradientSettings = class(TPersistent)
-  private
-    FEnabled: Boolean;
-    FGradientType: TGradientType;
-    FStartColor: TColor;
-    FEndColor: TColor;
-    FOnChange: TNotifyEvent;
-    procedure SetEnabled(const Value: Boolean);
-    procedure SetGradientType(const Value: TGradientType);
-    procedure SetStartColor(const Value: TColor);
-    procedure SetEndColor(const Value: TColor);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create;
-    procedure Assign(Source: TPersistent); override;
-  published
-    property Enabled: Boolean read FEnabled write SetEnabled default False;
-    property GradientType: TGradientType read FGradientType write SetGradientType default gtLinearVertical;
-    property StartColor: TColor read FStartColor write SetStartColor default clNone;
-    property EndColor: TColor read FEndColor write SetEndColor default clNone;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
-  end;
-
-  { TProgressSettings }
-  TProgressSettings = class(TPersistent)
-  private
-    FShowProgress: Boolean;
-    FProgressColor: TColor;
-    FHideCaptionWhileProcessing: Boolean;
-    FAnimationTimerInterval: Integer;
-    FAnimationProgressStep: Integer;
-    FAnimationStyle: TProgressAnimationStyle;
-    FProgressText: string;
-    FShowProgressText: Boolean;
-    FOwnerControl: TWinControl;
-    FOnChange: TNotifyEvent;
-    procedure SetShowProgress(const Value: Boolean);
-    procedure SetProgressColor(const Value: TColor);
-    procedure SetHideCaptionWhileProcessing(const Value: Boolean);
-    procedure SetAnimationTimerInterval(const Value: Integer);
-    procedure SetAnimationProgressStep(const Value: Integer);
-    procedure SetAnimationStyle(const Value: TProgressAnimationStyle);
-    procedure SetProgressText(const Value: string);
-    procedure SetShowProgressText(const Value: Boolean);
-  protected
-    procedure Changed; virtual;
-  public
-    constructor Create(AOwnerControl: TWinControl);
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
-  published
-    property ShowProgress: Boolean read FShowProgress write SetShowProgress default True;
-    property ProgressColor: TColor read FProgressColor write SetProgressColor default clGray;
-    property HideCaptionWhileProcessing: Boolean read FHideCaptionWhileProcessing write SetHideCaptionWhileProcessing default True;
-    property AnimationTimerInterval: Integer read FAnimationTimerInterval write SetAnimationTimerInterval default 40;
-    property AnimationProgressStep: Integer read FAnimationProgressStep write SetAnimationProgressStep default 5;
-    property AnimationStyle: TProgressAnimationStyle read FAnimationStyle write SetAnimationStyle default pasRotatingSemiCircle;
-    property ProgressText: string read FProgressText write SetProgressText;
-    property ShowProgressText: Boolean read FShowProgressText write SetShowProgressText default False;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  published
+    property Color: TColor read FColor write SetColor default clWhite;
+    property BorderColor: TColor read FBorderColor write SetBorderColor default clSilver;
+    property BorderWidth: Integer read FBorderWidth write SetBorderWidth default 0;
+    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 0;
+    property StateColors: TButtonStateColors read FStateColors write SetStateColors;
   end;
 
-// Funções Utilitárias de Desenho e Cor
-function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
-procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
-procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
-procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
-procedure DrawComponentCaption(ACanvas: TCanvas; const ARect: TRect; const ACaption: string; AFont: TFont; AFontColor: TColor; AAlignmentHorizontal: TAlignment; AAlignmentVertical: TCaptionVerticalAlignment; AWordWrap: Boolean; AOpacity: Byte);
+  // Represents a single button item in the group
+  TANDMR_CGroupButtonItem = class(TCollectionItem)
+  private
+    FCaption: TCaptionSettings;
+    FAppearance: TButtonAppearance;
+    FImage: TImageSettings;
+    FStyle: TButtonStyle;
+    FOnClick: TNotifyEvent;
+    FTag: Integer;
+    FVisible: Boolean;
+    FEnabled: Boolean;
+    FWidth: Integer;
 
-// Funções de Manipulação de Cor e Geometria
-function DarkerColor(AColor: TColor; APercent: Byte = 30): TColor;
-function LighterColor(AColor: TColor; APercent: Byte = 30): TColor;
-function BlendColors(AColor1, AColor2: TColor; AFactor: Single): TColor;
-function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: Integer): TRect;
-function ResolveStateColor(AIsEnabled: Boolean; AIsHovering: Boolean; AIsFocused: Boolean; ABaseColor, AHoverColor, AFocusColor, ADisabledColor: TColor; AAllowHoverEffect: Boolean = True; AAllowFocusEffect: Boolean = True; AHoverEffectOverridesFocus: Boolean = False; AFallbackToTransparent: Boolean = False): TColor;
+    procedure SetCaption(const Value: TCaptionSettings);
+    procedure SetAppearance(const Value: TButtonAppearance);
+    procedure SetImage(const Value: TImageSettings);
+    procedure SetStyle(const Value: TButtonStyle);
+    procedure SetEnabled(const Value: Boolean);
+    procedure SetVisible(const Value: Boolean);
+    procedure SetWidth(const Value: Integer);
+    procedure SetTag(const Value: Integer);
+    procedure SettingsChanged(Sender: TObject);
+    function GetCaptionText: string;
+    procedure SetCaptionText(const Value: string);
+
+  protected
+    function GetDisplayName: string; override;
+    procedure AssignTo(Dest: TPersistent); override;
+  public
+    constructor Create(Collection: TCollection); override;
+    destructor Destroy; override;
+    procedure Click;
+  published
+    property CaptionText: string read GetCaptionText write SetCaptionText;
+    property Caption: TCaptionSettings read FCaption write SetCaption;
+    property Appearance: TButtonAppearance read FAppearance write SetAppearance;
+    property Style: TButtonStyle read FStyle write SetStyle default bsSolid;
+    property Image: TImageSettings read FImage write SetImage;
+    property Width: Integer read FWidth write SetWidth default 70;
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property Enabled: Boolean read FEnabled write SetEnabled default True;
+    property Tag: Integer read FTag write SetTag default 0;
+    property OnClick: TNotifyEvent read FOnClick write FOnClick;
+  end;
+
+  // Collection of button items
+  TANDMR_CGroupButtonItems = class(TCollection)
+  private
+    FOwner: TANDMR_CButtonGroup;
+    function GetItem(Index: Integer): TANDMR_CGroupButtonItem;
+    procedure SetItem(Index: Integer; const Value: TANDMR_CGroupButtonItem);
+  protected
+    function GetOwner: TPersistent; override;
+    procedure Update(Item: TCollectionItem); override;
+  public
+    constructor Create(AOwner: TANDMR_CButtonGroup);
+    function Add: TANDMR_CGroupButtonItem;
+    property Items[Index: Integer]: TANDMR_CGroupButtonItem read GetItem write SetItem; default;
+  end;
+
+  // Settings for the outer border of the group
+  TGroupBorderSettings = class(TPersistent)
+  private
+    FOnChange: TNotifyEvent;
+    FVisible: Boolean;
+    FColor: TColor;
+    FWidth: Integer;
+    FCornerRadius: Integer;
+    procedure SetVisible(const Value: Boolean);
+    procedure SetColor(const Value: TColor);
+    procedure SetWidth(const Value: Integer);
+    procedure SetCornerRadius(const Value: Integer);
+  protected
+    procedure Changed;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  published
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property Color: TColor read FColor write SetColor default clSilver;
+    property Width: Integer read FWidth write SetWidth default 2;
+    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 20;
+  end;
+
+  // Settings for button selection behavior
+  TSelectionSettings = class(TPersistent)
+  private
+    FOnChange: TNotifyEvent;
+    FSelectedColor: TColor;
+    FSelectedFontColor: TColor;
+    FAllowDeselection: Boolean;
+    procedure SetSelectedColor(const Value: TColor);
+    procedure SetSelectedFontColor(const Value: TColor);
+    procedure SetAllowDeselection(const Value: Boolean);
+  protected
+    procedure Changed;
+  public
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  published
+    property SelectedColor: TColor read FSelectedColor write SetSelectedColor;
+    property SelectedFontColor: TColor read FSelectedFontColor write SetSelectedFontColor;
+    property AllowDeselection: Boolean read FAllowDeselection write SetAllowDeselection default False;
+  end;
+
+  // Main Button Group Component
+  TANDMR_CButtonGroup = class(TCustomControl)
+  private
+    FItems: TANDMR_CGroupButtonItems;
+    FHoveredItem: TANDMR_CGroupButtonItem;
+    FClickedItem: TANDMR_CGroupButtonItem;
+    FSelectedItem: TANDMR_CGroupButtonItem;
+    FSpacing: Integer;
+    FAutoSize: Boolean;
+    FGroupBorder: TGroupBorderSettings;
+    FSelection: TSelectionSettings;
+    FGlobalCaption: TCaptionSettings;
+    FGlobalImage: TImageSettings;
+    FGlobalAppearance: TButtonAppearance; // Acts as a template for new items
+    FGlobalStyle: TButtonStyle; // Acts as a template for new items
+
+    procedure SetItems(const Value: TANDMR_CGroupButtonItems);
+    procedure SetSpacing(const Value: Integer);
+    procedure SetSelectedItemIndex(const Value: Integer);
+    function GetSelectedItemIndex: Integer;
+    procedure SetGroupBorder(const Value: TGroupBorderSettings);
+    procedure SetSelection(const Value: TSelectionSettings);
+    procedure SetGlobalCaption(const Value: TCaptionSettings);
+    procedure SetGlobalImage(const Value: TImageSettings);
+    procedure SetGlobalAppearance(const Value: TButtonAppearance);
+    procedure SetGlobalStyle(const Value: TButtonStyle);
+    procedure SettingsChanged(Sender: TObject);
+    procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
+    procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
+    procedure WMEraseBkgnd(var Message: TWMEraseBkgnd); message WM_ERASEBKGND;
+    procedure SetAutoSize(const Value: Boolean);
+    procedure UpdateSize;
+
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+
+    function GetItemAt(X, Y: Integer): TANDMR_CGroupButtonItem;
+    function GetButtonBlockRect: TRect;
+
+  protected
+    procedure Paint; override;
+    procedure Loaded; override;
+    procedure Resize; override;
+
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    property SelectedItem: TANDMR_CGroupButtonItem read FSelectedItem;
+  published
+    // Component Properties
+    property Align;
+    property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
+    property Enabled;
+    property Font;
+    property ParentShowHint;
+    property PopupMenu;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Visible;
+
+    // Group-specific Properties
+    property GroupBorder: TGroupBorderSettings read FGroupBorder write SetGroupBorder;
+    property Spacing: Integer read FSpacing write SetSpacing default 1;
+
+    // Item Collection and Selection
+    property Items: TANDMR_CGroupButtonItems read FItems write SetItems;
+    property Selection: TSelectionSettings read FSelection write SetSelection;
+    property SelectedItemIndex: Integer read GetSelectedItemIndex write SetSelectedItemIndex default -1;
+
+    // Global properties that apply to the component as a whole or act as templates
+    property GlobalCaption: TCaptionSettings read FGlobalCaption write SetGlobalCaption;
+    property GlobalAppearance: TButtonAppearance read FGlobalAppearance write SetGlobalAppearance; // Template for items
+    property GlobalStyle: TButtonStyle read FGlobalStyle write SetGlobalStyle default bsSolid; // Template for items
+
+    // Events
+    property OnContextPopup;
+    property OnDblClick;
+    property OnDragDrop;
+    property OnDragOver;
+    property OnEndDock;
+    property OnEndDrag;
+    property OnEnter;
+    property OnExit;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnResize;
+    property OnStartDock;
+    property OnStartDrag;
+  end;
+
+procedure Register;
 
 implementation
 
-uses
-  System.Math,
-  Winapi.ActiveX;
-
-{ TClickSettings }
-
-constructor TClickSettings.Create;
+procedure Register;
 begin
-  inherited Create;
-  FEnabled := True;
-  FColor := clNone;
-  FBorderColor := clNone;
-  FFontColor := clNone;
-  FDuration := 100;
+  RegisterComponents('ANDMR', [TANDMR_CButtonGroup]);
 end;
 
-procedure TClickSettings.Assign(Source: TPersistent);
+procedure DrawGraphicWithGDIPlus(AGraphics: TGPGraphics; AGraphic: TGraphic; const ADestRect: TRect);
 var
-  LSource: TClickSettings;
+  LTempBmp: TBitmap;
+  LGPBmp: TGPBitmap;
 begin
-  if Source is TClickSettings then
-  begin
-    LSource := TClickSettings(Source);
-    Self.FEnabled := LSource.FEnabled;
-    Self.FColor := LSource.FColor;
-    Self.FBorderColor := LSource.FBorderColor;
-    Self.FFontColor := LSource.FFontColor;
-    Self.FDuration := LSource.FDuration;
-    Changed;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure TClickSettings.Changed;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-end;
-
-procedure TClickSettings.SetEnabled(const Value: Boolean);
-begin
-  if FEnabled <> Value then
-  begin
-    FEnabled := Value;
-    Changed;
-  end;
-end;
-
-procedure TClickSettings.SetColor(const Value: TColor);
-begin
-  if FColor <> Value then
-  begin
-    FColor := Value;
-    Changed;
-  end;
-end;
-
-procedure TClickSettings.SetBorderColor(const Value: TColor);
-begin
-  if FBorderColor <> Value then
-  begin
-    FBorderColor := Value;
-    Changed;
-  end;
-end;
-
-procedure TClickSettings.SetFontColor(const Value: TColor);
-begin
-  if FFontColor <> Value then
-  begin
-    FFontColor := Value;
-    Changed;
-  end;
-end;
-
-procedure TClickSettings.SetDuration(const Value: Integer);
-begin
-  if FDuration <> Max(0, Value) then
-  begin
-    FDuration := Max(0, Value);
-    Changed;
-  end;
-end;
-
-{ TANDMR_MultiTag }
-
-constructor TANDMR_MultiTag.Create;
-begin
-  inherited Create;
-  FTag := 0;
-  FString := '';
-  FObject := nil;
-  FExtended := TStringList.Create;
-  FExtended.OnChange := ExtendedChanged;
-end;
-
-destructor TANDMR_MultiTag.Destroy;
-begin
-  FExtended.Free;
-  FObject := nil; // Apenas remove a referência, não libera o objeto
-  inherited Destroy;
-end;
-
-procedure TANDMR_MultiTag.Assign(Source: TPersistent);
-var
-  LSource: TANDMR_MultiTag;
-begin
-  if Source is TANDMR_MultiTag then
-  begin
-    LSource := TANDMR_MultiTag(Source);
-    Self.FTag := LSource.FTag;
-    Self.FString := LSource.FString;
-    Self.FObject := LSource.FObject;
-    Self.FExtended.Assign(LSource.FExtended);
-    Changed;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure TANDMR_MultiTag.Changed;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-end;
-
-procedure TANDMR_MultiTag.ExtendedChanged(Sender: TObject);
-begin
-  Changed;
-end;
-
-procedure TANDMR_MultiTag.SetTag(const Value: NativeInt);
-begin
-  if FTag <> Value then
-  begin
-    FTag := Value;
-    Changed;
-  end;
-end;
-
-procedure TANDMR_MultiTag.SetString(const Value: string);
-begin
-  if FString <> Value then
-  begin
-    FString := Value;
-    Changed;
-  end;
-end;
-
-procedure TANDMR_MultiTag.SetExtended(const Value: TStringList);
-begin
-  // O Assign já dispara o OnChange do FExtended, que chama o Changed.
-  FExtended.Assign(Value);
-end;
-
-procedure TANDMR_MultiTag.SetObject(const Value: TObject);
-begin
-  if FObject <> Value then
-  begin
-    FObject := Value;
-    Changed;
-  end;
-end;
-
-{ TANDMR_Margins }
-
-constructor TANDMR_Margins.Create;
-begin
-  inherited Create;
-  FLeft := 2;
-  FTop := 2;
-  FRight := 2;
-  FBottom := 2;
-end;
-
-procedure TANDMR_Margins.Assign(Source: TPersistent);
-var
-  LSource: TANDMR_Margins;
-begin
-  if Source is TANDMR_Margins then
-  begin
-    LSource := TANDMR_Margins(Source);
-    FLeft := LSource.FLeft;
-    FTop := LSource.FTop;
-    FRight := LSource.FRight;
-    FBottom := LSource.FBottom;
-    Changed;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure TANDMR_Margins.Changed;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-end;
-
-procedure TANDMR_Margins.SetLeft(const Value: Integer);
-begin
-  if FLeft <> Value then
-  begin
-    FLeft := Value;
-    Changed;
-  end;
-end;
-
-procedure TANDMR_Margins.SetTop(const Value: Integer);
-begin
-  if FTop <> Value then
-  begin
-    FTop := Value;
-    Changed;
-  end;
-end;
-
-procedure TANDMR_Margins.SetRight(const Value: Integer);
-begin
-  if FRight <> Value then
-  begin
-    FRight := Value;
-    Changed;
-  end;
-end;
-
-procedure TANDMR_Margins.SetBottom(const Value: Integer);
-begin
-  if FBottom <> Value then
-  begin
-    FBottom := Value;
-    Changed;
-  end;
-end;
-
-{ TCaptionSettings }
-
-constructor TCaptionSettings.Create(AOwner: TWinControl);
-begin
-  inherited Create;
-  FOwnerControl := AOwner;
-  FVisible := True;
-  FText := '';
-  FPosition := cpAbove;
-  FAlignment := taLeftJustify;
-  FVerticalAlignment := cvaCenter;
-  FColor := clWindowText;
-  FDisabledColor := clGrayText;
-  FWordWrap := False;
-  FOffset := System.Types.Point(0, 0);
-
-  FFont := TFont.Create;
-  FFont.OnChange := FontChanged;
-  FFont.Name := 'Segoe UI';
-  FFont.Size := 9;
-
-  FMargins := TANDMR_Margins.Create;
-  FMargins.OnChange := InternalMarginsChanged;
-end;
-
-destructor TCaptionSettings.Destroy;
-begin
-  if Assigned(FFont) then
-  begin
-    FFont.OnChange := nil;
-    FFont.Free;
-    FFont := nil;
-  end;
-  if Assigned(FMargins) then
-  begin
-    FMargins.OnChange := nil;
-    FMargins.Free;
-    FMargins := nil;
-  end;
-  inherited Destroy;
-end;
-
-procedure TCaptionSettings.Assign(Source: TPersistent);
-var
-  LSource: TCaptionSettings;
-begin
-  if Source is TCaptionSettings then
-  begin
-    LSource := TCaptionSettings(Source);
-    Self.Visible := LSource.Visible;
-    Self.Text := LSource.Text;
-    Self.Position := LSource.Position;
-    Self.Alignment := LSource.Alignment;
-    Self.VerticalAlignment := LSource.VerticalAlignment;
-    Self.Font.Assign(LSource.Font);
-    Self.Color := LSource.Color;
-    Self.DisabledColor := LSource.DisabledColor;
-    Self.WordWrap := LSource.WordWrap;
-    Self.Offset := LSource.Offset;
-    Self.Margins.Assign(LSource.Margins);
-    // Chamada única ao final para garantir a atualização
-    Changed;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure TCaptionSettings.Changed;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-end;
-
-procedure TCaptionSettings.FontChanged(Sender: TObject);
-begin
-  Changed;
-end;
-
-procedure TCaptionSettings.InternalMarginsChanged(Sender: TObject);
-begin
-  Changed;
-end;
-
-procedure TCaptionSettings.SetVisible(const Value: Boolean);
-begin
-  if FVisible <> Value then
-  begin
-    FVisible := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetText(const Value: string);
-begin
-  if FText <> Value then
-  begin
-    FText := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetPosition(const Value: TCaptionPosition);
-begin
-  if FPosition <> Value then
-  begin
-    FPosition := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetAlignment(const Value: TAlignment);
-begin
-  if FAlignment <> Value then
-  begin
-    FAlignment := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetVerticalAlignment(const Value: TCaptionVerticalAlignment);
-begin
-  if FVerticalAlignment <> Value then
-  begin
-    FVerticalAlignment := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetFont(const Value: TFont);
-begin
-  // Assign já dispara o OnChange da fonte, que chama Changed.
-  FFont.Assign(Value);
-end;
-
-procedure TCaptionSettings.SetColor(const Value: TColor);
-begin
-  if FColor <> Value then
-  begin
-    FColor := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetDisabledColor(const Value: TColor);
-begin
-  if FDisabledColor <> Value then
-  begin
-    FDisabledColor := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetWordWrap(const Value: Boolean);
-begin
-  if FWordWrap <> Value then
-  begin
-    FWordWrap := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetOffset(const Value: TPoint);
-begin
-  if FOffset <> Value then
-  begin
-    FOffset := Value;
-    Changed;
-  end;
-end;
-
-procedure TCaptionSettings.SetMargins(const Value: TANDMR_Margins);
-begin
-  // Assign já dispara o OnChange das margens, que chama Changed.
-  FMargins.Assign(Value);
-end;
-
-{ THoverSettings }
-
-constructor THoverSettings.Create(AOwnerControl: TWinControl);
-begin
-  inherited Create;
-  FOwnerControl := AOwnerControl;
-  FEnabled := True;
-  FBackgroundColor := clSkyBlue;
-  FBorderColor := clHighlight;
-  FFontColor := clBlack;
-  FCaptionFontColor := clBlack;
-  FHoverEffect := heFade;
-  FAnimationTimerInterval := 15;
-  FAnimationStep := 20;
-  FCurrentAnimationValue := 0;
-  FAnimationDirection := 0;
-
-  FAnimationTimer := TTimer.Create(nil);
-  FAnimationTimer.Interval := FAnimationTimerInterval;
-  FAnimationTimer.OnTimer := DoAnimate;
-  FAnimationTimer.Enabled := False;
-end;
-
-destructor THoverSettings.Destroy;
-begin
-  FAnimationTimer.Free;
-  FAnimationTimer := nil;
-  inherited Destroy;
-end;
-
-procedure THoverSettings.Assign(Source: TPersistent);
-var
-  LSource: THoverSettings;
-begin
-  if Source is THoverSettings then
-  begin
-    LSource := THoverSettings(Source);
-    Self.Enabled := LSource.Enabled;
-    Self.BackgroundColor := LSource.BackgroundColor;
-    Self.BorderColor := LSource.BorderColor;
-    Self.FontColor := LSource.FontColor;
-    Self.CaptionFontColor := LSource.CaptionFontColor;
-    Self.HoverEffect := LSource.HoverEffect;
-    Self.AnimationTimerInterval := LSource.AnimationTimerInterval;
-    Self.AnimationStep := LSource.AnimationStep;
-    Changed;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure THoverSettings.Changed;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-end;
-
-procedure THoverSettings.SetEnabled(const Value: Boolean);
-begin
-  if FEnabled <> Value then
-  begin
-    FEnabled := Value;
-    // Se desabilitado, reseta e para qualquer animação em andamento.
-    if not FEnabled then
-    begin
-      FAnimationTimer.Enabled := False;
-      FCurrentAnimationValue := 0;
-      FAnimationDirection := 0;
-      if Assigned(FOnAnimationProgress) then FOnAnimationProgress(Self);
-      if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then FOwnerControl.Invalidate;
-    end;
-    Changed;
-  end;
-end;
-
-procedure THoverSettings.SetBackgroundColor(const Value: TColor);
-begin
-  if FBackgroundColor <> Value then
-  begin
-    FBackgroundColor := Value;
-    Changed;
-  end;
-end;
-
-procedure THoverSettings.SetBorderColor(const Value: TColor);
-begin
-  if FBorderColor <> Value then
-  begin
-    FBorderColor := Value;
-    Changed;
-  end;
-end;
-
-procedure THoverSettings.SetFontColor(const Value: TColor);
-begin
-  if FFontColor <> Value then
-  begin
-    FFontColor := Value;
-    Changed;
-  end;
-end;
-
-procedure THoverSettings.SetCaptionFontColor(const Value: TColor);
-begin
-  if FCaptionFontColor <> Value then
-  begin
-    FCaptionFontColor := Value;
-    Changed;
-  end;
-end;
-
-procedure THoverSettings.SetHoverEffect(const Value: THoverEffect);
-begin
-  if FHoverEffect <> Value then
-  begin
-    FHoverEffect := Value;
-    // Reseta a animação ao mudar o tipo de efeito
-    FAnimationTimer.Enabled := False;
-    FCurrentAnimationValue := 0;
-    FAnimationDirection := 0;
-    if Assigned(FOnAnimationProgress) then FOnAnimationProgress(Self);
-    if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then FOwnerControl.Invalidate;
-    Changed;
-  end;
-end;
-
-procedure THoverSettings.SetAnimationTimerInterval(const Value: Integer);
-begin
-  if FAnimationTimerInterval <> Value then
-  begin
-    FAnimationTimerInterval := Max(1, Value); // Garante que o intervalo seja positivo
-    FAnimationTimer.Interval := FAnimationTimerInterval;
-    Changed;
-  end;
-end;
-
-procedure THoverSettings.SetAnimationStep(const Value: Integer);
-begin
-  if FAnimationStep <> Value then
-  begin
-    FAnimationStep := Max(1, Value); // Garante que o passo seja positivo
-    Changed;
-  end;
-end;
-
-procedure THoverSettings.DoAnimate(Sender: TObject);
-var
-  TargetValue: Integer;
-  OldAnimationValue: Integer;
-begin
-  OldAnimationValue := FCurrentAnimationValue;
-
-  if FAnimationDirection = 1 then
-    TargetValue := 255
-  else if FAnimationDirection = -1 then
-    TargetValue := 0
-  else
-  begin // Sem direção, para o timer
-    FAnimationTimer.Enabled := False;
+  // Sai se o gráfico for inválido, vazio ou a área de destino não tiver tamanho.
+  if not Assigned(AGraphic) or AGraphic.Empty or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then
     Exit;
-  end;
 
-  // Atualiza o valor da animação
-  if FAnimationDirection = 1 then
-    FCurrentAnimationValue := Min(TargetValue, FCurrentAnimationValue + FAnimationStep)
-  else
-    FCurrentAnimationValue := Max(TargetValue, FCurrentAnimationValue - FAnimationStep);
+  // Abordagem universal e robusta para TODOS os tipos de TGraphic (BMP, JPG, PNG, ICO, etc.)
+  LTempBmp := TBitmap.Create;
+  try
+    // Configura o bitmap intermediário para ter alta qualidade e suporte a transparência.
+    // Isto é CRUCIAL para que a transparência do PNG seja preservada.
+    LTempBmp.SetSize(AGraphic.Width, AGraphic.Height);
+    LTempBmp.PixelFormat := pf32bit;
+    LTempBmp.AlphaFormat := afPremultiplied; // Essencial para o canal alfa
 
-  // Para o timer se o alvo foi atingido
-  if FCurrentAnimationValue = TargetValue then
-  begin
-    FAnimationTimer.Enabled := False;
-    FAnimationDirection := 0;
-  end;
+    // Desenha o gráfico original (seja PNG ou outro) no nosso bitmap de 32-bit.
+    // A VCL cuida da conversão e da transparência aqui.
+    LTempBmp.Canvas.Draw(0, 0, AGraphic);
 
-  // Notifica o progresso se houve mudança ou se a animação acabou
-  if (FCurrentAnimationValue <> OldAnimationValue) or (not FAnimationTimer.Enabled) then
-  begin
-    if Assigned(FOnAnimationProgress) then
-      FOnAnimationProgress(Self);
-
-    if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then
-      FOwnerControl.Invalidate;
+    // Cria o bitmap GDI+ a partir do HBITMAP do nosso bitmap VCL.
+    // O '0' como segundo parâmetro indica que não há uma paleta de cores.
+    LGPBmp := TGPBitmap.Create(LTempBmp.Handle, 0);
+    try
+      // Finalmente, desenha a imagem na tela usando GDI+.
+      AGraphics.DrawImage(LGPBmp, ADestRect.Left, ADestRect.Top, ADestRect.Width, ADestRect.Height);
+    finally
+      LGPBmp.Free;
+    end;
+  finally
+    LTempBmp.Free;
   end;
 end;
 
-procedure THoverSettings.StartAnimation(IsHovering: Boolean);
-begin
-  // Se o efeito não estiver habilitado, garante que o estado de animação seja resetado
-  if not Self.Enabled then
-  begin
-    if (FCurrentAnimationValue <> 0) or FAnimationTimer.Enabled then
-    begin
-      FAnimationTimer.Enabled := False;
-      FCurrentAnimationValue := 0;
-      FAnimationDirection := 0;
-      if Assigned(FOnAnimationProgress) then FOnAnimationProgress(Self);
-      if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then FOwnerControl.Invalidate;
-    end;
-    Exit;
-  end;
-
-  // Se o efeito for 'heNone', aplica o estado final imediatamente
-  if FHoverEffect = heNone then
-  begin
-    var TargetValue: Integer := IfThen(IsHovering, 255, 0);
-    if FCurrentAnimationValue <> TargetValue then
-    begin
-      FAnimationTimer.Enabled := False;
-      FCurrentAnimationValue := TargetValue;
-      FAnimationDirection := 0;
-      if Assigned(FOnAnimationProgress) then FOnAnimationProgress(Self);
-      if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then FOwnerControl.Invalidate;
-    end;
-    Exit;
-  end;
-
-  // Define a direção da animação e a inicia
-  FAnimationTimer.Interval := FAnimationTimerInterval;
-  if IsHovering then
-  begin
-    if FCurrentAnimationValue < 255 then
-    begin
-      FAnimationDirection := 1; // Animar para "dentro" (hover)
-      FAnimationTimer.Enabled := True;
-    end;
-  end
-  else
-  begin
-    if FCurrentAnimationValue > 0 then
-    begin
-      FAnimationDirection := -1; // Animar para "fora" (leave)
-      FAnimationTimer.Enabled := True;
-    end;
-  end;
-end;
-
-
-{ TImageSettings }
-
-constructor TImageSettings.Create(AOwnerControl: TWinControl);
-begin
-  inherited Create;
-  FOwnerControl := AOwnerControl;
-  FVisible := True;
-  FDrawMode := idmProportional;
-  FPosition := ipsLeft;
-  FAlignmentVertical := iavCenter;
-  FPlacement := iplInsideBounds;
-  FAutoSize := True;
-  FTargetWidth := 0;
-  FTargetHeight := 0;
-  FHorizontalAlign := ihaCenter;
-  FVerticalAlign := ivaCenter;
-
-  FPicture := TPicture.Create;
-  FPicture.OnChange := InternalPictureChanged;
-
-  FMargins := TANDMR_Margins.Create;
-  FMargins.OnChange := InternalMarginsChanged;
-end;
-
-destructor TImageSettings.Destroy;
-begin
-  if Assigned(FPicture) then
-  begin
-    FPicture.OnChange := nil;
-    FPicture.Free;
-    FPicture := nil;
-  end;
-  if Assigned(FMargins) then
-  begin
-    FMargins.OnChange := nil;
-    FMargins.Free;
-    FMargins := nil;
-  end;
-  inherited Destroy;
-end;
-
-procedure TImageSettings.Assign(Source: TPersistent);
+function CalcProportionalRect(const AContainer: TRect; ASourceWidth, ASourceHeight: Integer; AProportional: Boolean): TRect;
 var
-  LSource: TImageSettings;
+  LContainerRatio, LSourceRatio: Double;
+  LScale: Double;
 begin
-  if Source is TImageSettings then
-  begin
-    LSource := TImageSettings(Source);
-    Self.Visible := LSource.Visible;
-    Self.DrawMode := LSource.DrawMode;
-    Self.Picture.Assign(LSource.Picture);
-    Self.Margins.Assign(LSource.Margins);
-    Self.Position := LSource.Position;
-    Self.AlignmentVertical := LSource.AlignmentVertical;
-    Self.Placement := LSource.Placement;
-    Self.AutoSize := LSource.AutoSize;
-    Self.TargetWidth := LSource.TargetWidth;
-    Self.TargetHeight := LSource.TargetHeight;
-    Self.HorizontalAlign := LSource.HorizontalAlign;
-    Self.VerticalAlign := LSource.VerticalAlign;
-    DoChange;
-  end
+  Result := AContainer;
+
+  if (ASourceWidth = 0) or (ASourceHeight = 0) or not AProportional then
+    Exit;
+
+  LContainerRatio := Result.Width / Result.Height;
+  LSourceRatio := ASourceWidth / ASourceHeight;
+
+  if LSourceRatio > LContainerRatio then
+    LScale := Result.Width / ASourceWidth
   else
-    inherited Assign(Source);
+    LScale := Result.Height / ASourceHeight;
+
+  Result.Right := Result.Left + Round(ASourceWidth * LScale);
+  Result.Bottom := Result.Top + Round(ASourceHeight * LScale);
+
+  // Center the result rect inside the container
+  Result.Offset((AContainer.Width - Result.Width) div 2, (AContainer.Height - Result.Height) div 2);
 end;
 
-procedure TImageSettings.DoChange;
+//------------------------------------------------------------------------------
+// TButtonStateColors
+//------------------------------------------------------------------------------
+constructor TButtonStateColors.Create;
+begin
+  inherited;
+  FHoverColor := TColor($00EAEAEA);
+  FHoverFontColor := clBlack;
+  FHoverBorderColor := clNone;
+  FClickColor := TColor($00DDDDDD);
+end;
+
+procedure TButtonStateColors.Assign(Source: TPersistent);
+begin
+  if Source is TButtonStateColors then
+  begin
+    FClickColor := TButtonStateColors(Source).FClickColor;
+    FHoverColor := TButtonStateColors(Source).FHoverColor;
+    FHoverBorderColor := TButtonStateColors(Source).FHoverBorderColor;
+    FHoverFontColor := TButtonStateColors(Source).FHoverFontColor;
+    Changed;
+  end
+  else
+    inherited;
+end;
+
+procedure TButtonStateColors.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
-procedure TImageSettings.InternalPictureChanged(Sender: TObject);
+procedure TButtonStateColors.SetClickColor(const Value: TColor);
 begin
-  DoChange;
-end;
-
-procedure TImageSettings.InternalMarginsChanged(Sender: TObject);
-begin
-  DoChange;
-end;
-
-procedure TImageSettings.SetVisible(const Value: Boolean);
-begin
-  if FVisible <> Value then
+  if FClickColor <> Value then
   begin
-    FVisible := Value;
-    DoChange;
+    FClickColor := Value;
+    Changed;
   end;
 end;
 
-procedure TImageSettings.SetPicture(const Value: TPicture);
+procedure TButtonStateColors.SetHoverBorderColor(const Value: TColor);
 begin
-  FPicture.Assign(Value);
-end;
-
-procedure TImageSettings.SetDrawMode(const Value: TImageDrawMode);
-begin
-  if FDrawMode <> Value then
+  if FHoverBorderColor <> Value then
   begin
-    FDrawMode := Value;
-    DoChange;
+    FHoverBorderColor := Value;
+    Changed;
   end;
 end;
 
-procedure TImageSettings.SetMargins(const Value: TANDMR_Margins);
+procedure TButtonStateColors.SetHoverColor(const Value: TColor);
 begin
-  FMargins.Assign(Value);
-end;
-
-procedure TImageSettings.SetPosition(const Value: TImagePositionSide);
-begin
-  if FPosition <> Value then
+  if FHoverColor <> Value then
   begin
-    FPosition := Value;
-    DoChange;
+    FHoverColor := Value;
+    Changed;
   end;
 end;
 
-procedure TImageSettings.SetAlignmentVertical(const Value: TImageAlignmentVertical);
+procedure TButtonStateColors.SetHoverFontColor(const Value: TColor);
 begin
-  if FAlignmentVertical <> Value then
+  if FHoverFontColor <> Value then
   begin
-    FAlignmentVertical := Value;
-    DoChange;
+    FHoverFontColor := Value;
+    Changed;
   end;
 end;
 
-procedure TImageSettings.SetPlacement(const Value: TImagePlacement);
+//------------------------------------------------------------------------------
+// TButtonAppearance
+//------------------------------------------------------------------------------
+constructor TButtonAppearance.Create;
 begin
-  if FPlacement <> Value then
-  begin
-    FPlacement := Value;
-    DoChange;
-  end;
-end;
-
-procedure TImageSettings.SetTargetWidth(const Value: Integer);
-begin
-  if FTargetWidth <> Max(0, Value) then
-  begin
-    FTargetWidth := Max(0, Value);
-    DoChange;
-  end;
-end;
-
-procedure TImageSettings.SetTargetHeight(const Value: Integer);
-begin
-  if FTargetHeight <> Max(0, Value) then
-  begin
-    FTargetHeight := Max(0, Value);
-    DoChange;
-  end;
-end;
-
-procedure TImageSettings.SetAutoSize(const Value: Boolean);
-begin
-  if FAutoSize <> Value then
-  begin
-    FAutoSize := Value;
-    DoChange;
-  end;
-end;
-
-procedure TImageSettings.SetHorizontalAlign(const Value: TImageHorizontalAlignment);
-begin
-  if FHorizontalAlign <> Value then
-  begin
-    FHorizontalAlign := Value;
-    DoChange;
-  end;
-end;
-
-procedure TImageSettings.SetVerticalAlign(const Value: TImageVerticalAlignment);
-begin
-  if FVerticalAlign <> Value then
-  begin
-    FVerticalAlign := Value;
-    DoChange;
-  end;
-end;
-
-{ TBorderSettings }
-
-constructor TBorderSettings.Create;
-begin
-  inherited Create;
-  FVisible := True;
-  FColor := clBlack;
-  FThickness := 1;
-  FStyle := psSolid;
+  inherited;
+  FColor := TColor($00F5F5F5);
+  FBorderColor := TColor($00E0E0E0);
+  FBorderWidth := 0;
   FCornerRadius := 0;
-  FRoundCornerType := rctNone;
-  FBackgroundColor := clNone;
+  FStateColors := TButtonStateColors.Create;
+  FStateColors.OnChange := StateColorsChanged;
 end;
 
-procedure TBorderSettings.Assign(Source: TPersistent);
-var
-  LSource: TBorderSettings;
+destructor TButtonAppearance.Destroy;
 begin
-  if Source is TBorderSettings then
+  FStateColors.Free;
+  inherited;
+end;
+
+procedure TButtonAppearance.Assign(Source: TPersistent);
+begin
+  if Source is TButtonAppearance then
   begin
-    LSource := TBorderSettings(Source);
-    FVisible := LSource.FVisible;
-    FColor := LSource.FColor;
-    FThickness := LSource.FThickness;
-    FStyle := LSource.FStyle;
-    FCornerRadius := LSource.FCornerRadius;
-    FRoundCornerType := LSource.FRoundCornerType;
-    FBackgroundColor := LSource.FBackgroundColor;
+    FColor := TButtonAppearance(Source).FColor;
+    FBorderColor := TButtonAppearance(Source).FBorderColor;
+    FBorderWidth := TButtonAppearance(Source).FBorderWidth;
+    FCornerRadius := TButtonAppearance(Source).FCornerRadius;
+    FStateColors.Assign(TButtonAppearance(Source).FStateColors);
     Changed;
   end
   else
-    inherited Assign(Source);
+    inherited;
 end;
 
-procedure TBorderSettings.Changed;
+procedure TButtonAppearance.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
-procedure TBorderSettings.SetVisible(const Value: Boolean);
+procedure TButtonAppearance.StateColorsChanged(Sender: TObject);
 begin
-  if FVisible <> Value then
+  Changed;
+end;
+
+procedure TButtonAppearance.SetBorderColor(const Value: TColor);
+begin
+  if FBorderColor <> Value then
   begin
-    FVisible := Value;
+    FBorderColor := Value;
     Changed;
   end;
 end;
 
-procedure TBorderSettings.SetColor(const Value: TColor);
+procedure TButtonAppearance.SetBorderWidth(const Value: Integer);
+begin
+  if FBorderWidth <> Value then
+  begin
+    FBorderWidth := Value;
+    Changed;
+  end;
+end;
+
+procedure TButtonAppearance.SetColor(const Value: TColor);
 begin
   if FColor <> Value then
   begin
@@ -1381,204 +492,267 @@ begin
   end;
 end;
 
-procedure TBorderSettings.SetThickness(const Value: Integer);
+procedure TButtonAppearance.SetCornerRadius(const Value: Integer);
 begin
-  if FThickness <> Value then
+  if FCornerRadius <> Value then
   begin
-    FThickness := Value;
+    FCornerRadius := Value;
     Changed;
   end;
 end;
 
-procedure TBorderSettings.SetStyle(const Value: TPenStyle);
+procedure TButtonAppearance.SetStateColors(const Value: TButtonStateColors);
+begin
+  FStateColors.Assign(Value);
+end;
+
+
+//------------------------------------------------------------------------------
+// TANDMR_CGroupButtonItem
+//------------------------------------------------------------------------------
+constructor TANDMR_CGroupButtonItem.Create(Collection: TCollection);
+var
+  LGroupOwner: TANDMR_CButtonGroup;
+begin
+  inherited;
+  FVisible := True;
+  FEnabled := True;
+  FWidth := 70;
+  FStyle := bsSolid;
+  FTag := 0;
+
+  if (Collection <> nil) and (Collection.Owner is TANDMR_CButtonGroup) then
+    LGroupOwner := Collection.Owner as TANDMR_CButtonGroup
+  else
+    LGroupOwner := nil;
+
+  FAppearance := TButtonAppearance.Create;
+  FAppearance.OnChange := SettingsChanged;
+
+  FCaption := TCaptionSettings.Create(LGroupOwner);
+  FCaption.OnChange := SettingsChanged;
+  FCaption.Alignment := taCenter;
+  FCaption.Font.Style := [fsBold];
+  FCaption.Font.Color := clGray;
+  FCaption.Text := 'Item ' + IntToStr(Index);
+
+  FImage := TImageSettings.Create(LGroupOwner);
+  FImage.OnChange := SettingsChanged;
+
+  // Apply global templates from owner if available
+  if Assigned(LGroupOwner) then
+  begin
+    Appearance.Assign(LGroupOwner.GlobalAppearance);
+    Style := LGroupOwner.GlobalStyle;
+  end;
+end;
+
+destructor TANDMR_CGroupButtonItem.Destroy;
+begin
+  FAppearance.Free;
+  FImage.Free;
+  FCaption.Free;
+  inherited;
+end;
+
+procedure TANDMR_CGroupButtonItem.AssignTo(Dest: TPersistent);
+var
+  LDestItem: TANDMR_CGroupButtonItem;
+begin
+  if Dest is TANDMR_CGroupButtonItem then
+  begin
+    LDestItem := TANDMR_CGroupButtonItem(Dest);
+    LDestItem.Caption.Assign(Self.FCaption);
+    LDestItem.Appearance.Assign(Self.FAppearance);
+    LDestItem.Image.Assign(Self.FImage);
+    LDestItem.FStyle := Self.FStyle;
+    LDestItem.FWidth := Self.FWidth;
+    LDestItem.FVisible := Self.FVisible;
+    LDestItem.FEnabled := Self.FEnabled;
+    LDestItem.FTag := Self.FTag;
+    LDestItem.FOnClick := Self.FOnClick;
+  end
+  else
+    inherited;
+end;
+
+procedure TANDMR_CGroupButtonItem.Click;
+begin
+  if Assigned(FOnClick) then
+    FOnClick(Self);
+end;
+
+procedure TANDMR_CGroupButtonItem.SettingsChanged(Sender: TObject);
+begin
+  Changed(False);
+end;
+
+function TANDMR_CGroupButtonItem.GetDisplayName: string;
+begin
+  if FCaption.Text <> '' then
+    Result := FCaption.Text
+  else
+    Result := inherited GetDisplayName;
+end;
+
+function TANDMR_CGroupButtonItem.GetCaptionText: string;
+begin
+  Result := FCaption.Text;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetCaptionText(const Value: string);
+begin
+  FCaption.Text := Value;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetCaption(const Value: TCaptionSettings);
+begin
+  FCaption.Assign(Value);
+end;
+
+procedure TANDMR_CGroupButtonItem.SetAppearance(const Value: TButtonAppearance);
+begin
+  FAppearance.Assign(Value);
+end;
+
+procedure TANDMR_CGroupButtonItem.SetEnabled(const Value: Boolean);
+begin
+  if FEnabled <> Value then
+  begin
+    FEnabled := Value;
+    Changed(False);
+  end;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetImage(const Value: TImageSettings);
+begin
+  FImage.Assign(Value);
+end;
+
+procedure TANDMR_CGroupButtonItem.SetStyle(const Value: TButtonStyle);
 begin
   if FStyle <> Value then
   begin
     FStyle := Value;
-    Changed;
+    Changed(False);
   end;
 end;
 
-procedure TBorderSettings.SetCornerRadius(const Value: Integer);
+procedure TANDMR_CGroupButtonItem.SetTag(const Value: Integer);
 begin
-  if FCornerRadius <> Max(0, Value) then
+  FTag := Value;
+end;
+
+procedure TANDMR_CGroupButtonItem.SetVisible(const Value: Boolean);
+begin
+  if FVisible <> Value then
   begin
-    FCornerRadius := Max(0, Value);
-    Changed;
+    FVisible := Value;
+    Changed(False);
   end;
 end;
 
-procedure TBorderSettings.SetRoundCornerType(const Value: TRoundCornerType);
+procedure TANDMR_CGroupButtonItem.SetWidth(const Value: Integer);
 begin
-  if FRoundCornerType <> Value then
+  if FWidth <> Value then
   begin
-    FRoundCornerType := Value;
-    Changed;
+    FWidth := Value;
+    Changed(False);
   end;
 end;
 
-procedure TBorderSettings.SetBackgroundColor(const Value: TColor);
+
+//------------------------------------------------------------------------------
+// TANDMR_CGroupButtonItems
+//------------------------------------------------------------------------------
+constructor TANDMR_CGroupButtonItems.Create(AOwner: TANDMR_CButtonGroup);
 begin
-  if FBackgroundColor <> Value then
+  inherited Create(TANDMR_CGroupButtonItem);
+  FOwner := AOwner;
+end;
+
+function TANDMR_CGroupButtonItems.Add: TANDMR_CGroupButtonItem;
+begin
+  Result := TANDMR_CGroupButtonItem(inherited Add);
+  // Note: Item constructor now applies global templates
+end;
+
+function TANDMR_CGroupButtonItems.GetItem(Index: Integer): TANDMR_CGroupButtonItem;
+begin
+  Result := TANDMR_CGroupButtonItem(inherited GetItem(Index));
+end;
+
+function TANDMR_CGroupButtonItems.GetOwner: TPersistent;
+begin
+  Result := FOwner;
+end;
+
+procedure TANDMR_CGroupButtonItems.SetItem(Index: Integer; const Value: TANDMR_CGroupButtonItem);
+begin
+  inherited SetItem(Index, Value);
+end;
+
+procedure TANDMR_CGroupButtonItems.Update(Item: TCollectionItem);
+begin
+  inherited;
+  if not (csLoading in FOwner.ComponentState) then
   begin
-    FBackgroundColor := Value;
-    Changed;
+    FOwner.UpdateSize;
+    FOwner.Invalidate;
   end;
 end;
 
-{ TFocusSettings }
-
-constructor TFocusSettings.Create;
+//------------------------------------------------------------------------------
+// TGroupBorderSettings
+//------------------------------------------------------------------------------
+constructor TGroupBorderSettings.Create;
 begin
-  inherited Create;
-  FBorderColorVisible := False;
-  FBorderColor := clBlack;
-  FBackgroundColorVisible := False;
-  FBackgroundColor := clNone;
-  FUnderlineVisible := False;
-  FUnderlineColor := clBlack;
-  FUnderlineThickness := 1;
-  FUnderlineStyle := psSolid;
+  inherited;
+  FVisible := True;
+  FColor := TColor($00E0E0E0);
+  FWidth := 2;
+  FCornerRadius := 20;
 end;
 
-procedure TFocusSettings.Assign(Source: TPersistent);
-var
-  LSource: TFocusSettings;
+procedure TGroupBorderSettings.Assign(Source: TPersistent);
 begin
-  if Source is TFocusSettings then
+  if Source is TGroupBorderSettings then
   begin
-    LSource := TFocusSettings(Source);
-    FBorderColorVisible := LSource.FBorderColorVisible;
-    FBorderColor := LSource.FBorderColor;
-    FBackgroundColorVisible := LSource.FBackgroundColorVisible;
-    FBackgroundColor := LSource.FBackgroundColor;
-    FUnderlineVisible := LSource.FUnderlineVisible;
-    FUnderlineColor := LSource.FUnderlineColor;
-    FUnderlineThickness := LSource.FUnderlineThickness;
-    FUnderlineStyle := LSource.FUnderlineStyle;
+    FVisible := TGroupBorderSettings(Source).FVisible;
+    FColor := TGroupBorderSettings(Source).FColor;
+    FWidth := TGroupBorderSettings(Source).FWidth;
+    FCornerRadius := TGroupBorderSettings(Source).FCornerRadius;
     Changed;
   end
   else
-    inherited Assign(Source);
+    inherited;
 end;
 
-procedure TFocusSettings.Changed;
+procedure TGroupBorderSettings.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
-procedure TFocusSettings.SetBorderColorVisible(const Value: Boolean);
+procedure TGroupBorderSettings.SetColor(const Value: TColor);
 begin
-  if FBorderColorVisible <> Value then
+  if FColor <> Value then
   begin
-    FBorderColorVisible := Value;
+    FColor := Value;
     Changed;
   end;
 end;
 
-procedure TFocusSettings.SetBorderColor(const Value: TColor);
+procedure TGroupBorderSettings.SetCornerRadius(const Value: Integer);
 begin
-  if FBorderColor <> Value then
+  if FCornerRadius <> Value then
   begin
-    FBorderColor := Value;
+    FCornerRadius := Value;
     Changed;
   end;
 end;
 
-procedure TFocusSettings.SetBackgroundColorVisible(const Value: Boolean);
-begin
-  if FBackgroundColorVisible <> Value then
-  begin
-    FBackgroundColorVisible := Value;
-    Changed;
-  end;
-end;
-
-procedure TFocusSettings.SetBackgroundColor(const Value: TColor);
-begin
-  if FBackgroundColor <> Value then
-  begin
-    FBackgroundColor := Value;
-    Changed;
-  end;
-end;
-
-procedure TFocusSettings.SetUnderlineVisible(const Value: Boolean);
-begin
-  if FUnderlineVisible <> Value then
-  begin
-    FUnderlineVisible := Value;
-    Changed;
-  end;
-end;
-
-procedure TFocusSettings.SetUnderlineColor(const Value: TColor);
-begin
-  if FUnderlineColor <> Value then
-  begin
-    FUnderlineColor := Value;
-    Changed;
-  end;
-end;
-
-procedure TFocusSettings.SetUnderlineThickness(const Value: Integer);
-begin
-  if FUnderlineThickness <> Max(0, Value) then
-  begin
-    FUnderlineThickness := Max(0, Value);
-    Changed;
-  end;
-end;
-
-procedure TFocusSettings.SetUnderlineStyle(const Value: TPenStyle);
-begin
-  if FUnderlineStyle <> Value then
-  begin
-    FUnderlineStyle := Value;
-    Changed;
-  end;
-end;
-
-{ TSeparatorSettings }
-
-constructor TSeparatorSettings.Create;
-begin
-  inherited Create;
-  FVisible := False;
-  FColor := clGray;
-  FThickness := 1;
-  FPadding := 2;
-  FHeightMode := shmFull;
-  FCustomHeight := 0;
-end;
-
-procedure TSeparatorSettings.Assign(Source: TPersistent);
-var
-  LSource: TSeparatorSettings;
-begin
-  if Source is TSeparatorSettings then
-  begin
-    LSource := TSeparatorSettings(Source);
-    FVisible := LSource.FVisible;
-    FColor := LSource.FColor;
-    FThickness := LSource.FThickness;
-    FPadding := LSource.FPadding;
-    FHeightMode := LSource.FHeightMode;
-    FCustomHeight := LSource.FCustomHeight;
-    Changed;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure TSeparatorSettings.Changed;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-end;
-
-procedure TSeparatorSettings.SetVisible(const Value: Boolean);
+procedure TGroupBorderSettings.SetVisible(const Value: Boolean);
 begin
   if FVisible <> Value then
   begin
@@ -1587,749 +761,705 @@ begin
   end;
 end;
 
-procedure TSeparatorSettings.SetColor(const Value: TColor);
+procedure TGroupBorderSettings.SetWidth(const Value: Integer);
 begin
-  if FColor <> Value then
+  if FWidth <> Value then
   begin
-    FColor := Value;
+    FWidth := Value;
     Changed;
   end;
 end;
 
-procedure TSeparatorSettings.SetThickness(const Value: Integer);
+//------------------------------------------------------------------------------
+// TSelectionSettings
+//------------------------------------------------------------------------------
+constructor TSelectionSettings.Create;
 begin
-  if FThickness <> Max(0, Value) then
-  begin
-    FThickness := Max(0, Value);
-    Changed;
-  end;
+  inherited;
+  FSelectedColor := TColor($00E0E0E0);
+  FSelectedFontColor := clBlack;
+  FAllowDeselection := False;
 end;
 
-procedure TSeparatorSettings.SetPadding(const Value: Integer);
+procedure TSelectionSettings.Assign(Source: TPersistent);
 begin
-  if FPadding <> Value then
+  if Source is TSelectionSettings then
   begin
-    FPadding := Value;
-    Changed;
-  end;
-end;
-
-procedure TSeparatorSettings.SetHeightMode(const Value: TSeparatorHeightMode);
-begin
-  if FHeightMode <> Value then
-  begin
-    FHeightMode := Value;
-    Changed;
-  end;
-end;
-
-procedure TSeparatorSettings.SetCustomHeight(const Value: Integer);
-begin
-  if FCustomHeight <> Max(0, Value) then
-  begin
-    FCustomHeight := Max(0, Value);
-    Changed;
-  end;
-end;
-
-{ TDropShadowSettings }
-
-constructor TDropShadowSettings.Create;
-begin
-  inherited Create;
-  FEnabled := False;
-  FColor := clBlack;
-  FOffset := System.Types.Point(2, 2);
-  FBlurRadius := 3;
-end;
-
-procedure TDropShadowSettings.Assign(Source: TPersistent);
-var
-  LSource: TDropShadowSettings;
-begin
-  if Source is TDropShadowSettings then
-  begin
-    LSource := TDropShadowSettings(Source);
-    FEnabled := LSource.FEnabled;
-    FColor := LSource.FColor;
-    FOffset := LSource.FOffset;
-    FBlurRadius := LSource.FBlurRadius;
+    FSelectedColor := TSelectionSettings(Source).FSelectedColor;
+    FSelectedFontColor := TSelectionSettings(Source).FSelectedFontColor;
+    FAllowDeselection := TSelectionSettings(Source).FAllowDeselection;
     Changed;
   end
   else
-    inherited Assign(Source);
+    inherited;
 end;
 
-procedure TDropShadowSettings.Changed;
+procedure TSelectionSettings.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
-procedure TDropShadowSettings.SetEnabled(const Value: Boolean);
+procedure TSelectionSettings.SetAllowDeselection(const Value: Boolean);
 begin
-  if FEnabled <> Value then
+  if FAllowDeselection <> Value then
   begin
-    FEnabled := Value;
+    FAllowDeselection := Value;
     Changed;
   end;
 end;
 
-procedure TDropShadowSettings.SetColor(const Value: TColor);
+procedure TSelectionSettings.SetSelectedColor(const Value: TColor);
 begin
-  if FColor <> Value then
+  if FSelectedColor <> Value then
   begin
-    FColor := Value;
+    FSelectedColor := Value;
     Changed;
   end;
 end;
 
-procedure TDropShadowSettings.SetOffset(const Value: TPoint);
+procedure TSelectionSettings.SetSelectedFontColor(const Value: TColor);
 begin
-  if FOffset <> Value then
+  if FSelectedFontColor <> Value then
   begin
-    FOffset := Value;
+    FSelectedFontColor := Value;
     Changed;
   end;
 end;
 
-procedure TDropShadowSettings.SetBlurRadius(const Value: Integer);
+//------------------------------------------------------------------------------
+// TANDMR_CButtonGroup
+//------------------------------------------------------------------------------
+constructor TANDMR_CButtonGroup.Create(AOwner: TComponent);
 begin
-  if FBlurRadius <> Max(0, Value) then
-  begin
-    FBlurRadius := Max(0, Value);
-    Changed;
-  end;
+  inherited Create(AOwner);
+  ControlStyle := ControlStyle + [csOpaque, csReplicatable, csPannable, csDoubleClicks];
+  Width := 300;
+  Height := 40;
+  Cursor := crHandPoint;
+  DoubleBuffered := True;
+  FAutoSize := True;
+
+  FItems := TANDMR_CGroupButtonItems.Create(Self);
+  FSpacing := 1;
+  FHoveredItem := nil;
+  FClickedItem := nil;
+  FSelectedItem := nil;
+
+  // Create property objects
+  FGroupBorder := TGroupBorderSettings.Create;
+  FSelection := TSelectionSettings.Create;
+  FGlobalCaption := TCaptionSettings.Create(Self);
+  FGlobalImage := TImageSettings.Create(Self);
+  FGlobalAppearance := TButtonAppearance.Create;
+
+  // Set initial default values BEFORE assigning OnChange handlers
+  FGlobalStyle := bsSolid;
+  FGlobalCaption.Font.Style := [fsBold];
+  FGlobalCaption.Font.Color := clBlack;
+
+  // NOW assign the OnChange handlers
+  FGroupBorder.OnChange := SettingsChanged;
+  FSelection.OnChange := SettingsChanged;
+  FGlobalCaption.OnChange := SettingsChanged;
+  FGlobalImage.OnChange := SettingsChanged;
+  FGlobalAppearance.OnChange := SettingsChanged;
 end;
 
-{ TGradientSettings }
-
-constructor TGradientSettings.Create;
+destructor TANDMR_CButtonGroup.Destroy;
 begin
-  inherited Create;
-  FEnabled := False;
-  FGradientType := gtLinearVertical;
-  FStartColor := clNone;
-  FEndColor := clNone;
+  FGlobalAppearance.Free;
+  FGlobalImage.Free;
+  FGlobalCaption.Free;
+  FSelection.Free;
+  FGroupBorder.Free;
+  FItems.Free;
+  inherited;
 end;
 
-procedure TGradientSettings.Assign(Source: TPersistent);
+procedure TANDMR_CButtonGroup.Loaded;
+begin
+  inherited Loaded;
+  UpdateSize;
+  Invalidate;
+end;
+
+procedure TANDMR_CButtonGroup.Resize;
+begin
+  inherited;
+  Invalidate;
+end;
+
+procedure TANDMR_CButtonGroup.WMEraseBkgnd(var Message: TWMEraseBkgnd);
+begin
+  Message.Result := 1; // Indicate that background is erased
+end;
+
+function TANDMR_CButtonGroup.GetButtonBlockRect: TRect;
 var
-  LSource: TGradientSettings;
+  i: Integer;
+  LCaptionW, LCapH, LImageW, LButtonsTotalWidth, LVisibleItemCount: Integer;
+  LMainContentRect: TRect;
+  LCurrentX: Integer;
+  LSourceGraphic: TGraphic;
 begin
-  if Source is TGradientSettings then
+  Result := System.Types.Rect(0,0,0,0);
+  if not HandleAllocated then Exit;
+
+  // Re-calculate the layout exactly as in the Paint method to find the button block's rect
+  LMainContentRect := ClientRect;
+
+  if FGlobalCaption.Visible and (FGlobalCaption.Text <> '') and (FGlobalCaption.Position in [cpAbove, cpBelow]) then
   begin
-    LSource := TGradientSettings(Source);
-    FEnabled := LSource.FEnabled;
-    FGradientType := LSource.FGradientType;
-    FStartColor := LSource.FStartColor;
-    FEndColor := LSource.FEndColor;
-    Changed;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure TGradientSettings.Changed;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-end;
-
-procedure TGradientSettings.SetEnabled(const Value: Boolean);
-begin
-  if FEnabled <> Value then
-  begin
-    FEnabled := Value;
-    Changed;
-  end;
-end;
-
-procedure TGradientSettings.SetGradientType(const Value: TGradientType);
-begin
-  if FGradientType <> Value then
-  begin
-    FGradientType := Value;
-    Changed;
-  end;
-end;
-
-procedure TGradientSettings.SetStartColor(const Value: TColor);
-begin
-  if FStartColor <> Value then
-  begin
-    FStartColor := Value;
-    Changed;
-  end;
-end;
-
-procedure TGradientSettings.SetEndColor(const Value: TColor);
-begin
-  if FEndColor <> Value then
-  begin
-    FEndColor := Value;
-    Changed;
-  end;
-end;
-
-{ TProgressSettings }
-
-constructor TProgressSettings.Create(AOwnerControl: TWinControl);
-begin
-  inherited Create;
-  FOwnerControl := AOwnerControl;
-  FShowProgress := True;
-  FProgressColor := clGray;
-  FHideCaptionWhileProcessing := True;
-  FAnimationTimerInterval := 40;
-  FAnimationProgressStep := 5;
-  FAnimationStyle := pasRotatingSemiCircle;
-  FProgressText := '';
-  FShowProgressText := False;
-end;
-
-destructor TProgressSettings.Destroy;
-begin
-  inherited Destroy;
-end;
-
-procedure TProgressSettings.Assign(Source: TPersistent);
-var
-  LSource: TProgressSettings;
-begin
-  if Source is TProgressSettings then
-  begin
-    LSource := TProgressSettings(Source);
-    Self.ShowProgress := LSource.ShowProgress;
-    Self.ProgressColor := LSource.ProgressColor;
-    Self.HideCaptionWhileProcessing := LSource.HideCaptionWhileProcessing;
-    Self.AnimationTimerInterval := LSource.AnimationTimerInterval;
-    Self.AnimationProgressStep := LSource.AnimationProgressStep;
-    Self.AnimationStyle := LSource.AnimationStyle;
-    Self.ProgressText := LSource.ProgressText;
-    Self.ShowProgressText := LSource.ShowProgressText;
-    Changed;
-  end
-  else
-    inherited Assign(Source);
-end;
-
-procedure TProgressSettings.Changed;
-begin
-  if Assigned(FOnChange) then
-    FOnChange(Self);
-
-  if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated then
-  begin
-    // Durante design-time, Invalidate é mais seguro. Em run-time, Repaint é imediato.
-    if (csDesigning in FOwnerControl.ComponentState) then
-      FOwnerControl.Invalidate
+    Canvas.Font.Assign(FGlobalCaption.Font);
+    LCapH := Canvas.TextHeight(FGlobalCaption.Text) + FGlobalCaption.Margins.Top + FGlobalCaption.Margins.Bottom;
+    if FGlobalCaption.Position = cpAbove then
+      LMainContentRect.Top := LMainContentRect.Top + LCapH
     else
-      FOwnerControl.Repaint;
+      LMainContentRect.Bottom := LMainContentRect.Bottom - LCapH;
   end;
-end;
 
-procedure TProgressSettings.SetShowProgress(const Value: Boolean);
-begin
-  if FShowProgress <> Value then
+  LCurrentX := LMainContentRect.Left;
+
+  if FGlobalCaption.Visible and (FGlobalCaption.Text <> '') and (FGlobalCaption.Position = cpLeft) then
   begin
-    FShowProgress := Value;
-    Changed;
+    Canvas.Font.Assign(FGlobalCaption.Font);
+    LCaptionW := Canvas.TextWidth(FGlobalCaption.Text) + FGlobalCaption.Margins.Left + FGlobalCaption.Margins.Right;
+    LCurrentX := LCurrentX + LCaptionW;
   end;
-end;
 
-procedure TProgressSettings.SetProgressColor(const Value: TColor);
-begin
-  if FProgressColor <> Value then
+  if FGlobalImage.Visible and Assigned(FGlobalImage.Picture.Graphic) and not FGlobalImage.Picture.Graphic.Empty then
   begin
-    FProgressColor := Value;
-    Changed;
+    LSourceGraphic := FGlobalImage.Picture.Graphic;
+    if FGlobalImage.AutoSize and (FGlobalImage.DrawMode = idmProportional) then
+    begin
+        LImageW := (LMainContentRect.Height - FGlobalImage.Margins.Top - FGlobalImage.Margins.Bottom);
+    end
+    else
+    begin
+        LImageW := IfThen(FGlobalImage.TargetWidth > 0, FGlobalImage.TargetWidth, FGlobalImage.Picture.Width);
+    end;
+    LCurrentX := LCurrentX + LImageW + FGlobalImage.Margins.Left + FGlobalImage.Margins.Right;
   end;
+
+  LVisibleItemCount := 0;
+  LButtonsTotalWidth := 0;
+  for i := 0 to FItems.Count - 1 do
+    if FItems[i].Visible then
+    begin
+      LButtonsTotalWidth := LButtonsTotalWidth + FItems[i].Width;
+      Inc(LVisibleItemCount);
+    end;
+  if LVisibleItemCount > 1 then
+    LButtonsTotalWidth := LButtonsTotalWidth + (FSpacing * (LVisibleItemCount - 1));
+
+  Result := Rect(LCurrentX, LMainContentRect.Top, LCurrentX + LButtonsTotalWidth, LMainContentRect.Bottom);
 end;
 
-procedure TProgressSettings.SetHideCaptionWhileProcessing(const Value: Boolean);
-begin
-  if FHideCaptionWhileProcessing <> Value then
-  begin
-    FHideCaptionWhileProcessing := Value;
-    Changed;
-  end;
-end;
-
-procedure TProgressSettings.SetAnimationTimerInterval(const Value: Integer);
-begin
-  if FAnimationTimerInterval <> Max(10, Value) then
-  begin
-    FAnimationTimerInterval := Max(10, Value);
-    Changed;
-  end;
-end;
-
-procedure TProgressSettings.SetAnimationProgressStep(const Value: Integer);
-begin
-  // A propriedade tem 'default 5', então o valor mínimo deve ser 1.
-  if FAnimationProgressStep <> Max(1, Value) then
-  begin
-    FAnimationProgressStep := Max(1, Value);
-    Changed;
-  end;
-end;
-
-procedure TProgressSettings.SetAnimationStyle(const Value: TProgressAnimationStyle);
-begin
-  if FAnimationStyle <> Value then
-  begin
-    FAnimationStyle := Value;
-    Changed;
-  end;
-end;
-
-procedure TProgressSettings.SetProgressText(const Value: string);
-begin
-  if FProgressText <> Value then
-  begin
-    FProgressText := Value;
-    Changed;
-  end;
-end;
-
-procedure TProgressSettings.SetShowProgressText(const Value: Boolean);
-begin
-  if FShowProgressText <> Value then
-  begin
-    FShowProgressText := Value;
-    Changed;
-  end;
-end;
-
-{ Funções Utilitárias Globais }
-
-function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
+procedure TANDMR_CButtonGroup.Paint;
 var
-  ColorRef: LongWord;
-begin
-  if AColor = clNone then
-  begin
-    // clNone é frequentemente tratado como transparente. ARGB(0,0,0,0).
-    Result := (UInt32(0) shl 24);
-    Exit;
-  end;
-  ColorRef := ColorToRGB(AColor);
-  // Converte de BGR (Delphi TColor) para ARGB (GDI+)
-  Result := (UInt32(Alpha) shl 24) or
-            ((ColorRef and $000000FF) shl 16) or // R
-            (ColorRef and $0000FF00) or           // G
-            ((ColorRef and $00FF0000) shr 16);    // B
-end;
-
-procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
-const
-  MIN_RADIUS_FOR_PATH = 0.1;
-var
-  LRadius, LDiameter: Single;
-  RoundTL, RoundTR, RoundBL, RoundBR: Boolean;
-  Rect: TGPRectF;
-begin
-  if not Assigned(APath) then Exit;
-  APath.Reset;
-  Rect := ARect;
-
-  // Garante que as dimensões não sejam negativas
-  if Rect.Width < 0 then Rect.Width := 0;
-  if Rect.Height < 0 then Rect.Height := 0;
-
-  if (Rect.Width <= 0) or (Rect.Height <= 0) then
-    Exit;
-
-  // Ajusta o raio para não ser maior que metade da menor dimensão
-  LRadius := Min(ARadiusValue, Min(Rect.Width / 2.0, Rect.Height / 2.0));
-  LRadius := Max(0.0, LRadius);
-
-  // Se não há raio ou cantos a arredondar, desenha um retângulo simples
-  if (AType = rctNone) or (LRadius < MIN_RADIUS_FOR_PATH) then
-  begin
-    APath.AddRectangle(Rect);
-    Exit;
-  end;
-
-  LDiameter := LRadius * 2.0;
-
-  // Determina quais cantos arredondar com base no tipo
-  RoundTL := AType in [rctAll, rctTopLeft, rctTop, rctLeft, rctTopLeftBottomRight];
-  RoundTR := AType in [rctAll, rctTopRight, rctTop, rctRight, rctTopRightBottomLeft];
-  RoundBL := AType in [rctAll, rctBottomLeft, rctBottom, rctLeft, rctTopRightBottomLeft];
-  RoundBR := AType in [rctAll, rctBottomRight, rctBottom, rctRight, rctTopLeftBottomRight];
-
-  // Constrói o caminho (path) com arcos e linhas
-  APath.StartFigure;
-  // Canto Superior Esquerdo (Top-Left)
-  if RoundTL then
-    APath.AddArc(Rect.X, Rect.Y, LDiameter, LDiameter, 180, 90)
-  else
-    APath.AddLine(Rect.X, Rect.Y, Rect.X, Rect.Y);
-  // Linha Superior
-  APath.AddLine(Rect.X + LRadius, Rect.Y, Rect.X + Rect.Width - LRadius, Rect.Y);
-  // Canto Superior Direito (Top-Right)
-  if RoundTR then
-    APath.AddArc(Rect.X + Rect.Width - LDiameter, Rect.Y, LDiameter, LDiameter, 270, 90)
-  else
-    APath.AddLine(Rect.X + Rect.Width, Rect.Y, Rect.X + Rect.Width, Rect.Y);
-  // Linha Direita
-  APath.AddLine(Rect.X + Rect.Width, Rect.Y + LRadius, Rect.X + Rect.Width, Rect.Y + Rect.Height - LRadius);
-  // Canto Inferior Direito (Bottom-Right)
-  if RoundBR then
-    APath.AddArc(Rect.X + Rect.Width - LDiameter, Rect.Y + Rect.Height - LDiameter, LDiameter, LDiameter, 0, 90)
-  else
-    APath.AddLine(Rect.X + Rect.Width, Rect.Y + Rect.Height, Rect.X + Rect.Width, Rect.Y + Rect.Height);
-  // Linha Inferior
-  APath.AddLine(Rect.X + Rect.Width - LRadius, Rect.Y + Rect.Height, Rect.X + LRadius, Rect.Y + Rect.Height);
-  // Canto Inferior Esquerdo (Bottom-Left)
-  if RoundBL then
-    APath.AddArc(Rect.X, Rect.Y + Rect.Height - LDiameter, LDiameter, LDiameter, 90, 90)
-  else
-    APath.AddLine(Rect.X, Rect.Y + Rect.Height, Rect.X, Rect.Y + Rect.Height);
-
-  APath.CloseFigure;
-end;
-
-procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
-var
+  i: Integer;
+  LItem: TANDMR_CGroupButtonItem;
+  LItemRect, LGlobalImageRect, LGlobalCaptionRect, LItemImageRect, LItemCaptionRect, LButtonBlockRect, LMainContentRect: TRect;
+  LCurrentX: Integer;
+  LActualFillColor, LActualBorderColor, LActualFontColor: TColor;
+  LG: TGPGraphics;
   LPath: TGPGraphicsPath;
-  LBrush: TGPBrush;
-  LPen: TGPPen;
-  LRectF: TGPRectF;
-  LRadiusValue: Single;
-  LBorderThicknessValue: Single;
+  LGroupPen: TGPPen;
+  LGroupRectF: TGPRectF;
+  LHalfBorder: Single;
+  LActualBorderThickness: Integer;
+  isHovered, isClicked, isSelected, isDisabled: Boolean;
+  LClipRadius: Integer;
+  LCaptionW, LCapH, LButtonsTotalWidth, LVisibleItemCount: Integer;
+  LSourceGraphic: TGraphic;
+  LImageContainerRect: TRect; // Retângulo para o container da imagem do item
 begin
-  if (AGraphics = nil) or (ADrawArea.Width <= 0) or (ADrawArea.Height <= 0) then
-    Exit;
+  inherited;
 
-  LBorderThicknessValue := ABorderThickness;
-  LRectF.X      := ADrawArea.Left;
-  LRectF.Y      := ADrawArea.Top;
-  LRectF.Width  := ADrawArea.Width;
-  LRectF.Height := ADrawArea.Height;
-
-  // Ajusta a área de desenho para a espessura da borda, garantindo que a borda fique centralizada na extremidade
-  if LBorderThicknessValue > 0 then
-  begin
-    LRectF.X      := LRectF.X + LBorderThicknessValue / 2.0;
-    LRectF.Y      := LRectF.Y + LBorderThicknessValue / 2.0;
-    LRectF.Width  := LRectF.Width - LBorderThicknessValue;
-    LRectF.Height := LRectF.Height - LBorderThicknessValue;
-  end;
-
-  if (LRectF.Width <= 0) or (LRectF.Height <= 0) then
-    Exit;
-
-  LRadiusValue := ACornerRadius;
-
-  LPath := TGPGraphicsPath.Create;
+  LG := TGPGraphics.Create(Canvas.Handle);
   try
-    CreateGPRoundedPath(LPath, LRectF, LRadiusValue, ARoundCornerType);
+    LG.SetSmoothingMode(SmoothingModeAntiAlias);
+    LG.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-    if LPath.GetPointCount > 0 then
+    Canvas.Brush.Color := Self.Color;
+    Canvas.FillRect(ClientRect);
+
+    LMainContentRect := ClientRect;
+    LGlobalCaptionRect := System.Types.Rect(0,0,0,0);
+    LImageContainerRect := System.Types.Rect(0,0,0,0);
+
+    if FGlobalCaption.Visible and (FGlobalCaption.Text <> '') and (FGlobalCaption.Position in [cpAbove, cpBelow]) then
     begin
-      // 1. Preenche o fundo
-      if ABackgroundColor <> clNone then
+      Canvas.Font.Assign(FGlobalCaption.Font);
+      LCapH := Canvas.TextHeight(FGlobalCaption.Text) + FGlobalCaption.Margins.Top + FGlobalCaption.Margins.Bottom;
+      if FGlobalCaption.Position = cpAbove then
       begin
-        LBrush := TGPSolidBrush.Create(ColorToARGB(ABackgroundColor, AOpacity));
+        LGlobalCaptionRect := Rect(LMainContentRect.Left, LMainContentRect.Top, LMainContentRect.Right, LMainContentRect.Top + LCapH);
+        LMainContentRect.Top := LGlobalCaptionRect.Bottom;
+      end
+      else
+      begin
+        LGlobalCaptionRect := Rect(LMainContentRect.Left, LMainContentRect.Bottom - LCapH, LMainContentRect.Right, LMainContentRect.Bottom);
+        LMainContentRect.Bottom := LGlobalCaptionRect.Top;
+      end;
+    end;
+
+    LCurrentX := LMainContentRect.Left;
+
+    if FGlobalCaption.Visible and (FGlobalCaption.Text <> '') and (FGlobalCaption.Position = cpLeft) then
+    begin
+        Canvas.Font.Assign(FGlobalCaption.Font);
+        LCaptionW := Canvas.TextWidth(FGlobalCaption.Text) + FGlobalCaption.Margins.Left + FGlobalCaption.Margins.Right;
+        LGlobalCaptionRect := Rect(LCurrentX, LMainContentRect.Top, LCurrentX + LCaptionW, LMainContentRect.Bottom);
+        LCurrentX := LGlobalCaptionRect.Right;
+    end;
+
+    if FGlobalImage.Visible and Assigned(FGlobalImage.Picture.Graphic) and not FGlobalImage.Picture.Graphic.Empty then
+    begin
+        LSourceGraphic := FGlobalImage.Picture.Graphic;
+        var LImageW := IfThen(FGlobalImage.TargetWidth > 0, FGlobalImage.TargetWidth, LSourceGraphic.Width);
+        LImageContainerRect := Rect(LCurrentX + FGlobalImage.Margins.Left, LMainContentRect.Top + FGlobalImage.Margins.Top, LCurrentX + FGlobalImage.Margins.Left + LImageW, LMainContentRect.Bottom - FGlobalImage.Margins.Bottom);
+        LGlobalImageRect := CalcProportionalRect(LImageContainerRect, LSourceGraphic.Width, LSourceGraphic.Height, FGlobalImage.DrawMode = idmProportional);
+        LCurrentX := LImageContainerRect.Right + FGlobalImage.Margins.Right;
+    end;
+
+    LVisibleItemCount := 0;
+    LButtonsTotalWidth := 0;
+    for i := 0 to FItems.Count - 1 do
+      if FItems[i].Visible then
+      begin
+        LButtonsTotalWidth := LButtonsTotalWidth + FItems[i].Width;
+        Inc(LVisibleItemCount);
+      end;
+    if LVisibleItemCount > 1 then
+      LButtonsTotalWidth := LButtonsTotalWidth + (FSpacing * (LVisibleItemCount - 1));
+    LButtonBlockRect := Rect(LCurrentX, LMainContentRect.Top, LCurrentX + LButtonsTotalWidth, LMainContentRect.Bottom);
+    LCurrentX := LButtonBlockRect.Right;
+
+    if FGlobalCaption.Visible and (FGlobalCaption.Text <> '') and (FGlobalCaption.Position = cpRight) then
+    begin
+      Canvas.Font.Assign(FGlobalCaption.Font);
+      LCaptionW := Canvas.TextWidth(FGlobalCaption.Text) + FGlobalCaption.Margins.Left + FGlobalCaption.Margins.Right;
+      LGlobalCaptionRect := Rect(LCurrentX, LMainContentRect.Top, LCurrentX + LCaptionW, LMainContentRect.Bottom);
+    end;
+
+    if FGlobalCaption.Visible and (FGlobalCaption.Text <> '') then
+      DrawComponentCaption(Self.Canvas, LGlobalCaptionRect, FGlobalCaption.Text, FGlobalCaption.Font, FGlobalCaption.Font.Color, FGlobalCaption.Alignment, FGlobalCaption.VerticalAlignment, FGlobalCaption.WordWrap, 255);
+
+    if FGlobalImage.Visible and Assigned(FGlobalImage.Picture.Graphic) and not FGlobalImage.Picture.Graphic.Empty then
+    begin
+      DrawGraphicWithGDIPlus(LG, FGlobalImage.Picture.Graphic, LGlobalImageRect);
+    end;
+
+    if FItems.Count > 0 then
+    begin
+      if FGroupBorder.Visible and (FGroupBorder.Width > 0) then
+      begin
+        LGroupRectF := MakeRect(Single(LButtonBlockRect.Left), Single(LButtonBlockRect.Top), Single(LButtonBlockRect.Width), Single(LButtonBlockRect.Height));
+        LHalfBorder := FGroupBorder.Width / 2;
+
+        // ===== INÍCIO DA CORREÇÃO (Substituição do InflateRect) =====
+        LGroupRectF.X := LGroupRectF.X + LHalfBorder;
+        LGroupRectF.Y := LGroupRectF.Y + LHalfBorder;
+        LGroupRectF.Width := LGroupRectF.Width - FGroupBorder.Width;
+        LGroupRectF.Height := LGroupRectF.Height - FGroupBorder.Width;
+        // ===== FIM DA CORREÇÃO =====
+
+        LPath := TGPGraphicsPath.Create;
         try
-          AGraphics.FillPath(LBrush, LPath);
-        finally
-          LBrush.Free;
-        end;
+          CreateGPRoundedPath(LPath, LGroupRectF, FGroupBorder.CornerRadius, rctAll);
+          LGroupPen := TGPPen.Create(ColorToARGB(FGroupBorder.Color), FGroupBorder.Width);
+          try LG.DrawPath(LGroupPen, LPath); finally LGroupPen.Free; end;
+        finally LPath.Free; end;
       end;
 
-      // 2. Desenha a borda
-      if (LBorderThicknessValue > 0) and (ABorderColor <> clNone) and (ABorderStyle <> psClear) then
+      LPath := TGPGraphicsPath.Create;
+      try
+        LClipRadius := Max(0, FGroupBorder.CornerRadius - Ceil(FGroupBorder.Width / 2));
+        var ClipRect := LButtonBlockRect; InflateRect(ClipRect, -FGroupBorder.Width, -FGroupBorder.Width);
+        CreateGPRoundedPath(LPath, MakeRect(Single(ClipRect.Left), Single(ClipRect.Top), Single(ClipRect.Width), Single(ClipRect.Height)), LClipRadius, rctAll);
+        LG.SetClip(LPath, CombineModeReplace);
+      finally LPath.Free; end;
+
+      LCurrentX := LButtonBlockRect.Left + FGroupBorder.Width;
+      for i := 0 to FItems.Count - 1 do
       begin
-        LPen := TGPPen.Create(ColorToARGB(ABorderColor, AOpacity), LBorderThicknessValue);
-        try
-          case ABorderStyle of
-            psDash:     LPen.SetDashStyle(DashStyleDash);
-            psDot:      LPen.SetDashStyle(DashStyleDot);
-            psDashDot:  LPen.SetDashStyle(DashStyleDashDot);
-            psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot);
-            else        LPen.SetDashStyle(DashStyleSolid);
+        LItem := FItems.Items[i];
+        if not (Assigned(LItem) and LItem.Visible) then Continue;
+
+        LItemRect := Rect(LCurrentX, LButtonBlockRect.Top + FGroupBorder.Width, LCurrentX + LItem.Width, LButtonBlockRect.Bottom - FGroupBorder.Width);
+        isDisabled := not (Self.Enabled and LItem.Enabled); isHovered := (LItem = FHoveredItem) and not isDisabled;
+        isClicked := (LItem = FClickedItem) and not isDisabled; isSelected := (LItem = FSelectedItem) and not isDisabled;
+
+        var InitialFillColor := LItem.Appearance.Color; var InitialBorderColor := LItem.Appearance.BorderColor;
+        LActualFontColor := LItem.Caption.Font.Color;
+        if isDisabled then
+        begin
+          LActualFillColor := BlendColors(InitialFillColor, clGray, 0.65); LActualBorderColor := BlendColors(InitialBorderColor, clGray, 0.7);
+          LActualFontColor := clGrayText;
+        end
+        else
+        begin
+          LActualFillColor := InitialFillColor; LActualBorderColor := InitialBorderColor;
+          if isSelected then
+          begin
+            LActualFillColor := FSelection.SelectedColor; LActualFontColor := FSelection.SelectedFontColor;
+          end
+          else
+          begin
+            if isHovered then
+            begin
+              if LItem.Appearance.StateColors.HoverColor <> clNone then LActualFillColor := LItem.Appearance.StateColors.HoverColor;
+              if LItem.Appearance.StateColors.HoverBorderColor <> clNone then LActualBorderColor := LItem.Appearance.StateColors.HoverBorderColor;
+              if LItem.Appearance.StateColors.HoverFontColor <> clNone then LActualFontColor := LItem.Appearance.StateColors.HoverFontColor;
+            end;
+            if isClicked and (LItem.Appearance.StateColors.ClickColor <> clNone) then
+              LActualFillColor := LItem.Appearance.StateColors.ClickColor;
           end;
-          AGraphics.DrawPath(LPen, LPath);
-        finally
-          LPen.Free;
         end;
+        LActualBorderThickness := LItem.Appearance.BorderWidth;
+        LPath := TGPGraphicsPath.Create;
+        try
+          CreateGPRoundedPath(LPath, MakeRect(Single(LItemRect.Left), Single(LItemRect.Top), Single(LItemRect.Width), Single(LItemRect.Height)), LItem.Appearance.CornerRadius, rctAll);
+          var FillBrush := TGPSolidBrush.Create(ColorToARGB(LActualFillColor));
+          try LG.FillPath(FillBrush, LPath); finally FillBrush.Free; end;
+          if LActualBorderThickness > 0 then
+          begin
+            var BorderPen := TGPPen.Create(ColorToARGB(LActualBorderColor), LActualBorderThickness);
+            try LG.DrawPath(BorderPen, LPath); finally BorderPen.Free; end;
+          end;
+        finally LPath.Free; end;
+
+        LItemCaptionRect := LItemRect;
+        var LItemImageContainer: TRect;
+
+        if LItem.Image.Visible and Assigned(LItem.Image.Picture.Graphic) and not LItem.Image.Picture.Graphic.Empty then
+        begin
+          var LImageW := IfThen(LItem.Image.TargetWidth > 0, LItem.Image.TargetWidth, LItem.Image.Picture.Width);
+          var LImageH := IfThen(LItem.Image.TargetHeight > 0, LItem.Image.TargetHeight, LItem.Image.Picture.Height);
+          var LImageTotalW := LImageW + LItem.Image.Margins.Left + LItem.Image.Margins.Right;
+          var LImageTotalH := LImageH + LItem.Image.Margins.Top + LItem.Image.Margins.Bottom;
+
+          LItemImageRect := Rect(
+              LItemImageContainer.Left + LItem.Image.Margins.Left,
+              LItemImageContainer.Top + LItem.Image.Margins.Top,
+              LItemImageContainer.Right - LItem.Image.Margins.Right,
+              LItemImageContainer.Bottom - LItem.Image.Margins.Bottom
+          );
+
+          if LItem.Image.DrawMode = idmProportional then
+             LItemImageRect := CalcProportionalRect(LItemImageRect, LItem.Image.Picture.Graphic.Width, LItem.Image.Picture.Graphic.Height, True);
+
+          DrawGraphicWithGDIPlus(LG, LItem.Image.Picture.Graphic, LItemImageRect);
+        end;
+
+        if LItem.Caption.Visible and (LItem.Caption.Text <> '') then
+          DrawComponentCaption(Self.Canvas, LItemCaptionRect, LItem.Caption.Text, LItem.Caption.Font, LActualFontColor, LItem.Caption.Alignment, LItem.Caption.VerticalAlignment, LItem.Caption.WordWrap, 255);
+
+        LCurrentX := LCurrentX + LItem.Width + FSpacing;
       end;
     end;
   finally
-    LPath.Free;
+    LG.ResetClip;
+    LG.Free;
   end;
 end;
 
-// No arquivo ANDMR_ComponentUtils.pas
-
-procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+procedure TANDMR_CButtonGroup.UpdateSize;
 var
-  DrawImageRect: TRect;
-  SourceBitmap: TGPBitmap;
-  PngStream: TMemoryStream;
-  Adapter: IStream;
-  TempBitmap: Vcl.Graphics.TBitmap;
+  i: Integer;
+  LRequiredWidth, LRequiredHeight: Integer;
+  LButtonsWidth, LButtonsHeight: Integer;
+  LImageWidth, LImageHeight: Integer;
+  LCaptionWidth, LCaptionHeight: Integer;
+  LVisibleItemCount: Integer;
+  LMainContentWidth, LMainContentHeight: Integer;
+  LSourceGraphic: TGraphic;
+  LImgW, LImgH: Integer;
 begin
-  if (AGraphics = nil) or (AGraphic = nil) or AGraphic.Empty or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then
+  if (csLoading in ComponentState) or not FAutoSize or not HandleAllocated then
     Exit;
 
-  // 1. Calcula o retângulo de destino
-  case ADrawMode of
-    idmStretch:     DrawImageRect := ADestRect;
-    idmProportional:DrawImageRect := CalculateProportionalRect(ADestRect, AGraphic.Width, AGraphic.Height);
-    idmNormal:
+  // Buttons Block
+  LButtonsWidth := 0;
+  LVisibleItemCount := 0;
+  for i := 0 to FItems.Count - 1 do
+    if FItems[i].Visible then
     begin
-      DrawImageRect.Width := AGraphic.Width;
-      DrawImageRect.Height := AGraphic.Height;
-      DrawImageRect.Left := ADestRect.Left + (ADestRect.Width - AGraphic.Width) div 2;
-      DrawImageRect.Top := ADestRect.Top + (ADestRect.Height - AGraphic.Height) div 2;
+      LButtonsWidth := LButtonsWidth + FItems[i].Width;
+      Inc(LVisibleItemCount);
     end;
-  else
-    DrawImageRect := ADestRect;
-  end;
+  if LVisibleItemCount > 1 then
+    LButtonsWidth := LButtonsWidth + ((LVisibleItemCount - 1) * FSpacing);
+  if FGroupBorder.Visible and (FGroupBorder.Width > 0) then
+    LButtonsWidth := LButtonsWidth + (FGroupBorder.Width * 2);
+  LButtonsHeight := 40; // Default height, can be improved later
 
-  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then
-    Exit;
-
-  SourceBitmap := nil;
-  try
-    // 2. Converte o TGraphic para um TGPBitmap
-    if AGraphic.ClassNameIs('TPNGImage') then
+  // Global Image
+  LImageWidth := 0;
+  LImageHeight := 0;
+  if FGlobalImage.Visible and Assigned(FGlobalImage.Picture.Graphic) and not FGlobalImage.Picture.Graphic.Empty then
+  begin
+    LSourceGraphic := FGlobalImage.Picture.Graphic;
+    if FGlobalImage.AutoSize and (FGlobalImage.DrawMode = idmProportional) then
     begin
-      PngStream := TMemoryStream.Create;
-      try
-        // *** LINHA CORRIGIDA ***
-        // O cast aqui deve ser para TPNGImage, que é o tipo que estamos verificando.
-        TPNGImage(AGraphic).SaveToStream(PngStream);
-        PngStream.Position := 0;
-        Adapter := TStreamAdapter.Create(PngStream, soReference);
-        SourceBitmap := TGPBitmap.Create(Adapter);
-      finally
-        PngStream.Free;
-      end;
+        // For proportional autosize, reserve a square space based on button height
+        LImgW := LButtonsHeight - FGlobalImage.Margins.Top - FGlobalImage.Margins.Bottom;
+        LImgH := LImgW;
     end
-    else if AGraphic.ClassNameIs('TBitmap') then
+    else
     begin
-      // Usando um typecast direto para TBitmap.
-      SourceBitmap := TGPBitmap.Create(Vcl.Graphics.TBitmap(AGraphic).Handle, Vcl.Graphics.TBitmap(AGraphic).Palette);
-    end
-    else // Para outros formatos (JPEG, GIF), converte para um TBitmap primeiro
+        LImgW := IfThen(FGlobalImage.TargetWidth > 0, FGlobalImage.TargetWidth, LSourceGraphic.Width);
+        LImgH := IfThen(FGlobalImage.TargetHeight > 0, FGlobalImage.TargetHeight, LSourceGraphic.Height);
+    end;
+    LImageWidth := LImgW + FGlobalImage.Margins.Left + FGlobalImage.Margins.Right;
+    LImageHeight := LImgH + FGlobalImage.Margins.Top + FGlobalImage.Margins.Bottom;
+  end;
+
+  // Global Caption
+  LCaptionWidth := 0;
+  LCaptionHeight := 0;
+  if FGlobalCaption.Visible and (FGlobalCaption.Text <> '') then
+  begin
+    Canvas.Font.Assign(FGlobalCaption.Font);
+    LCaptionWidth := Canvas.TextWidth(FGlobalCaption.Text) + FGlobalCaption.Margins.Left + FGlobalCaption.Margins.Right;
+    LCaptionHeight := Canvas.TextHeight(FGlobalCaption.Text) + FGlobalCaption.Margins.Top + FGlobalCaption.Margins.Bottom;
+  end;
+
+  // Main Content Block (Image + Buttons)
+  LMainContentWidth := LImageWidth + LButtonsWidth;
+  LMainContentHeight := Max(LButtonsHeight, LImageHeight);
+
+  // Determine final component size based on layout
+  case FGlobalCaption.Position of
+    cpLeft, cpRight:
     begin
-      TempBitmap := Vcl.Graphics.TBitmap.Create;
-      try
-        TempBitmap.Assign(AGraphic);
-        SourceBitmap := TGPBitmap.Create(TempBitmap.Handle, TempBitmap.Palette);
-      finally
-        TempBitmap.Free;
+      LRequiredWidth := LMainContentWidth + LCaptionWidth;
+      LRequiredHeight := Max(LMainContentHeight, LCaptionHeight);
+    end;
+    cpAbove, cpBelow:
+    begin
+      LRequiredWidth := Max(LMainContentWidth, LCaptionWidth);
+      LRequiredHeight := LMainContentHeight + LCaptionHeight;
+    end;
+  else
+    // Default case (no caption)
+    LRequiredWidth := LMainContentWidth;
+    LRequiredHeight := LMainContentHeight;
+  end;
+
+  if Self.Width <> LRequiredWidth then
+    Self.Width := LRequiredWidth;
+  if Self.Height <> LRequiredHeight then
+    Self.Height := LRequiredHeight;
+end;
+
+function TANDMR_CButtonGroup.GetItemAt(X, Y: Integer): TANDMR_CGroupButtonItem;
+begin
+  Result := nil;
+  if not HandleAllocated then Exit;
+  var LButtonBlockRect := GetButtonBlockRect;
+
+  if not PtInRect(LButtonBlockRect, Point(X, Y)) then
+    Exit;
+
+  var LCurrentX := LButtonBlockRect.Left + FGroupBorder.Width;
+  for var i := 0 to FItems.Count - 1 do
+  begin
+    var LItem := FItems.Items[i];
+    if not (Assigned(LItem) and LItem.Visible) then Continue;
+
+    var LItemRect := Rect(LCurrentX, LButtonBlockRect.Top + FGroupBorder.Width, LCurrentX + LItem.Width, LButtonBlockRect.Bottom - FGroupBorder.Width);
+    if PtInRect(LItemRect, Point(X, Y)) then
+    begin
+      Result := LItem;
+      Exit;
+    end;
+    LCurrentX := LCurrentX + LItem.Width + FSpacing;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.CMMouseEnter(var Message: TMessage);
+begin
+  inherited;
+end;
+
+procedure TANDMR_CButtonGroup.CMMouseLeave(var Message: TMessage);
+begin
+  inherited;
+  if FHoveredItem <> nil then
+  begin
+    FHoveredItem := nil;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  LItem: TANDMR_CGroupButtonItem;
+begin
+  inherited;
+  if Button = mbLeft then
+  begin
+    LItem := GetItemAt(X, Y);
+    if (LItem <> nil) and LItem.Enabled then
+    begin
+      FClickedItem := LItem;
+      Invalidate;
+    end;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.MouseMove(Shift: TShiftState; X, Y: Integer);
+var
+  LItem: TANDMR_CGroupButtonItem;
+begin
+  inherited;
+  LItem := GetItemAt(X, Y);
+  if LItem <> FHoveredItem then
+  begin
+    FHoveredItem := LItem;
+    Invalidate;
+  end;
+end;
+
+procedure TANDMR_CButtonGroup.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  LItem: TANDMR_CGroupButtonItem;
+begin
+  inherited;
+  if Button = mbLeft then
+  begin
+    LItem := GetItemAt(X, Y);
+    if (LItem <> nil) and (LItem = FClickedItem) and LItem.Enabled then
+    begin
+      if LItem = FSelectedItem then
+      begin
+        if FSelection.AllowDeselection then
+          FSelectedItem := nil;
+      end
+      else
+      begin
+        FSelectedItem := LItem;
       end;
+      LItem.Click;
     end;
 
-    // 3. Desenha o TGPBitmap na tela
-    if (SourceBitmap <> nil) and (SourceBitmap.GetLastStatus = Ok) then
+    if FClickedItem <> nil then
     begin
-      AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-      AGraphics.DrawImage(SourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height);
+      FClickedItem := nil;
+      Invalidate;
     end;
-  finally
-    if SourceBitmap <> nil then
-      SourceBitmap.Free;
   end;
 end;
 
-procedure DrawSeparatorWithCanvas(ACanvas: TCanvas; ASepRect: TRect; AColor: TColor; AThickness: Integer);
-var
-  OldPen: record Color: TColor; Width: Integer; Style: TPenStyle; end;
-  LineX: Integer;
+procedure TANDMR_CButtonGroup.SetAutoSize(const Value: Boolean);
 begin
-  if (ACanvas = nil) or (AThickness <= 0) or (ASepRect.Width <= 0) or (ASepRect.Height <= 0) then
-    Exit;
-
-  // Salva o estado da caneta
-  OldPen.Color := ACanvas.Pen.Color;
-  OldPen.Width := ACanvas.Pen.Width;
-  OldPen.Style := ACanvas.Pen.Style;
-  try
-    // Configura a caneta para o separador
-    ACanvas.Pen.Color := AColor;
-    ACanvas.Pen.Width := AThickness;
-    ACanvas.Pen.Style := psSolid;
-
-    // Desenha a linha vertical no centro da área do separador
-    LineX := ASepRect.Left + (ASepRect.Width div 2);
-    ACanvas.MoveTo(LineX, ASepRect.Top);
-    ACanvas.LineTo(LineX, ASepRect.Bottom);
-  finally
-    // Restaura o estado da caneta
-    ACanvas.Pen.Color := OldPen.Color;
-    ACanvas.Pen.Width := OldPen.Width;
-    ACanvas.Pen.Style := OldPen.Style;
+  if FAutoSize <> Value then
+  begin
+    FAutoSize := Value;
+    if FAutoSize then
+      UpdateSize;
+    Invalidate;
   end;
 end;
 
-procedure DrawComponentCaption(ACanvas: TCanvas; const ARect: TRect; const ACaption: string; AFont: TFont; AFontColor: TColor; AAlignmentHorizontal: TAlignment; AAlignmentVertical: TCaptionVerticalAlignment; AWordWrap: Boolean; AOpacity: Byte);
-var
-  DrawTextFlags: Cardinal;
-  TempRect: TRect;
+procedure TANDMR_CButtonGroup.SetItems(const Value: TANDMR_CGroupButtonItems);
 begin
-  if (ACaption = '') or (ARect.Width <= 0) or (ARect.Height <= 0) then
-    Exit;
+  FItems.Assign(Value);
+  UpdateSize;
+  Invalidate;
+end;
 
-  // A opacidade do texto é mais complexa e geralmente requer Layered Windows ou GDI+.
-  // Esta implementação foca no posicionamento e estilo.
-  ACanvas.Font.Assign(AFont);
-  ACanvas.Font.Color := AFontColor;
-  ACanvas.Brush.Style := bsClear;
+procedure TANDMR_CButtonGroup.SetSpacing(const Value: Integer);
+begin
+  if FSpacing <> Value then
+  begin
+    FSpacing := Value;
+    UpdateSize;
+    Invalidate;
+  end;
+end;
 
-  DrawTextFlags := DT_NOPREFIX;
-
-  // Flags de alinhamento e quebra de linha
-  if AWordWrap then
-    DrawTextFlags := DrawTextFlags or DT_WORDBREAK
+function TANDMR_CButtonGroup.GetSelectedItemIndex: Integer;
+begin
+  if Assigned(FSelectedItem) then
+    Result := FSelectedItem.Index
   else
-    DrawTextFlags := DrawTextFlags or DT_SINGLELINE or DT_END_ELLIPSIS;
-
-  case AAlignmentHorizontal of
-    taLeftJustify: DrawTextFlags := DrawTextFlags or DT_LEFT;
-    taRightJustify: DrawTextFlags := DrawTextFlags or DT_RIGHT;
-    taCenter: DrawTextFlags := DrawTextFlags or DT_CENTER;
-  end;
-
-  case AAlignmentVertical of
-    cvaTop: DrawTextFlags := DrawTextFlags or DT_TOP;
-    cvaCenter: DrawTextFlags := DrawTextFlags or DT_VCENTER;
-    cvaBottom: DrawTextFlags := DrawTextFlags or DT_BOTTOM;
-  end;
-
-  // Corrige um problema onde DT_VCENTER sem DT_SINGLELINE pode não centralizar corretamente.
-  if (DrawTextFlags and DT_WORDBREAK = 0) then
-    DrawTextFlags := DrawTextFlags or DT_SINGLELINE;
-
-  TempRect := ARect;
-  DrawText(ACanvas.Handle, PChar(ACaption), Length(ACaption), TempRect, DrawTextFlags);
+    Result := -1;
 end;
 
-function DarkerColor(AColor: TColor; APercent: Byte): TColor;
-var
-  R, G, B: Byte;
-  Factor: Double;
+procedure TANDMR_CButtonGroup.SetSelectedItemIndex(const Value: Integer);
 begin
-  if AColor = clNone then Exit(clNone);
-  AColor := ColorToRGB(AColor);
-  R := GetRValue(AColor);
-  G := GetGValue(AColor);
-  B := GetBValue(AColor);
-  Factor := Max(0, Min(100, APercent)) / 100.0;
-  R := Round(R * (1.0 - Factor));
-  G := Round(G * (1.0 - Factor));
-  B := Round(B * (1.0 - Factor));
-  Result := RGB(R, G, B);
-end;
-
-function LighterColor(AColor: TColor; APercent: Byte): TColor;
-var
-  R, G, B: Byte;
-  Factor: Double;
-begin
-  if AColor = clNone then Exit(clNone);
-  AColor := ColorToRGB(AColor);
-  R := GetRValue(AColor);
-  G := GetGValue(AColor);
-  B := GetBValue(AColor);
-  Factor := Max(0, Min(100, APercent)) / 100.0;
-  R := Round(R + (255 - R) * Factor);
-  G := Round(G + (255 - G) * Factor);
-  B := Round(B + (255 - B) * Factor);
-  Result := RGB(R, G, B);
-end;
-
-function BlendColors(AColor1, AColor2: TColor; AFactor: Single): TColor;
-var
-  R1, G1, B1, R2, G2, B2, R, G, B: Byte;
-begin
-  AFactor := Max(0.0, Min(1.0, AFactor));
-  if AFactor = 0.0 then Exit(AColor1);
-  if AFactor = 1.0 then Exit(AColor2);
-
-  if (AColor1 = clNone) and (AColor2 = clNone) then Exit(clNone);
-  if AColor1 = clNone then Exit(AColor2);
-  if AColor2 = clNone then Exit(AColor1);
-
-  AColor1 := ColorToRGB(AColor1);
-  AColor2 := ColorToRGB(AColor2);
-  R1 := GetRValue(AColor1); G1 := GetGValue(AColor1); B1 := GetBValue(AColor1);
-  R2 := GetRValue(AColor2); G2 := GetGValue(AColor2); B2 := GetBValue(AColor2);
-  R := Round(R1 + (R2 - R1) * AFactor);
-  G := Round(G1 + (G2 - G1) * AFactor);
-  B := Round(B1 + (B2 - B1) * AFactor);
-  Result := RGB(R, G, B);
-end;
-
-function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: Integer): TRect;
-var
-  Ratio, RectRatio: Double;
-begin
-  if (ImgWidth <= 0) or (ImgHeight <= 0) or (DestRect.Width <= 0) or (DestRect.Height <= 0) then
+  if (Value >= 0) and (Value < FItems.Count) then
   begin
-    Result := System.Types.Rect(0, 0, 0, 0);
-    Exit;
-  end;
-
-  Ratio := ImgWidth / ImgHeight;
-  RectRatio := DestRect.Width / DestRect.Height;
-
-  if RectRatio > Ratio then
-  begin // A área de destino é mais "larga" que a imagem
-    Result.Height := DestRect.Height;
-    Result.Width := Round(DestRect.Height * Ratio);
-  end
-  else
-  begin // A área de destino é mais "alta" ou proporcional à imagem
-    Result.Width := DestRect.Width;
-    Result.Height := Round(DestRect.Width / Ratio);
-  end;
-
-  // Centraliza a imagem no retângulo de destino
-  Result.Left := DestRect.Left + (DestRect.Width - Result.Width) div 2;
-  Result.Top := DestRect.Top + (DestRect.Height - Result.Height) div 2;
-  Result.Right := Result.Left + Result.Width;
-  Result.Bottom := Result.Top + Result.Height;
-end;
-
-function ResolveStateColor(AIsEnabled: Boolean; AIsHovering: Boolean; AIsFocused: Boolean; ABaseColor, AHoverColor, AFocusColor, ADisabledColor: TColor; AAllowHoverEffect: Boolean; AAllowFocusEffect: Boolean; AHoverEffectOverridesFocus: Boolean; AFallbackToTransparent: Boolean): TColor;
-begin
-  // 1. Estado Desabilitado (maior prioridade)
-  if not AIsEnabled then
-  begin
-    Result := IfThen(ADisabledColor <> clNone, ADisabledColor, ABaseColor);
-    Exit;
-  end;
-
-  // 2. Determina as cores de Foco e Hover ativas
-  var IsFocusActive := AIsFocused and AAllowFocusEffect and (AFocusColor <> clNone);
-  var IsHoverActive := AIsHovering and AAllowHoverEffect and (AHoverColor <> clNone);
-
-  // 3. Aplica a cor com base na prioridade
-  if IsHoverActive and (AHoverEffectOverridesFocus or not IsFocusActive) then
-  begin
-    Result := AHoverColor;
-  end
-  else if IsFocusActive then
-  begin
-    Result := AFocusColor;
+    if FItems[Value] <> FSelectedItem then
+    begin
+      FSelectedItem := FItems[Value];
+      Invalidate;
+    end;
   end
   else
   begin
-    Result := ABaseColor;
+    if FSelectedItem <> nil then
+    begin
+      FSelectedItem := nil;
+      Invalidate;
+    end;
   end;
+end;
 
-  // 4. Fallback para transparente se a cor resultante for clNone
-  if (Result = clNone) and not AFallbackToTransparent then
+procedure TANDMR_CButtonGroup.SetGroupBorder(const Value: TGroupBorderSettings);
+begin
+  FGroupBorder.Assign(Value);
+end;
+
+procedure TANDMR_CButtonGroup.SetSelection(const Value: TSelectionSettings);
+begin
+  FSelection.Assign(Value);
+end;
+
+procedure TANDMR_CButtonGroup.SettingsChanged(Sender: TObject);
+begin
+  // If a global template changes, apply it to existing items
+  if Sender = FGlobalAppearance then
   begin
-    Result := ABaseColor;
+    for var i := 0 to FItems.Count - 1 do
+      FItems[i].Appearance.Assign(FGlobalAppearance);
+  end;
+  // For other settings, just repaint
+  UpdateSize;
+  Invalidate;
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalCaption(const Value: TCaptionSettings);
+begin
+  FGlobalCaption.Assign(Value);
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalImage(const Value: TImageSettings);
+begin
+  FGlobalImage.Assign(Value);
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalAppearance(const Value: TButtonAppearance);
+begin
+  FGlobalAppearance.Assign(Value);
+end;
+
+procedure TANDMR_CButtonGroup.SetGlobalStyle(const Value: TButtonStyle);
+var
+  i: Integer;
+begin
+  if FGlobalStyle <> Value then
+  begin
+    FGlobalStyle := Value;
+    // Apply new style to all items
+    for i := 0 to FItems.Count - 1 do
+      FItems[i].Style := Value;
+    Invalidate;
   end;
 end;
 

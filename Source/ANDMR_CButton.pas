@@ -81,15 +81,6 @@ type
     procedure SetCaption(const Value: string);
     procedure SetHoverColor(const Value: TColor);
     procedure FontChanged(Sender: TObject);
-    function GetGradientEnabled: Boolean;
-    procedure SetGradientEnabled(const Value: Boolean);
-    function GetGradientType: TGradientType;
-    procedure SetGradientType(const Value: TGradientType);
-    function GetGradientStartColor: TColor;
-    procedure SetGradientStartColor(const Value: TColor);
-    function GetGradientEndColor: TColor;
-    procedure SetGradientEndColor(const Value: TColor);
-    procedure SetImagePosition(const Value: TImagePosition);
     procedure SetHoverEffect(const Value: THoverEffect);
     procedure SetDisabledCursor(const Value: TCursor);
     procedure SetHoverBorderColor(const Value: TColor);
@@ -106,6 +97,7 @@ type
     procedure SetBorderSettings(const Value: TBorderSettings);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure SetClickSettings(const Value: TClickSettings);
+    procedure SetGradientSettings(const Value: TGradientSettings);
 
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
@@ -135,16 +127,12 @@ type
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
     property ClickSettings: TClickSettings read FClickSettings write SetClickSettings;
+    property GradientSettings: TGradientSettings read FGradientSettings write SetGradientSettings;
 
     property HoverColor: TColor read GetHoverColor write SetHoverColor;
     property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
 
     property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
-
-    property GradientEnabled: Boolean read GetGradientEnabled write SetGradientEnabled default False;
-    property GradientType: TGradientType read GetGradientType write SetGradientType default gtLinearVertical;
-    property GradientStartColor: TColor read GetGradientStartColor write SetGradientStartColor;
-    property GradientEndColor: TColor read GetGradientEndColor write SetGradientEndColor;
 
     property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor;
 
@@ -259,7 +247,6 @@ begin
   FCaptionSettings.Alignment := taCenter;
 
   FImageSettings := TImageSettings.Create(Self);
-  FImageSettings.ImagePosition := ipLeft;
   FImageSettings.OnChange := SettingsChanged;
 
   FProgressSettings := TProgressSettings.Create(Self);
@@ -559,6 +546,11 @@ begin
   FClickSettings.Assign(Value);
 end;
 
+procedure TANDMR_CButton.SetGradientSettings(const Value: TGradientSettings);
+begin
+  FGradientSettings.Assign(Value);
+end;
+
 procedure TANDMR_CButton.SetPresetType(const Value: TPresetType);
 var
   PresetCaption: string;
@@ -634,55 +626,6 @@ procedure TANDMR_CButton.FontChanged(Sender: TObject);
 begin
   BreakPresetLink;
   Repaint;
-end;
-
-function TANDMR_CButton.GetGradientEnabled: Boolean;
-begin
-  Result := FGradientSettings.Enabled;
-end;
-
-procedure TANDMR_CButton.SetGradientEnabled(const Value: Boolean);
-begin
-  FGradientSettings.Enabled := Value;
-end;
-
-function TANDMR_CButton.GetGradientType: TGradientType;
-begin
-  Result := FGradientSettings.GradientType;
-end;
-
-procedure TANDMR_CButton.SetGradientType(const Value: TGradientType);
-begin
-  FGradientSettings.GradientType := Value;
-end;
-
-function TANDMR_CButton.GetGradientStartColor: TColor;
-begin
-  Result := FGradientSettings.StartColor;
-end;
-
-procedure TANDMR_CButton.SetGradientStartColor(const Value: TColor);
-begin
-  FGradientSettings.StartColor := Value;
-end;
-
-function TANDMR_CButton.GetGradientEndColor: TColor;
-begin
-  Result := FGradientSettings.EndColor;
-end;
-
-procedure TANDMR_CButton.SetGradientEndColor(const Value: TColor);
-begin
-  FGradientSettings.EndColor := Value;
-end;
-
-procedure TANDMR_CButton.SetImagePosition(const Value: TImagePosition);
-begin
-  if FImageSettings.ImagePosition <> Value then
-  begin
-    FImageSettings.ImagePosition := Value;
-    Repaint;
-  end;
 end;
 
 procedure TANDMR_CButton.SetHoverEffect(const Value: THoverEffect);
@@ -1195,32 +1138,91 @@ begin
       if ButtonRectEffectiveF.Height > 0 then ButtonRectEffectiveF.Height := Max(0, ButtonRectEffectiveF.Height - 0.5);
     end;
 
+    // --- Start of Corrected Drawing Logic ---
     if LDrawBorder and (LActualBorderThickness > 0) then LPathInset := LActualBorderThickness / 2.0 else LPathInset := 0.0;
-    LRadiusValue := Min(FBorderSettings.CornerRadius, Min(ButtonRectEffectiveF.Width, ButtonRectEffectiveF.Height) / 2.0);
+    LPathRect := MakeRect(ButtonRectEffectiveF.X + LPathInset, ButtonRectEffectiveF.Y + LPathInset, ButtonRectEffectiveF.Width - 2 * LPathInset, ButtonRectEffectiveF.Height - 2 * LPathInset);
+    LRadiusValue := Min(FBorderSettings.CornerRadius, Min(LPathRect.Width, LPathRect.Height) / 2.0);
     LRadiusValue := Max(0, LRadiusValue);
 
-    var DrawAreaRect: TRect;
-    DrawAreaRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
-                         Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width), Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
+    LGPPath := TGPGraphicsPath.Create;
+    try
+      CreateGPRoundedPath(LGPPath, LPathRect, LRadiusValue, FBorderSettings.RoundCornerType);
 
-    var BgColorToUse: TColor;
-    if LDrawFill and not FTransparent then
-    begin
-      if LCurrentGradientEnabled then
-        BgColorToUse := IfThen(FGradientSettings.StartColor = clNone, LActualFillColor, FGradientSettings.StartColor)
-      else
-        BgColorToUse := LActualFillColor;
-    end
-    else
-      BgColorToUse := clNone;
+      if LGPPath.GetPointCount > 0 then
+      begin
+        // --- Fill Logic (Gradient or Solid) ---
+        if LDrawFill and not FTransparent then
+        begin
+          if LCurrentGradientEnabled and (FGradientSettings.StartColor <> clNone) and (FGradientSettings.EndColor <> clNone) then
+          begin
+            // --- Gradient Drawing ---
 
-    var BorderColorToUse: TColor;
-    if LDrawBorder then
-      BorderColorToUse := LActualBorderColor
-    else
-      BorderColorToUse := clNone;
+            var  gradientRect : TGPRectF;
+            var  pathGradBrush: TGPPathGradientBrush;
+            var  surroundColor: TGPColor;
+            var  surroundCount: Integer; // *** FIX: DECLARE VARIABLE ***
+            LGPPath.GetBounds(gradientRect, nil, nil);
 
-    DrawEditBox(LG, DrawAreaRect, BgColorToUse, BorderColorToUse, LActualBorderThickness, FBorderSettings.Style, Round(LRadiusValue), FBorderSettings.RoundCornerType, 255);
+            case FGradientSettings.GradientType of
+              gtLinearHorizontal:
+                LGPBrush := TGPLinearGradientBrush.Create(gradientRect, ColorToARGB(FGradientSettings.StartColor, 255), ColorToARGB(FGradientSettings.EndColor, 255), LinearGradientModeHorizontal);
+              gtDiagonalDown:
+                LGPBrush := TGPLinearGradientBrush.Create(gradientRect, ColorToARGB(FGradientSettings.StartColor, 255), ColorToARGB(FGradientSettings.EndColor, 255), LinearGradientModeForwardDiagonal);
+              gtDiagonalUp:
+                LGPBrush := TGPLinearGradientBrush.Create(gradientRect, ColorToARGB(FGradientSettings.StartColor, 255), ColorToARGB(FGradientSettings.EndColor, 255), LinearGradientModeBackwardDiagonal);
+              gtRadial, gtCenterBurst:
+              begin
+                pathGradBrush := TGPPathGradientBrush.Create(LGPPath);
+                surroundColor := ColorToARGB(FGradientSettings.EndColor, 255);
+                pathGradBrush.SetCenterColor(ColorToARGB(FGradientSettings.StartColor, 255));
+                surroundCount := 1; // *** FIX: ASSIGN VALUE ***
+                pathGradBrush.SetSurroundColors(@surroundColor, surroundCount); // *** FIX: USE VARIABLE ***
+                if FGradientSettings.GradientType = gtCenterBurst then
+                begin
+                  pathGradBrush.SetFocusScales(0.0, 0.0);
+                end;
+                LGPBrush := pathGradBrush;
+              end;
+            else // gtLinearVertical
+              LGPBrush := TGPLinearGradientBrush.Create(gradientRect, ColorToARGB(FGradientSettings.StartColor, 255), ColorToARGB(FGradientSettings.EndColor, 255), LinearGradientModeVertical);
+            end;
+          end
+          else
+          begin
+            // --- Solid Color Drawing ---
+            LGPBrush := TGPSolidBrush.Create(ColorToARGB(LActualFillColor, 255));
+          end;
+
+          try
+            LG.FillPath(LGPBrush, LGPPath);
+          finally
+            LGPBrush.Free;
+          end;
+        end;
+
+        // --- Border Drawing Logic ---
+        if LDrawBorder and (FBorderSettings.Style <> psClear) then
+        begin
+          LGPPen := TGPPen.Create(ColorToARGB(LActualBorderColor, 255), LActualBorderThickness);
+          try
+            case FBorderSettings.Style of
+              psDash: LGPPen.SetDashStyle(DashStyleDash);
+              psDot: LGPPen.SetDashStyle(DashStyleDot);
+              psDashDot: LGPPen.SetDashStyle(DashStyleDashDot);
+              psDashDotDot: LGPPen.SetDashStyle(DashStyleDashDotDot);
+              else LGPPen.SetDashStyle(DashStyleSolid);
+            end;
+            LG.DrawPath(LGPPen, LGPPath);
+          finally
+            LGPPen.Free;
+          end;
+        end;
+      end;
+    finally
+      LGPPath.Free;
+    end;
+    // --- End of Corrected Drawing Logic ---
+
 
     LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
                               Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
@@ -1239,7 +1241,7 @@ begin
       var LArcThickness: Integer;
       var LStartAngle, LSweepAngle: Single;
       var LProgressBarPen: TGPPen;
-      var LProgressPath: TGPGraphicsPath;
+      var LProgressPath_Progress: TGPGraphicsPath;
       var ArcRectF: TGPRectF;
       var OriginalProgressRect: TRect;
 
@@ -1286,23 +1288,23 @@ begin
             LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8);
             LStartAngle := (FProgressStep * 10) mod 360;
             LSweepAngle := 270;
-            LProgressPath := TGPGraphicsPath.Create;
+            LProgressPath_Progress := TGPGraphicsPath.Create;
             try
               ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness);
               if (ArcRectF.Width > 0) and (ArcRectF.Height > 0) then
               begin
-                LProgressPath.AddArc(ArcRectF, LStartAngle, LSweepAngle);
+                LProgressPath_Progress.AddArc(ArcRectF, LStartAngle, LSweepAngle);
                 LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressSettings.ProgressColor, 255), LArcThickness);
                 LProgressBarPen.SetStartCap(LineCapRound);
                 LProgressBarPen.SetEndCap(LineCapRound);
                 try
-                  LG.DrawPath(LProgressBarPen, LProgressPath);
+                  LG.DrawPath(LProgressBarPen, LProgressPath_Progress);
                 finally
                   LProgressBarPen.Free;
                 end;
               end;
             finally
-              LProgressPath.Free;
+              LProgressPath_Progress.Free;
             end;
           end;
         end;
@@ -1313,23 +1315,23 @@ begin
             LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8);
             LStartAngle := (FProgressStep * 12) mod 360;
             LSweepAngle := 90;
-            LProgressPath := TGPGraphicsPath.Create;
+            LProgressPath_Progress := TGPGraphicsPath.Create;
             try
               ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness);
               if (ArcRectF.Width > 0) and (ArcRectF.Height > 0) then
               begin
-                LProgressPath.AddArc(ArcRectF, LStartAngle, LSweepAngle);
+                LProgressPath_Progress.AddArc(ArcRectF, LStartAngle, LSweepAngle);
                 LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressSettings.ProgressColor, 255), LArcThickness);
                 LProgressBarPen.SetStartCap(LineCapRound);
                 LProgressBarPen.SetEndCap(LineCapRound);
                 try
-                  LG.DrawPath(LProgressBarPen, LProgressPath);
+                  LG.DrawPath(LProgressBarPen, LProgressPath_Progress);
                 finally
                   LProgressBarPen.Free;
                 end;
               end;
             finally
-              LProgressPath.Free;
+              LProgressPath_Progress.Free;
             end;
           end;
         end;

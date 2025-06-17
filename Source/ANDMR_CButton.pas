@@ -197,155 +197,36 @@ type
 
     property PresetType: TPresetType read FPresetType write SetPresetType default cptNone;
 
-    property ProgressSettings: TProgressSettings read FProgressSettings write SetProgressSettings;
+    property ProgressSettings: TProgressSettings read FProgressSetti
 
-    property Anchors;
-    property Constraints;
-    property DragCursor;
-    property DragKind;
-    property DragMode;
-    property Font;
-    property ParentShowHint;
-    property PopupMenu;
-    property ShowHint;
-    property TabOrder;
-    property TabStop default True;
-    property Visible;
-    property OnContextPopup;
-    property OnDblClick;
-    property OnDragDrop;
-    property OnDragOver;
-    property OnEndDock;
-    property OnEndDrag;
-    property OnEnter;
-    property OnExit;
-    property OnKeyDown;
-    property OnKeyPress;
-    property OnKeyUp;
-    property OnMouseDown;
-    property OnMouseEnter;
-    property OnMouseLeave;
-    property OnMouseMove;
-    property OnMouseUp;
-    property OnResize;
-    property OnStartDock;
-    property OnStartDrag;
-  end;
 
-procedure Register;
 
-implementation
 
-procedure Register;
-begin
-  RegisterComponents('ANDMR', [TANDMR_CButton]);
-end;
 
-{ TANDMR_CButton }
 
-constructor TANDMR_CButton.Create(AOwner: TComponent);
-begin
-  inherited Create(AOwner);
-  ControlStyle := ControlStyle + [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable];
-  Width := 100;
-  Height := 45;
-  TabStop := True;
-  FTransparent := False;
-  FClickTitleColor := clNone;
 
-  // FTitleFont := TFont.Create; // Removed
-  // FTitleFont.Name := 'Segoe UI'; // Removed
-  // FTitleFont.Size := 9; // Removed
-  // FTitleFont.Style := [fsBold]; // Removed
-  // FTitleFont.Color := clWindowText; // Removed
-  // FTitleFont.OnChange := FontChanged; // Will be handled by FCaptionSettings.Font.OnChange
 
-  FTextMargins := TANDMR_Margins.Create;
-  FTextMargins.OnChange := MarginsChanged;
 
-  FImagePosition := ipLeft;
 
-  FGradientSettings := TGradientSettings.Create;
-  FGradientSettings.OnChange := SettingsChanged;
 
-  FDisabledCursor := crNo;
-  Cursor := crHandPoint;
 
-  DoubleBuffered := True;
 
-  FClickEffectDuration := 200;
-  FClickEffectProgress := 0;
-  FClickEffectActive := False;
-  FClickEffectTimer := TTimer.Create(Self);
-  FClickEffectTimer.Enabled := False;
-  FClickEffectTimer.OnTimer := ClickEffectTimerHandler;
-  UpdateClickEffectTimerInterval;
 
-  FClickColor := clNone;
-  FClickBorderColor := clNone;
 
-  FStyle := bsSolid;
-  FPresetType := cptNone;
-  FCaption := Self.Name;
 
-  FInternalHoverSettings := THoverSettings.Create(Self);
-  FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
 
-  FBorderSettings := TBorderSettings.Create;
-  FBorderSettings.OnChange := BorderSettingsChanged;
-  FBorderSettings.CornerRadius := 12; // Default FCornerRadius
-  FBorderSettings.RoundCornerType := rctAll; // Default FRoundCornerType
-  FBorderSettings.BackgroundColor := clTeal; // Default FActiveColor
-  FBorderSettings.Color := clBlack; // Default FBorderColor
-  FBorderSettings.Thickness := 1; // Default FBorderThickness
-  FBorderSettings.Style := psSolid; // Default FBorderStyle
 
-  // Create and initialize FCaptionSettings
-  FCaptionSettings := TCaptionSettings.Create(Self);
-  FCaptionSettings.OnChange := SettingsChanged;
-  // Transfer initial values from old fields (if they existed before this point) to FCaptionSettings.Font
-  // Assuming FTitleFont was created temporarily for this or accessed via a property if it still exists
-  // For a clean refactor, FTitleFont fields would be set directly if no TFont object was created yet.
-  // However, the original code creates FTitleFont, then transfers.
-  // We need to ensure FCaptionSettings gets these initial values if FTitleFont is removed before this block.
-  // Let's assume FTitleFont was created for setup and values are transferred:
-  var TempTitleFont: TFont;
-  TempTitleFont := TFont.Create;
-  try
-    TempTitleFont.Name := 'Segoe UI';
-    TempTitleFont.Size := 9;
-    TempTitleFont.Style := [fsBold];
-    TempTitleFont.Color := clWindowText;
-    FCaptionSettings.Font.Assign(TempTitleFont);
-  finally
-    TempTitleFont.Free;
-  end;
-  FCaptionSettings.Font.OnChange := FontChanged;
-  FCaptionSettings.Alignment := taCenter; // Default FTextAlign
 
-  // Create and initialize FImageSettings
-  FImageSettings := TImageSettings.Create(Self);
-  FImageSettings.OnChange := SettingsChanged;
-  // Similarly, for FImage, FImageMargins, FImageStretchMode
-  // FImageSettings.Picture.Assign(FImage); // FImage would be created temporarily or use defaults
-  // FImageSettings.Margins.Assign(FImageMargins); // FImageMargins would be created temporarily or use defaults
-  // Default assignment for picture and margins if not assigned from old fields
-  FImageSettings.Picture.Create; // Ensure picture object exists
-  FImageSettings.Margins.Create; // Ensure margins object exists
 
-  // Initial FImageStretchMode was ismProportional
-  FImageSettings.DrawMode := idmProportional;
 
-  FProgressSettings := TProgressSettings.Create(Self);
-  FProgressSettings.OnChange := SettingsChanged;
 
-  // Initializations for progress animation
-  FProcessing := False;
-  FProgressTimer := TTimer.Create(Self);
-  FProgressTimer.Enabled := False;
-  FProgressTimer.Interval := FProgressSettings.AnimationTimerInterval;
-  FProgressTimer.OnTimer := ProgressTimerHandler;
-  FOriginalEnabledState := True;
+
+
+
+
+
+[long lines cut for display purposes]
+    FOriginalEnabledState := True;
 end;
 
 destructor TANDMR_CButton.Destroy;
@@ -1870,7 +1751,7 @@ begin
                               LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
         else // Default to ipLeft behavior for LTextArea
            LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
+                              LImageClipRect.Top + FTextMargs.Top,
                               LImageClipRect.Right - FTextMargins.Right,
                               LImageClipRect.Bottom - FTextMargins.Bottom);
         end;

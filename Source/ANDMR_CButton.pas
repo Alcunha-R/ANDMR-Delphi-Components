@@ -55,6 +55,7 @@ type
     FOriginalCaption: string;
     FOriginalEnabledState: Boolean;
 
+    procedure BreakPresetLink; // Adicionado para gerenciar customizações
     procedure SetProgressSettings(const Value: TProgressSettings);
     procedure SetImageSettings(const Value: TImageSettings);
     function GetImage: TPicture;
@@ -305,6 +306,17 @@ begin
   inherited;
 end;
 
+procedure TANDMR_CButton.BreakPresetLink;
+begin
+  // Não quebre o link durante o carregamento do formulário ou a destruição do componente.
+  if (csLoading in ComponentState) or (csDestroying in ComponentState) then
+    Exit;
+
+  // Se um preset estiver ativo, a alteração manual de uma propriedade muda para uma configuração personalizada.
+  if FPresetType <> cptNone then
+    FPresetType := cptNone;
+end;
+
 procedure TANDMR_CButton.StartProcessing;
 begin
   if FProgressSettings.ShowProgress and not FProcessing then
@@ -382,16 +394,19 @@ end;
 
 procedure TANDMR_CButton.InternalHoverSettingsChanged(Sender: TObject);
 begin
+  BreakPresetLink;
   Repaint;
 end;
 
 procedure TANDMR_CButton.BorderSettingsChanged(Sender: TObject);
 begin
+  BreakPresetLink;
   Invalidate;
 end;
 
 procedure TANDMR_CButton.SettingsChanged(Sender: TObject);
 begin
+  BreakPresetLink;
   Repaint;
   Invalidate;
 end;
@@ -521,7 +536,12 @@ end;
 
 procedure TANDMR_CButton.SetCaption(const Value: string);
 begin
-  FCaptionSettings.Text := Value;
+  if FCaptionSettings.Text <> Value then
+  begin
+    BreakPresetLink;
+    FCaptionSettings.Text := Value;
+    // FCaptionSettings.OnChange vai chamar SettingsChanged, que já chama Repaint
+  end;
 end;
 
 procedure TANDMR_CButton.SetBorderSettings(const Value: TBorderSettings);
@@ -552,7 +572,7 @@ begin
     NewTitleColor := clWhite;
 
     case FPresetType of
-      cptNone: begin BaseColor := FBorderSettings.BackgroundColor; Exit; end;
+      cptNone: begin Exit; end; // Não faz nada se for cptNone, preserva as configs atuais
       cptAccept:   begin BaseColor := TColor($0050AF4C); PresetCaption := 'Confirmar'; NewTitleColor := clWhite; end;
       cptDecline:  begin BaseColor := TColor($00757575); PresetCaption := 'Cancelar';  NewTitleColor := clWhite; end;
       cptSave:     begin BaseColor := TColor($00F39621); PresetCaption := 'Salvar';    NewTitleColor := clWhite; end;
@@ -600,6 +620,7 @@ procedure TANDMR_CButton.SetHoverColor(const Value: TColor);
 begin
   if FInternalHoverSettings.BackgroundColor <> Value then
   begin
+    BreakPresetLink;
     FInternalHoverSettings.BackgroundColor := Value;
   end;
 end;
@@ -611,6 +632,7 @@ end;
 
 procedure TANDMR_CButton.FontChanged(Sender: TObject);
 begin
+  BreakPresetLink;
   Repaint;
 end;
 
@@ -665,6 +687,7 @@ end;
 
 procedure TANDMR_CButton.SetHoverEffect(const Value: THoverEffect);
 begin
+  BreakPresetLink;
   FInternalHoverSettings.HoverEffect := Value;
 end;
 
@@ -687,6 +710,7 @@ procedure TANDMR_CButton.SetHoverBorderColor(const Value: TColor);
 begin
   if FInternalHoverSettings.BorderColor <> Value then
   begin
+    BreakPresetLink;
     FInternalHoverSettings.BorderColor := Value;
   end;
 end;
@@ -713,6 +737,7 @@ procedure TANDMR_CButton.SetHoverTitleColor(const Value: TColor);
 begin
   if FInternalHoverSettings.FontColor <> Value then
   begin
+    BreakPresetLink;
     FInternalHoverSettings.FontColor := Value;
   end;
 end;
@@ -895,14 +920,14 @@ begin
     LActualFillColor := LInitialFillColor;
     LActualBorderColor := LInitialBorderColor;
 
-    // --- Determine Hover State Color FIRST ---
+    // --- Determina a cor do estado Hover PRIMEIRO ---
     if (LHoverProgress > 0) and Enabled and GetEnableHoverEffect then
     begin
         LActualFillColor := BlendColors(LInitialFillColor, LFinalHoverColor, LHoverProgress);
         LActualBorderColor := BlendColors(LInitialBorderColor, LFinalHoverBorderColor, LHoverProgress);
     end;
 
-    // --- THEN, if clicking, blend FROM Click Color TO the calculated Actual Color (Hover or Base) ---
+    // --- ENTÃO, se estiver clicando, mescla a partir da Cor de Clique para a cor atual calculada (Hover ou Base) ---
     if (LClickProgress > 0) and Enabled and FClickSettings.Enabled and (FClickSettings.Duration > 0) then
     begin
       LActualFillColor := BlendColors(LActualFillColor, LFinalClickColor, LClickProgress);
@@ -913,7 +938,7 @@ begin
     LDrawFill := True;
     LDrawBorder := LActualBorderThickness > 0;
 
-    // ... Style logic remains the same ...
+    // ... A lógica de Style permanece a mesma ...
     case FStyle of
       bsSolid:
       begin
@@ -1207,6 +1232,7 @@ begin
           InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
     end;
 
+    // ... (O resto do método Paint permanece o mesmo, desenhando progresso, imagem e texto)
     if FProcessing and FProgressSettings.ShowProgress then
     begin
       var LProgressRect: TRect;
@@ -1630,7 +1656,7 @@ begin
             if FClickEffectActive and (LClickProgress > 0) and FClickSettings.Enabled and (FClickSettings.Duration > 0) and not FProcessing then
             begin
               if FClickSettings.FontColor <> clNone then
-                LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickSettings.FontColor, 1.0 - LClickProgress); // Fade out from click color
+                LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickSettings.FontColor, LClickProgress);
             end;
           end
           else if not Enabled then

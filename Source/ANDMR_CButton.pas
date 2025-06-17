@@ -29,25 +29,20 @@ type
   TANDMR_CButton = class(TCustomControl)
   private
     FBorderSettings: TBorderSettings;
-    FCaption: string;
     FCaptionSettings: TCaptionSettings;
     FImageSettings: TImageSettings;
     FGradientSettings: TGradientSettings;
-    FTextMargins: TANDMR_Margins;
+    FClickSettings: TClickSettings;
     FTag: Integer;
     FDisabledCursor: TCursor;
     FTransparent: Boolean;
 
     FClickEffectTimer: TTimer;
     FClickEffectProgress: Integer;
-    FClickEffectDuration: Integer;
     FClickEffectActive: Boolean;
 
     FOnClick: TNotifyEvent;
     FStyle: TButtonStyle;
-    FClickColor: TColor;
-    FClickBorderColor: TColor;
-    FClickTitleColor: TColor;
 
     FPresetType: TPresetType;
 
@@ -81,14 +76,10 @@ type
 
     function GetEnabled: Boolean;
     procedure SetEnabled(Value: Boolean);
+    function GetCaption: string;
     procedure SetCaption(const Value: string);
-    // REMOVED: Getters/Setters for individual border properties
     procedure SetHoverColor(const Value: TColor);
-    function GetTitleFont: TFont;
-    procedure SetTitleFont(const Value: TFont);
     procedure FontChanged(Sender: TObject);
-    function GetTextAlign: TAlignment;
-    procedure SetTextAlign(const Value: TAlignment);
     function GetGradientEnabled: Boolean;
     procedure SetGradientEnabled(const Value: Boolean);
     function GetGradientType: TGradientType;
@@ -100,15 +91,9 @@ type
     procedure SetImagePosition(const Value: TImagePosition);
     procedure SetHoverEffect(const Value: THoverEffect);
     procedure SetDisabledCursor(const Value: TCursor);
-    procedure SetTextMargins(const Value: TANDMR_Margins);
-    // REMOVED: Getters/Setters for individual border properties
-    procedure SetClickColor(const Value: TColor);
     procedure SetHoverBorderColor(const Value: TColor);
-    procedure SetClickBorderColor(const Value: TColor);
     procedure SetEnableHoverEffect(const Value: Boolean);
     procedure SetHoverTitleColor(const Value: TColor);
-    procedure SetClickTitleColor(const Value: TColor);
-    procedure SetClickEffectDuration(const Value: Integer);
     procedure SetTransparent(const Value: Boolean);
 
     function GetEnableHoverEffect: Boolean;
@@ -117,14 +102,14 @@ type
     function GetHoverTitleColor: TColor;
     function GetHoverEffect: THoverEffect;
 
-    // ADDED: Setter for the new BorderSettings property
     procedure SetBorderSettings(const Value: TBorderSettings);
+    procedure SetCaptionSettings(const Value: TCaptionSettings);
+    procedure SetClickSettings(const Value: TClickSettings);
 
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
     procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
     function IsEnabledStored: Boolean;
-    procedure MarginsChanged(Sender: TObject);
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure SetPresetType(const Value: TPresetType);
 
@@ -144,24 +129,14 @@ type
   published
     property Align;
     property Enabled read GetEnabled write SetEnabled stored IsEnabledStored;
-    property Caption: string read FCaption write SetCaption;
+    property Caption: string read GetCaption write SetCaption;
 
-    // ADDED: New unified BorderSettings property
+    property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
-
-    // REMOVED: Old individual border properties
-    // property CornerRadius: Integer read GetCornerRadius write SetCornerRadius default 12;
-    // property RoundCornerType: TRoundCornerType read GetRoundCornerType write SetRoundCornerType default rctAll;
-    // property ActiveColor: TColor read GetActiveColor write SetActiveColor default clTeal;
-    // property BorderColor: TColor read GetBorderColor write SetBorderColor default clBlack;
-    // property BorderThickness: Integer read GetBorderThickness write SetBorderThickness default 1;
-    // property BorderStyle: TPenStyle read GetBorderStyle write SetBorderStyle default psSolid;
+    property ClickSettings: TClickSettings read FClickSettings write SetClickSettings;
 
     property HoverColor: TColor read GetHoverColor write SetHoverColor;
     property HoverTitleColor: TColor read GetHoverTitleColor write SetHoverTitleColor;
-    property ClickTitleColor: TColor read FClickTitleColor write SetClickTitleColor default clNone;
-    property TitleFont: TFont read GetTitleFont write SetTitleFont;
-    property TextAlign: TAlignment read GetTextAlign write SetTextAlign default taCenter;
 
     property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
 
@@ -170,16 +145,11 @@ type
     property GradientStartColor: TColor read GetGradientStartColor write SetGradientStartColor;
     property GradientEndColor: TColor read GetGradientEndColor write SetGradientEndColor;
 
-    property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
-
     property HoverBorderColor: TColor read GetHoverBorderColor write SetHoverBorderColor;
-    property ClickColor: TColor read FClickColor write SetClickColor default clNone;
-    property ClickBorderColor: TColor read FClickBorderColor write SetClickBorderColor default clNone;
 
     property Style: TButtonStyle read FStyle write SetStyle default bsSolid;
     property EnableHoverEffect: Boolean read GetEnableHoverEffect write SetEnableHoverEffect default True;
     property HoverEffect: THoverEffect read GetHoverEffect write SetHoverEffect default heFade;
-    property ClickEffectDuration: Integer read FClickEffectDuration write SetClickEffectDuration default 200;
 
     property DisabledCursor: TCursor read FDisabledCursor write SetDisabledCursor default crNo;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
@@ -242,10 +212,6 @@ begin
   Height := 45;
   TabStop := True;
   FTransparent := False;
-  FClickTitleColor := clNone;
-
-  FTextMargins := TANDMR_Margins.Create;
-  FTextMargins.OnChange := MarginsChanged;
 
   FGradientSettings := TGradientSettings.Create;
   FGradientSettings.OnChange := SettingsChanged;
@@ -255,20 +221,19 @@ begin
 
   DoubleBuffered := True;
 
-  FClickEffectDuration := 200;
   FClickEffectProgress := 0;
   FClickEffectActive := False;
   FClickEffectTimer := TTimer.Create(Self);
   FClickEffectTimer.Enabled := False;
   FClickEffectTimer.OnTimer := ClickEffectTimerHandler;
-  UpdateClickEffectTimerInterval;
 
-  FClickColor := clNone;
-  FClickBorderColor := clNone;
+  FClickSettings := TClickSettings.Create;
+  FClickSettings.OnChange := SettingsChanged;
+  FClickSettings.Duration := 200; // Keep original default
+  UpdateClickEffectTimerInterval;
 
   FStyle := bsSolid;
   FPresetType := cptNone;
-  FCaption := Self.Name;
 
   FInternalHoverSettings := THoverSettings.Create(Self);
   FInternalHoverSettings.OnChange := InternalHoverSettingsChanged;
@@ -284,18 +249,11 @@ begin
 
   FCaptionSettings := TCaptionSettings.Create(Self);
   FCaptionSettings.OnChange := SettingsChanged;
-
-  var TempTitleFont: TFont;
-  TempTitleFont := TFont.Create;
-  try
-    TempTitleFont.Name := 'Segoe UI';
-    TempTitleFont.Size := 9;
-    TempTitleFont.Style := [fsBold];
-    TempTitleFont.Color := clWindowText;
-    FCaptionSettings.Font.Assign(TempTitleFont);
-  finally
-    TempTitleFont.Free;
-  end;
+  FCaptionSettings.Text := Self.Name;
+  FCaptionSettings.Font.Name := 'Segoe UI';
+  FCaptionSettings.Font.Size := 9;
+  FCaptionSettings.Font.Style := [fsBold];
+  FCaptionSettings.Font.Color := clWindowText;
   FCaptionSettings.Font.OnChange := FontChanged;
   FCaptionSettings.Alignment := taCenter;
 
@@ -328,7 +286,9 @@ begin
   FImageSettings.OnChange := nil;
   FImageSettings.Free;
 
-  FTextMargins.Free;
+  FClickSettings.OnChange := nil;
+  FClickSettings.Free;
+
   FClickEffectTimer.Free;
 
   if Assigned(FProgressSettings) then
@@ -455,8 +415,8 @@ begin
   inherited SetParent(AParent);
   if (csDesigning in ComponentState) and (AParent <> nil) then
   begin
-    if (FCaption = Name) and (FPresetType = cptNone) then
-      FCaption := '';
+    if (FCaptionSettings.Text = Name) and (FPresetType = cptNone) then
+      FCaptionSettings.Text := '';
   end;
 end;
 
@@ -496,7 +456,7 @@ end;
 
 procedure TANDMR_CButton.StartClickEffect;
 begin
-  if not Enabled or (FClickEffectDuration <= 0) then Exit;
+  if not Enabled or not FClickSettings.Enabled or (FClickSettings.Duration <= 0) then Exit;
 
   FClickEffectActive := True;
   FClickEffectProgress := 255;
@@ -513,7 +473,7 @@ var
   NumTicks: Single;
   NewInterval: Integer;
 begin
-  if FClickEffectDuration <= 0 then
+  if FClickSettings.Duration <= 0 then
   begin
     FClickEffectTimer.Interval := MIN_INTERVAL;
     Exit;
@@ -522,7 +482,7 @@ begin
   NumTicks := 255 / FADE_STEP_VALUE;
   if NumTicks <= 0 then NumTicks := 1;
 
-  NewInterval := Round(FClickEffectDuration / NumTicks);
+  NewInterval := Round(FClickSettings.Duration / NumTicks);
   FClickEffectTimer.Interval := Max(MIN_INTERVAL, NewInterval);
 end;
 
@@ -554,23 +514,30 @@ begin
   Result := not inherited Enabled;
 end;
 
-procedure TANDMR_CButton.SetCaption(const Value: string);
+function TANDMR_CButton.GetCaption: string;
 begin
-  if FCaption <> Value then
-  begin
-    FCaption := Value;
-    Repaint;
-  end;
+  Result := FCaptionSettings.Text;
 end;
 
-// ADDED: Setter for BorderSettings
+procedure TANDMR_CButton.SetCaption(const Value: string);
+begin
+  FCaptionSettings.Text := Value;
+end;
+
 procedure TANDMR_CButton.SetBorderSettings(const Value: TBorderSettings);
 begin
   FBorderSettings.Assign(Value);
 end;
 
-// REMOVED: SetCornerRadius, SetRoundCornerType, SetActiveColor, SetBorderColor,
-// SetBorderThickness, SetBorderStyle and their corresponding Getters.
+procedure TANDMR_CButton.SetCaptionSettings(const Value: TCaptionSettings);
+begin
+  FCaptionSettings.Assign(Value);
+end;
+
+procedure TANDMR_CButton.SetClickSettings(const Value: TClickSettings);
+begin
+  FClickSettings.Assign(Value);
+end;
 
 procedure TANDMR_CButton.SetPresetType(const Value: TPresetType);
 var
@@ -604,8 +571,8 @@ begin
     FBorderSettings.Color := DarkerColor(BaseColor, 30);
     Self.HoverColor := LighterColor(BaseColor, 25);
     Self.HoverBorderColor := BaseColor;
-    Self.ClickColor := DarkerColor(BaseColor, 25);
-    Self.ClickBorderColor := DarkerColor(BaseColor, 30);
+    FClickSettings.Color := DarkerColor(BaseColor, 25);
+    FClickSettings.BorderColor := DarkerColor(BaseColor, 30);
     FCaptionSettings.Font.Color := NewTitleColor;
 
     if (GetRValue(Self.HoverColor) * 0.299 + GetGValue(Self.HoverColor) * 0.587 + GetBValue(Self.HoverColor) * 0.114) > 186 then
@@ -613,25 +580,20 @@ begin
     else
       FInternalHoverSettings.FontColor := clWhite;
 
-    if (GetRValue(Self.ClickColor) * 0.299 + GetGValue(Self.ClickColor) * 0.587 + GetBValue(Self.ClickColor) * 0.114) > 186 then
-      Self.ClickTitleColor := clBlack
+    if (GetRValue(FClickSettings.Color) * 0.299 + GetGValue(FClickSettings.Color) * 0.587 + GetBValue(FClickSettings.Color) * 0.114) > 186 then
+      FClickSettings.FontColor := clBlack
     else
-      Self.ClickTitleColor := clWhite;
+      FClickSettings.FontColor := clWhite;
 
-    if (Trim(Self.FCaption) = '') or (Self.FCaption <> PresetCaption) then
+    if (Trim(Self.CaptionSettings.Text) = '') or (Self.CaptionSettings.Text <> PresetCaption) then
     begin
-      Self.FCaption := PresetCaption;
+      Self.CaptionSettings.Text := PresetCaption;
     end
     else if FPresetType <> cptNone then
     begin
       Repaint;
     end;
   end;
-end;
-
-function TANDMR_CButton.GetTitleFont: TFont;
-begin
-  Result := FCaptionSettings.Font;
 end;
 
 procedure TANDMR_CButton.SetHoverColor(const Value: TColor);
@@ -647,24 +609,8 @@ begin
   Result := FInternalHoverSettings.BackgroundColor;
 end;
 
-procedure TANDMR_CButton.SetTitleFont(const Value: TFont);
-begin
-  FCaptionSettings.Font.Assign(Value);
-end;
-
 procedure TANDMR_CButton.FontChanged(Sender: TObject);
 begin
-  Repaint;
-end;
-
-function TANDMR_CButton.GetTextAlign: TAlignment;
-begin
-  Result := FCaptionSettings.Alignment;
-end;
-
-procedure TANDMR_CButton.SetTextAlign(const Value: TAlignment);
-begin
-  FCaptionSettings.Alignment := Value;
   Repaint;
 end;
 
@@ -717,11 +663,6 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetTextMargins(const Value: TANDMR_Margins);
-begin
-  FTextMargins.Assign(Value);
-end;
-
 procedure TANDMR_CButton.SetHoverEffect(const Value: THoverEffect);
 begin
   FInternalHoverSettings.HoverEffect := Value;
@@ -742,15 +683,6 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetClickColor(const Value: TColor);
-begin
-  if FClickColor <> Value then
-  begin
-    FClickColor := Value;
-    Repaint;
-  end;
-end;
-
 procedure TANDMR_CButton.SetHoverBorderColor(const Value: TColor);
 begin
   if FInternalHoverSettings.BorderColor <> Value then
@@ -762,15 +694,6 @@ end;
 function TANDMR_CButton.GetHoverBorderColor: TColor;
 begin
   Result := FInternalHoverSettings.BorderColor;
-end;
-
-procedure TANDMR_CButton.SetClickBorderColor(const Value: TColor);
-begin
-  if FClickBorderColor <> Value then
-  begin
-    FClickBorderColor := Value;
-    Repaint;
-  end;
 end;
 
 procedure TANDMR_CButton.SetEnableHoverEffect(const Value: Boolean);
@@ -799,24 +722,6 @@ begin
   Result := FInternalHoverSettings.FontColor;
 end;
 
-procedure TANDMR_CButton.SetClickTitleColor(const Value: TColor);
-begin
-  if FClickTitleColor <> Value then
-  begin
-    FClickTitleColor := Value;
-    Repaint;
-  end;
-end;
-
-procedure TANDMR_CButton.SetClickEffectDuration(const Value: Integer);
-begin
-  if FClickEffectDuration <> Value then
-  begin
-    FClickEffectDuration := Max(0, Value);
-    UpdateClickEffectTimerInterval;
-  end;
-end;
-
 procedure TANDMR_CButton.SetTransparent(const Value: Boolean);
 begin
   if FTransparent <> Value then
@@ -828,11 +733,6 @@ begin
       ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
     Repaint;
   end;
-end;
-
-procedure TANDMR_CButton.MarginsChanged(Sender: TObject);
-begin
-  Repaint;
 end;
 
 procedure TANDMR_CButton.ClickEffectTimerHandler(Sender: TObject);
@@ -972,7 +872,7 @@ begin
       LHoverProgress := FInternalHoverSettings.CurrentAnimationValue / 255.0;
 
     LClickProgress := 0;
-    if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and (FClickEffectDuration > 0) and not FProcessing then
+    if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and FClickSettings.Enabled and (FClickSettings.Duration > 0) and not FProcessing then
       LClickProgress := (255 - FClickEffectProgress) / 255.0;
 
   LInitialFillColor := ResolveStateColor(Enabled, False, False, FBorderSettings.BackgroundColor, clNone, clNone, BlendColors(FBorderSettings.BackgroundColor, clGray, 0.65), False, False);
@@ -989,8 +889,8 @@ begin
     else
       LFinalHoverBorderColor := LInitialBorderColor;
 
-    LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LInitialFillColor, 15), FClickColor);
-    LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LInitialBorderColor, 15), FClickBorderColor);
+    LFinalClickColor := IfThen(FClickSettings.Color = clNone, DarkerColor(LInitialFillColor, 15), FClickSettings.Color);
+    LFinalClickBorderColor := IfThen(FClickSettings.BorderColor = clNone, DarkerColor(LInitialBorderColor, 15), FClickSettings.BorderColor);
 
     LActualFillColor := LInitialFillColor;
     LActualBorderColor := LInitialBorderColor;
@@ -1083,8 +983,8 @@ begin
         else
           LFinalHoverBorderColor := LighterColor(LActualBorderColor, 15);
 
-        LFinalClickColor := IfThen(FClickColor = clNone, LighterColor(LBaseStyleColor, 10), FClickColor);
-        LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, LighterColor(LActualBorderColor, 10), FClickBorderColor);
+        LFinalClickColor := IfThen(FClickSettings.Color = clNone, LighterColor(LBaseStyleColor, 10), FClickSettings.Color);
+        LFinalClickBorderColor := IfThen(FClickSettings.BorderColor = clNone, LighterColor(LActualBorderColor, 10), FClickSettings.BorderColor);
       end;
       bsMaterial:
       begin
@@ -1100,7 +1000,7 @@ begin
         else
           LFinalHoverColor := LighterColor(LActualFillColor, 10);
 
-        LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 10), FClickColor);
+        LFinalClickColor := IfThen(FClickSettings.Color = clNone, DarkerColor(LActualFillColor, 10), FClickSettings.Color);
       end;
       bsModern:
       begin
@@ -1121,8 +1021,8 @@ begin
         else
           LFinalHoverBorderColor := LActualFillColor;
 
-        LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 8), FClickColor);
-        LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualFillColor, 20), FClickBorderColor);
+        LFinalClickColor := IfThen(FClickSettings.Color = clNone, DarkerColor(LActualFillColor, 8), FClickSettings.Color);
+        LFinalClickBorderColor := IfThen(FClickSettings.BorderColor = clNone, DarkerColor(LActualFillColor, 20), FClickSettings.BorderColor);
       end;
       bsWindows:
       begin
@@ -1143,8 +1043,8 @@ begin
         else
           LFinalHoverBorderColor := FBorderSettings.BackgroundColor;
 
-        LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 10), FClickColor);
-        LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualBorderColor, 10), FClickBorderColor);
+        LFinalClickColor := IfThen(FClickSettings.Color = clNone, DarkerColor(LActualFillColor, 10), FClickSettings.Color);
+        LFinalClickBorderColor := IfThen(FClickSettings.BorderColor = clNone, DarkerColor(LActualBorderColor, 10), FClickSettings.BorderColor);
       end;
       bsMacOS:
       begin
@@ -1165,8 +1065,8 @@ begin
         else
           LFinalHoverBorderColor := DarkerColor(LActualBorderColor, 5);
 
-        LFinalClickColor := IfThen(FClickColor = clNone, DarkerColor(LActualFillColor, 12), FClickColor);
-        LFinalClickBorderColor := IfThen(FClickBorderColor = clNone, DarkerColor(LActualBorderColor, 12), FClickBorderColor);
+        LFinalClickColor := IfThen(FClickSettings.Color = clNone, DarkerColor(LActualFillColor, 12), FClickSettings.Color);
+        LFinalClickBorderColor := IfThen(FClickSettings.BorderColor = clNone, DarkerColor(LActualBorderColor, 12), FClickSettings.BorderColor);
       end;
     end;
 
@@ -1185,11 +1085,11 @@ begin
       end;
     end;
 
-    if (LClickProgress > 0) and Enabled and (FClickEffectDuration > 0) then
+    if (LClickProgress > 0) and Enabled and FClickSettings.Enabled and (FClickSettings.Duration > 0) then
     begin
-      LActualFillColor := BlendColors(LActualFillColor, LFinalClickColor, LClickProgress * 0.7 + 0.1);
+      LActualFillColor := BlendColors(LActualFillColor, LFinalClickColor, LClickProgress);
       if LDrawBorder then
-        LActualBorderColor := BlendColors(LActualBorderColor, LFinalClickBorderColor, LClickProgress * 0.7 + 0.1);
+        LActualBorderColor := BlendColors(LActualBorderColor, LFinalClickBorderColor, LClickProgress);
     end;
 
     if FTransparent then
@@ -1498,24 +1398,24 @@ begin
         if (OriginalProgressRect.Width > 100) and (LAnimationStyle <> pasHorizontalBar) then
         begin
             AnimationAreaRightBound := LProgressRect.Left + LProgressRect.Width;
-            TextRect.Left := AnimationAreaRightBound + Self.FTextMargins.Left;
+            TextRect.Left := AnimationAreaRightBound + Self.FCaptionSettings.Margins.Left;
             TextRect.Top  := OriginalProgressRect.Top;
-            TextRect.Right := OriginalProgressRect.Left + OriginalProgressRect.Width - Self.FTextMargins.Right;
+            TextRect.Right := OriginalProgressRect.Left + OriginalProgressRect.Width - Self.FCaptionSettings.Margins.Right;
             TextRect.Bottom := OriginalProgressRect.Bottom;
         end
         else if (LAnimationStyle = pasHorizontalBar) and (OriginalProgressRect.Width > 100) then
         begin
-            TextRect.Left := OriginalProgressRect.Left + Self.FTextMargins.Left;
-            TextRect.Top := LProgressRect.Bottom + Self.FTextMargins.Top;
-            TextRect.Right := OriginalProgressRect.Right - Self.FTextMargins.Right;
+            TextRect.Left := OriginalProgressRect.Left + Self.FCaptionSettings.Margins.Left;
+            TextRect.Top := LProgressRect.Bottom + Self.FCaptionSettings.Margins.Top;
+            TextRect.Right := OriginalProgressRect.Right - Self.FCaptionSettings.Margins.Right;
             TextRect.Bottom := OriginalProgressRect.Bottom;
         end
         else
         begin
-            TextRect.Left := ClientRect.Left + Self.FTextMargins.Left;
-            TextRect.Top := LProgressRect.Bottom + Self.FTextMargins.Top;
-            TextRect.Right := ClientRect.Right - Self.FTextMargins.Right;
-            TextRect.Bottom := ClientRect.Bottom - Self.FTextMargins.Bottom;
+            TextRect.Left := ClientRect.Left + Self.FCaptionSettings.Margins.Left;
+            TextRect.Top := LProgressRect.Bottom + Self.FCaptionSettings.Margins.Top;
+            TextRect.Right := ClientRect.Right - Self.FCaptionSettings.Margins.Right;
+            TextRect.Bottom := ClientRect.Bottom - Self.FCaptionSettings.Margins.Bottom;
         end;
 
         if (TextRect.Width > 0) and (TextRect.Height > 0) then
@@ -1650,33 +1550,33 @@ begin
 
         case FImageSettings.ImagePosition of
           ipLeft:
-            LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right,
-                              LImageClipRect.Bottom - FTextMargins.Bottom);
+            LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left,
+                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
           ipRight:
-            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
-                              LImgX - FImageSettings.Margins.Left - FTextMargins.Right,
-                              LImageClipRect.Bottom - FTextMargins.Bottom);
+            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
+                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImgX - FImageSettings.Margins.Left - FCaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
           ipTop:
-            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
-                              LImgY + LDrawH + FImageSettings.Margins.Bottom + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right,
-                              LImageClipRect.Bottom - FTextMargins.Bottom);
+            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
+                              LImgY + LDrawH + FImageSettings.Margins.Bottom + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
           ipBottom:
-            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right,
-                              LImgY - FImageSettings.Margins.Top - FTextMargins.Bottom);
+            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
+                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
+                              LImgY - FImageSettings.Margins.Top - FCaptionSettings.Margins.Bottom);
           ipCenter:
-            LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
+            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left, LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right, LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
         else
-           LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FTextMargins.Left,
-                              LImageClipRect.Top + FTextMargins.Top,
-                              LImageClipRect.Right - FTextMargins.Right,
-                              LImageClipRect.Bottom - FTextMargins.Bottom);
+           LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left,
+                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
         end;
         LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
 
@@ -1702,12 +1602,12 @@ begin
       end
       else
       begin
-        LTextArea := Rect(LImageClipRect.Left + FTextMargins.Left, LImageClipRect.Top + FTextMargins.Top,
-                          LImageClipRect.Right - FTextMargins.Right, LImageClipRect.Bottom - FTextMargins.Bottom);
+        LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left, LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                          LImageClipRect.Right - FCaptionSettings.Margins.Right, LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
       end;
 
-      if Trim(Self.FCaption) <> '' then
-        LFinalCaptionToDraw := Self.FCaption
+      if Trim(Self.CaptionSettings.Text) <> '' then
+        LFinalCaptionToDraw := Self.CaptionSettings.Text
       else if Trim(LPresetDefaultCaption) <> '' then
         LFinalCaptionToDraw := LPresetDefaultCaption
       else
@@ -1733,10 +1633,10 @@ begin
                 LCurrentTitleFont.Size := Round(FCaptionSettings.Font.Size * (1 + LHoverProgress * (1.05 - 1)));
             end;
 
-            if FClickEffectActive and (LClickProgress > 0) and (FClickEffectDuration > 0) and not FProcessing then
+            if FClickEffectActive and (LClickProgress > 0) and FClickSettings.Enabled and (FClickSettings.Duration > 0) and not FProcessing then
             begin
-              if FClickTitleColor <> clNone then
-                LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickTitleColor, LClickProgress);
+              if FClickSettings.FontColor <> clNone then
+                LCurrentTitleFont.Color := BlendColors(LCurrentTitleFont.Color, FClickSettings.FontColor, LClickProgress);
             end;
           end
           else if not Enabled then

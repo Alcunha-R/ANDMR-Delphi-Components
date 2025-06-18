@@ -1238,28 +1238,36 @@ begin
                BarRect := LProgressRect;
             end;
 
-            InflateRect(BarRect, 0, -BarRect.Height div 3);
-            if BarRect.Height < 4 then BarRect.Height := Max(2, Min(LProgressRect.Height, 4));
+            // Ajuste para posicionar a barra verticalmente e definir sua espessura
+            InflateRect(BarRect, 0, -BarRect.Height div 3); // Mantém para centralizar verticalmente
+            if BarRect.Height < 4 then
+              BarRect.Height := Max(2, Min(LProgressRect.Height, 4));
+
             if BarRect.Width > 10 then
             begin
+              // Desenha o fundo da área de progresso (opcional, mas mantém a aparência)
               LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 100));
               try
                 LG.FillRectangle(LGPBrush, BarRect.Left, BarRect.Top, BarRect.Width, BarRect.Height);
               finally
                 LGPBrush.Free;
               end;
+
               InnerBarWidth := BarRect.Width div 3;
-              if BarRect.Width - InnerBarWidth > 0 then
-                  InnerBarX := (FProgressStep * 5) mod (BarRect.Width - InnerBarWidth)
+              // <-- INÍCIO DA ALTERAÇÃO: Lógica da animação
+              if (BarRect.Width + InnerBarWidth) > 0 then
+                  InnerBarX := (FProgressStep * 5) mod (BarRect.Width + InnerBarWidth)
               else
                   InnerBarX := 0;
 
               LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 255));
               try
-                LG.FillRectangle(LGPBrush, BarRect.Left + InnerBarX, BarRect.Top, InnerBarWidth, BarRect.Height);
+                // Desenha o indicador de progresso começando de fora do botão
+                LG.FillRectangle(LGPBrush, BarRect.Left + InnerBarX - InnerBarWidth, BarRect.Top, InnerBarWidth, BarRect.Height);
               finally
                 LGPBrush.Free;
               end;
+              // <-- FIM DA ALTERAÇÃO
             end;
           end;
           pasBouncingDots:

@@ -4,8 +4,10 @@ interface
 
 uses
   System.SysUtils, System.Classes, System.Generics.Collections, System.Types,
-  Vcl.Controls, Vcl.Graphics, ANDMR_CButton, ANDMR_ComponentUtils,
-  Winapi.Windows, Winapi.Messages, System.UITypes;
+  Vcl.Controls, Vcl.Graphics,
+  Winapi.Windows, Winapi.Messages, System.UITypes,
+  Winapi.GDIPOBJ, Winapi.GDIPAPI,
+  HTL_CButton, HTL_ComponentUtils;
 
 type
   THTL_CButtonGroup = class; // Declaração antecipada
@@ -190,7 +192,7 @@ procedure Register;
 implementation
 
 uses
-  System.Math, Winapi.GDIPOBJ, Winapi.GDIPAPI;
+  System.Math;
 
 procedure Register;
 begin
@@ -559,7 +561,7 @@ begin
   end;
 
   // 4. Calcula o tamanho do frame (borda + padding)
-  FrameW := 0; FrameH := 0; Padding := 4; // 2px por lado
+  FrameW := 0; FrameH := 0; Padding := 0; // Padding removido
   if FBorder.Visible then
   begin
     FrameW := FBorder.Thickness * 2;
@@ -575,7 +577,7 @@ begin
   begin
     case FCaption.Position of
       cpAbove, cpBelow: TotalH := TotalH + CaptionH;
-      cpLeft, cpRight:  TotalW := TotalW + CaptionW;
+      cpLeft, cpRight:  TotalW := TotalW + TotalW;
     end;
   end;
 
@@ -594,10 +596,9 @@ var
   ItemRect: TRect;
   ItemColor, ItemBorderColor, ItemFontColor: TColor;
   LCaptionPaintRect, LBorderRect: TRect;
-  LPath: TGPGraphicsPath;
-  LBrush: TGPBrush;
-  LPen: TGPPen;
-  LDrawRectF: TGPRectF;
+  FirstVisibleIndex, LastVisibleIndex: Integer;
+  ItemCornerType: TRoundCornerType;
+  ItemCornerRadius: Integer;
 begin
   inherited;
   LG := TGPGraphics.Create(Self.Canvas.Handle);
@@ -621,114 +622,124 @@ begin
         end;
     end;
 
-    var DrawRect := LBorderRect;
-    if DrawRect.Width > 0 then Dec(DrawRect.Right);
-    if DrawRect.Height > 0 then Dec(DrawRect.Bottom);
-
-    LPath := TGPGraphicsPath.Create;
-    try
-      // Criar o caminho para a borda principal
-      LDrawRectF.X := DrawRect.Left;
-      LDrawRectF.Y := DrawRect.Top;
-      LDrawRectF.Width := DrawRect.Width;
-      LDrawRectF.Height := DrawRect.Height;
-      CreateGPRoundedPath(LPath, LDrawRectF, FBorder.CornerRadius, FBorder.RoundCornerType);
-
-      // Etapa 2: Desenhar o fundo do grupo
-      if FBorder.Visible and (FBorder.BackgroundColor <> clNone) then
-      begin
-          LBrush := TGPSolidBrush.Create(ColorToARGB(FBorder.BackgroundColor, 255));
-          try
-              LG.FillPath(LBrush, LPath);
-          finally
-              LBrush.Free;
-          end;
-      end;
-
-      // Etapa 3: Desenhar cada item (botão)
-      for i := 0 to FItems.Count - 1 do
-      begin
-        Item := FItems[i];
-        if not Item.Visible then Continue;
-
-        ItemRect := GetItemRect(Item);
-        if IsRectEmpty(ItemRect) then continue;
-
-        ItemColor := Item.Border.BackgroundColor;
-        ItemBorderColor := Item.Border.Color;
-        ItemFontColor := Item.CaptionSettings.Font.Color;
-
-        if Item = FHoveredItem then
-        begin
-           if Item.Hover.BackgroundColor <> clNone then ItemColor := Item.Hover.BackgroundColor;
-           if Item.Hover.BorderColor <> clNone then ItemBorderColor := Item.Hover.BorderColor;
-           if Item.Hover.FontColor <> clNone then ItemFontColor := Item.Hover.FontColor;
-        end;
-
-        DrawEditBox(LG, ItemRect, ItemColor, ItemBorderColor, Item.Border.Thickness,
-          Item.Border.Style, Item.Border.CornerRadius, Item.Border.RoundCornerType, 255);
-
-        var ContentRect := ItemRect;
-        InflateRect(ContentRect, -Item.Border.Thickness, -Item.Border.Thickness);
-
-        if (Item.Caption <> '') and Assigned(Item.CaptionSettings) then
-        begin
-          DrawComponentCaption(Self.Canvas, ContentRect, Item.Caption, Item.CaptionSettings.Font,
-            ItemFontColor, Item.CaptionSettings.Alignment, Item.CaptionSettings.VerticalAlignment, Item.CaptionSettings.WordWrap, 255);
-        end;
-      end;
-
-      // Etapa 4: Desenhar o Caption do Grupo (se fora, é desenhado sobre o fundo do formulário)
-      if FCaption.Visible and (FCaption.Text <> '') then
-      begin
-        LCaptionPaintRect := ClientRect;
-        if FCaptionPlacement = plcInside then
-        begin
-          if FBorder.Visible then InflateRect(LCaptionPaintRect, -FBorder.Thickness, -FBorder.Thickness);
-        end
-        else // plcOutside
-        begin
-          var TempBorderRect := ClientRect;
-          Self.Canvas.Font.Assign(FCaption.Font);
-          var TempTextRect := Rect(0,0, 32767, 32767);
-          DrawText(Self.Canvas.Handle, PChar(FCaption.Text), -1, TempTextRect, DT_CALCRECT or DT_SINGLELINE);
-          var LCapHeight := TempTextRect.Height + FCaption.Margins.Top + FCaption.Margins.Bottom + Abs(FCaption.Offset.Y);
-          var LCapWidth  := TempTextRect.Width + FCaption.Margins.Left + FCaption.Margins.Right + Abs(FCaption.Offset.X);
-
-          case FCaption.Position of
-            cpAbove: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Left, TempBorderRect.Top, TempBorderRect.Right, TempBorderRect.Top + LCapHeight);
-            cpBelow: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Left, TempBorderRect.Bottom - LCapHeight, TempBorderRect.Right, TempBorderRect.Bottom);
-            cpLeft:  LCaptionPaintRect := System.Types.Rect(TempBorderRect.Left, TempBorderRect.Top, TempBorderRect.Left + LCapWidth, TempBorderRect.Bottom);
-            cpRight: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Right - LCapWidth, TempBorderRect.Top, TempBorderRect.Right, TempBorderRect.Bottom);
-          end;
-        end;
-
-        DrawComponentCaption(Self.Canvas, LCaptionPaintRect, FCaption.Text,
-          FCaption.Font, FCaption.Color, FCaption.Alignment, FCaption.VerticalAlignment,
-          FCaption.WordWrap, 255);
-      end;
-
-      // Etapa 5: Desenhar a borda do grupo por cima de tudo
-      if FBorder.Visible and (FBorder.Thickness > 0) then
-      begin
-        LPen := TGPPen.Create(ColorToARGB(FBorder.Color, 255), FBorder.Thickness);
-        try
-            case FBorder.Style of
-              psDash: LPen.SetDashStyle(DashStyleDash);
-              psDot:  LPen.SetDashStyle(DashStyleDot);
-              psDashDot: LPen.SetDashStyle(DashStyleDashDot);
-              psDashDotDot: LPen.SetDashStyle(DashStyleDashDotDot);
-              else LPen.SetDashStyle(DashStyleSolid);
-            end;
-            LG.DrawPath(LPen, LPath);
-        finally
-            LPen.Free;
-        end;
-      end;
-
-    finally
-      LPath.Free;
+    // Etapa 2: Desenhar o frame principal do grupo
+    if FBorder.Visible then
+    begin
+        var DrawRect := LBorderRect;
+        if DrawRect.Width > 0 then Dec(DrawRect.Right);
+        if DrawRect.Height > 0 then Dec(DrawRect.Bottom);
+        DrawEditBox(LG, DrawRect, FBorder.BackgroundColor, FBorder.Color, FBorder.Thickness, FBorder.Style, FBorder.CornerRadius, FBorder.RoundCornerType, 255);
     end;
+
+    // Etapa 3: Achar o primeiro e último item visível
+    FirstVisibleIndex := -1;
+    LastVisibleIndex := -1;
+    for i := 0 to FItems.Count - 1 do
+    begin
+      if FItems[i].Visible then
+      begin
+        if FirstVisibleIndex = -1 then
+          FirstVisibleIndex := i;
+        LastVisibleIndex := i;
+      end;
+    end;
+
+    // Etapa 4: Desenhar cada item (botão)
+    for i := 0 to FItems.Count - 1 do
+    begin
+      Item := FItems[i];
+      if not Item.Visible then Continue;
+
+      // Determinar o arredondamento do canto para o item atual
+      ItemCornerRadius := Item.Border.CornerRadius;
+      ItemCornerType := Item.Border.RoundCornerType;
+
+      if FBorder.CornerRadius > 0 then
+      begin
+        var EffectiveRadius: Integer := Max(0, FBorder.CornerRadius - FBorder.Thickness);
+        ItemCornerRadius := EffectiveRadius;
+
+        if FirstVisibleIndex = LastVisibleIndex then // Apenas um botão visível
+        begin
+          ItemCornerType := FBorder.RoundCornerType;
+        end
+        else if i = FirstVisibleIndex then
+        begin
+          if FOrientation = bgoHorizontal then ItemCornerType := rctLeft
+          else ItemCornerType := rctTop;
+        end
+        else if i = LastVisibleIndex then
+        begin
+          if FOrientation = bgoHorizontal then ItemCornerType := rctRight
+          else ItemCornerType := rctBottom;
+        end
+        else // Botões do meio
+        begin
+          ItemCornerType := rctNone;
+        end;
+      end
+      else
+      begin
+        ItemCornerType := rctNone;
+      end;
+
+      ItemRect := GetItemRect(Item);
+      if IsRectEmpty(ItemRect) then continue;
+
+      ItemColor := Item.Border.BackgroundColor;
+      ItemBorderColor := Item.Border.Color;
+      ItemFontColor := Item.CaptionSettings.Font.Color;
+
+      if Item = FHoveredItem then
+      begin
+         if Item.Hover.BackgroundColor <> clNone then ItemColor := Item.Hover.BackgroundColor;
+         if Item.Hover.BorderColor <> clNone then ItemBorderColor := Item.Hover.BorderColor;
+         if Item.Hover.FontColor <> clNone then ItemFontColor := Item.Hover.FontColor;
+      end;
+
+      DrawEditBox(LG, ItemRect, ItemColor, ItemBorderColor, Item.Border.Thickness,
+        Item.Border.Style, ItemCornerRadius, ItemCornerType, 255);
+
+      var ButtonContentRect := ItemRect;
+      InflateRect(ButtonContentRect, -Item.Border.Thickness, -Item.Border.Thickness);
+
+      if (Item.Caption <> '') and Assigned(Item.CaptionSettings) then
+      begin
+        DrawComponentCaption(Self.Canvas, ButtonContentRect, Item.Caption, Item.CaptionSettings.Font,
+          ItemFontColor, Item.CaptionSettings.Alignment, Item.CaptionSettings.VerticalAlignment, Item.CaptionSettings.WordWrap, 255);
+      end;
+    end;
+
+    // Etapa 5: Desenhar o Caption do Grupo
+    if FCaption.Visible and (FCaption.Text <> '') then
+    begin
+      LCaptionPaintRect := ClientRect;
+      if FCaptionPlacement = plcInside then
+      begin
+        if FBorder.Visible then InflateRect(LCaptionPaintRect, -FBorder.Thickness, -FBorder.Thickness);
+      end
+      else // plcOutside
+      begin
+        var TempBorderRect := ClientRect;
+        Self.Canvas.Font.Assign(FCaption.Font);
+        var TempTextRect := Rect(0,0, 32767, 32767);
+        DrawText(Self.Canvas.Handle, PChar(FCaption.Text), -1, TempTextRect, DT_CALCRECT or DT_SINGLELINE);
+        var LCapHeight := TempTextRect.Height + FCaption.Margins.Top + FCaption.Margins.Bottom + Abs(FCaption.Offset.Y);
+        var LCapWidth  := TempTextRect.Width + FCaption.Margins.Left + FCaption.Margins.Right + Abs(FCaption.Offset.X);
+
+        case FCaption.Position of
+          cpAbove: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Left, TempBorderRect.Top, TempBorderRect.Right, TempBorderRect.Top + LCapHeight);
+          cpBelow: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Left, TempBorderRect.Bottom - LCapHeight, TempBorderRect.Right, TempBorderRect.Bottom);
+          cpLeft:  LCaptionPaintRect := System.Types.Rect(TempBorderRect.Left, TempBorderRect.Top, TempBorderRect.Left + LCapWidth, TempBorderRect.Bottom);
+          cpRight: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Right - LCapWidth, TempBorderRect.Top, TempBorderRect.Right, TempBorderRect.Bottom);
+        end;
+      end;
+
+      DrawComponentCaption(Self.Canvas, LCaptionPaintRect, FCaption.Text,
+        FCaption.Font, FCaption.Color, FCaption.Alignment, FCaption.VerticalAlignment,
+        FCaption.WordWrap, 255);
+    end;
+
   finally
     LG.Free;
   end;
@@ -743,8 +754,8 @@ begin
   Result := Rect(0,0,0,0);
   LContentRect := GetContentRect;
 
-  CurrentX := LContentRect.Left + 2; // Padding interno
-  CurrentY := LContentRect.Top + 2;
+  CurrentX := LContentRect.Left;
+  CurrentY := LContentRect.Top;
 
   for i := 0 to FItems.Count - 1 do
   begin

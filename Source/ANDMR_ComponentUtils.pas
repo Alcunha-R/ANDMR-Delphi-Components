@@ -239,7 +239,7 @@ type
     property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
     property TargetWidth: Integer read FTargetWidth write SetTargetWidth default 0;
     property TargetHeight: Integer read FTargetHeight write SetTargetHeight default 0;
-    property HorizontalAlign: TImageHorizontalAlignment read FHorizontalAlign write SetHorizontalAlign default ihaCenter;
+    property HorizontalAlign: TImageHorizontalAlignment read FHorizontalAlign write SetHorizontalAlign default ihaLeft;
     property VerticalAlign: TImageVerticalAlignment read FVerticalAlign write SetVerticalAlign default ivaCenter;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
@@ -268,12 +268,12 @@ type
     procedure Assign(Source: TPersistent); override;
   published
     property Visible: Boolean read FVisible write SetVisible default True;
-    property Color: TColor read FColor write SetColor default clBlack;
+    property Color: TColor read FColor write SetColor default clSilver;
     property Thickness: Integer read FThickness write SetThickness default 1;
     property Style: TPenStyle read FStyle write SetStyle default psSolid;
-    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 0;
-    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctNone;
-    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clNone;
+    property CornerRadius: Integer read FCornerRadius write SetCornerRadius default 8;
+    property RoundCornerType: TRoundCornerType read FRoundCornerType write SetRoundCornerType default rctAll;
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clBtnFace;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 

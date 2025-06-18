@@ -1,4 +1,4 @@
-unit ANDMR_ComponentUtils;
+unit HTL_ComponentUtils;
 
 interface
 
@@ -54,7 +54,7 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-  TANDMR_MultiTag = class(TPersistent)
+  THTL_MultiTag = class(TPersistent)
   private
     FTag: NativeInt;
     FString: string;
@@ -80,7 +80,7 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-  TANDMR_Margins = class(TPersistent)
+  THTL_Margins = class(TPersistent)
   private
     FLeft, FTop, FRight, FBottom: Integer;
     FOnChange: TNotifyEvent;
@@ -114,7 +114,7 @@ type
     FVerticalAlignment: TCaptionVerticalAlignment;
     FOffset: TPoint;
     FDisabledColor: TColor;
-    FMargins: TANDMR_Margins;
+    FMargins: THTL_Margins;
     procedure SetVisible(const Value: Boolean);
     procedure SetText(const Value: string);
     procedure SetPosition(const Value: TCaptionPosition);
@@ -126,7 +126,7 @@ type
     procedure SetOffset(const Value: TPoint);
     procedure SetDisabledColor(const Value: TColor);
     procedure FontChanged(Sender: TObject);
-    procedure SetMargins(const Value: TANDMR_Margins);
+    procedure SetMargins(const Value: THTL_Margins);
   protected
     procedure Changed; virtual;
     procedure InternalMarginsChanged(Sender: TObject);
@@ -145,7 +145,7 @@ type
     property DisabledColor: TColor read FDisabledColor write SetDisabledColor default clGrayText;
     property Offset: TPoint read FOffset write SetOffset;
     property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
-    property Margins: TANDMR_Margins read FMargins write SetMargins;
+    property Margins: THTL_Margins read FMargins write SetMargins;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
@@ -200,7 +200,7 @@ type
     FVisible: Boolean;
     FPicture: TPicture;
     FDrawMode: TImageDrawMode;
-    FMargins: TANDMR_Margins;
+    FMargins: THTL_Margins;
     FPlacement: TImagePlacement;
     FTargetWidth: Integer;
     FTargetHeight: Integer;
@@ -213,7 +213,7 @@ type
     procedure SetVisible(const Value: Boolean);
     procedure SetPicture(const Value: TPicture);
     procedure SetDrawMode(const Value: TImageDrawMode);
-    procedure SetMargins(const Value: TANDMR_Margins);
+    procedure SetMargins(const Value: THTL_Margins);
     procedure SetPlacement(const Value: TImagePlacement);
     procedure SetTargetWidth(const Value: Integer);
     procedure SetTargetHeight(const Value: Integer);
@@ -234,7 +234,7 @@ type
     property Picture: TPicture read FPicture write SetPicture;
     property DrawMode: TImageDrawMode read FDrawMode write SetDrawMode default idmProportional;
     property ImagePosition: TImagePosition read FImagePosition write SetImagePosition default ipLeft;
-    property Margins: TANDMR_Margins read FMargins write SetMargins;
+    property Margins: THTL_Margins read FMargins write SetMargins;
     property Placement: TImagePlacement read FPlacement write SetPlacement default iplInsideBounds;
     property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
     property TargetWidth: Integer read FTargetWidth write SetTargetWidth default 0;
@@ -931,9 +931,9 @@ begin
   end;
 end;
 
-{ TANDMR_MultiTag }
+{ THTL_MultiTag }
 
-constructor TANDMR_MultiTag.Create;
+constructor THTL_MultiTag.Create;
 begin
   inherited Create;
   FTag := 0;
@@ -943,19 +943,19 @@ begin
   FExtended.OnChange := ExtendedChanged;
 end;
 
-destructor TANDMR_MultiTag.Destroy;
+destructor THTL_MultiTag.Destroy;
 begin
   FExtended.Free;
   inherited Destroy;
 end;
 
-procedure TANDMR_MultiTag.Assign(Source: TPersistent);
+procedure THTL_MultiTag.Assign(Source: TPersistent);
 var
-  LSource: TANDMR_MultiTag;
+  LSource: THTL_MultiTag;
 begin
-  if Source is TANDMR_MultiTag then
+  if Source is THTL_MultiTag then
   begin
-    LSource := TANDMR_MultiTag(Source);
+    LSource := THTL_MultiTag(Source);
     Self.FTag := LSource.FTag;
     Self.FString := LSource.FString;
     Self.FObject := LSource.FObject;
@@ -966,18 +966,18 @@ begin
     inherited Assign(Source);
 end;
 
-procedure TANDMR_MultiTag.Changed;
+procedure THTL_MultiTag.Changed;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
-procedure TANDMR_MultiTag.ExtendedChanged(Sender: TObject);
+procedure THTL_MultiTag.ExtendedChanged(Sender: TObject);
 begin
   Changed;
 end;
 
-procedure TANDMR_MultiTag.SetTag(const Value: NativeInt);
+procedure THTL_MultiTag.SetTag(const Value: NativeInt);
 begin
   if FTag <> Value then
   begin
@@ -986,7 +986,7 @@ begin
   end;
 end;
 
-procedure TANDMR_MultiTag.SetString(const Value: string);
+procedure THTL_MultiTag.SetString(const Value: string);
 begin
   if FString <> Value then
   begin
@@ -995,12 +995,12 @@ begin
   end;
 end;
 
-procedure TANDMR_MultiTag.SetExtended(const Value: TStringList);
+procedure THTL_MultiTag.SetExtended(const Value: TStringList);
 begin
   FExtended.Assign(Value);
 end;
 
-procedure TANDMR_MultiTag.SetObject(const Value: TObject);
+procedure THTL_MultiTag.SetObject(const Value: TObject);
 begin
   if FObject <> Value then
   begin
@@ -1009,8 +1009,8 @@ begin
   end;
 end;
 
-{ TANDMR_Margins }
-constructor TANDMR_Margins.Create;
+{ THTL_Margins }
+constructor THTL_Margins.Create;
 begin
   inherited Create;
   FLeft := 2;
@@ -1019,13 +1019,13 @@ begin
   FBottom := 2;
 end;
 
-procedure TANDMR_Margins.Assign(Source: TPersistent);
+procedure THTL_Margins.Assign(Source: TPersistent);
 var
-  LSource: TANDMR_Margins;
+  LSource: THTL_Margins;
 begin
-  if Source is TANDMR_Margins then
+  if Source is THTL_Margins then
   begin
-    LSource := TANDMR_Margins(Source);
+    LSource := THTL_Margins(Source);
     FLeft := LSource.FLeft;
     FTop := LSource.FTop;
     FRight := LSource.FRight;
@@ -1036,11 +1036,11 @@ begin
     inherited Assign(Source);
 end;
 
-procedure TANDMR_Margins.Changed; begin if Assigned(FOnChange) then FOnChange(Self); end;
-procedure TANDMR_Margins.SetLeft(const Value: Integer); begin if FLeft <> Value then begin FLeft := Value; Changed; end; end;
-procedure TANDMR_Margins.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
-procedure TANDMR_Margins.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
-procedure TANDMR_Margins.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
+procedure THTL_Margins.Changed; begin if Assigned(FOnChange) then FOnChange(Self); end;
+procedure THTL_Margins.SetLeft(const Value: Integer); begin if FLeft <> Value then begin FLeft := Value; Changed; end; end;
+procedure THTL_Margins.SetTop(const Value: Integer); begin if FTop <> Value then begin FTop := Value; Changed; end; end;
+procedure THTL_Margins.SetRight(const Value: Integer); begin if FRight <> Value then begin FRight := Value; Changed; end; end;
+procedure THTL_Margins.SetBottom(const Value: Integer); begin if FBottom <> Value then begin FBottom := Value; Changed; end; end;
 
 { TCaptionSettings }
 constructor TCaptionSettings.Create(AOwner: TWinControl);
@@ -1060,7 +1060,7 @@ begin
   FVerticalAlignment := cvaCenter;
   FOffset := System.Types.Point(0, 0);
   FDisabledColor := clGrayText;
-  FMargins := TANDMR_Margins.Create;
+  FMargins := THTL_Margins.Create;
   FMargins.OnChange := InternalMarginsChanged;
 end;
 
@@ -1123,7 +1123,7 @@ end;
 procedure TCaptionSettings.SetAlignment(const Value: TAlignment); begin if FAlignment <> Value then begin FAlignment := Value; Changed; end; end;
 procedure TCaptionSettings.SetColor(const Value: TColor); begin if FColor <> Value then begin FColor := Value; Changed; end; end;
 procedure TCaptionSettings.SetFont(const Value: TFont); begin FFont.Assign(Value); end;
-procedure TCaptionSettings.SetMargins(const Value: TANDMR_Margins); begin FMargins.Assign(Value); end;
+procedure TCaptionSettings.SetMargins(const Value: THTL_Margins); begin FMargins.Assign(Value); end;
 procedure TCaptionSettings.SetPosition(const Value: TCaptionPosition); begin if FPosition <> Value then begin FPosition := Value; Changed; end; end;
 procedure TCaptionSettings.SetText(const Value: string); begin if FText <> Value then begin FText := Value; Changed; end; end;
 procedure TCaptionSettings.SetVisible(const Value: Boolean); begin if FVisible <> Value then begin FVisible := Value; Changed; end; end;
@@ -1373,7 +1373,7 @@ begin
   FPicture := TPicture.Create;
   FPicture.OnChange := InternalPictureChanged;
 
-  FMargins := TANDMR_Margins.Create;
+  FMargins := THTL_Margins.Create;
   FMargins.OnChange := InternalMarginsChanged;
 end;
 
@@ -1457,7 +1457,7 @@ begin
   end;
 end;
 
-procedure TImageSettings.SetMargins(const Value: TANDMR_Margins);
+procedure TImageSettings.SetMargins(const Value: THTL_Margins);
 begin
   FMargins.Assign(Value);
 end;

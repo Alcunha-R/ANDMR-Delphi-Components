@@ -1,4 +1,4 @@
-unit ANDMR_CScrollBar;
+unit HTL_CScrollBar;
 
 interface
 
@@ -18,18 +18,18 @@ uses
   System.Math; // Added for Max function, though SysUtils also has it. Good practice.
 
 type
-  TANDMR_ScrollBarOrientation = (soHorizontal, soVertical);
-  TANDMR_CScrollBarStyle = (sbsSolid, sbsGradient, sbsModern, sbsFlatStyle, sbsWindows10, sbsMacOS);
+  THTL_ScrollBarOrientation = (soHorizontal, soVertical);
+  THTL_CScrollBarStyle = (sbsSolid, sbsGradient, sbsModern, sbsFlatStyle, sbsWindows10, sbsMacOS);
 
-  TANDMR_CScrollBar = class(TCustomControl)
+  THTL_CScrollBar = class(TCustomControl)
   private
     FMin: Integer;
     FMax: Integer;
     FPosition: Integer;
     FSmallChange: Integer;
     FLargeChange: Integer;
-    FOrientation: TANDMR_ScrollBarOrientation;
-    FStyle: TANDMR_CScrollBarStyle;
+    FOrientation: THTL_ScrollBarOrientation;
+    FStyle: THTL_CScrollBarStyle;
     FThumbSettings: TBorderSettings;
     FTrackSettings: TBorderSettings;
     FHoverSettings: THoverSettings;
@@ -46,8 +46,8 @@ type
     procedure SetPosition(Value: Integer);
     procedure SetSmallChange(Value: Integer);
     procedure SetLargeChange(Value: Integer);
-    procedure SetOrientation(Value: TANDMR_ScrollBarOrientation);
-    procedure SetStyle(Value: TANDMR_CScrollBarStyle);
+    procedure SetOrientation(Value: THTL_ScrollBarOrientation);
+    procedure SetStyle(Value: THTL_CScrollBarStyle);
     procedure SetThumbSettings(Value: TBorderSettings);
     procedure SetTrackSettings(Value: TBorderSettings);
     procedure SetHoverSettings(Value: THoverSettings);
@@ -98,8 +98,8 @@ type
     property Position: Integer read FPosition write SetPosition default 0;
     property SmallChange: Integer read FSmallChange write SetSmallChange default 1;
     property LargeChange: Integer read FLargeChange write SetLargeChange default 10;
-    property Orientation: TANDMR_ScrollBarOrientation read FOrientation write SetOrientation default soVertical;
-    property Style: TANDMR_CScrollBarStyle read FStyle write SetStyle default sbsSolid;
+    property Orientation: THTL_ScrollBarOrientation read FOrientation write SetOrientation default soVertical;
+    property Style: THTL_CScrollBarStyle read FStyle write SetStyle default sbsSolid;
     property ThumbSettings: TBorderSettings read FThumbSettings write SetThumbSettings;
     property TrackSettings: TBorderSettings read FTrackSettings write SetTrackSettings;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
@@ -126,12 +126,12 @@ implementation
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CScrollBar]);
+  RegisterComponents('HOTLINE', [THTL_CScrollBar]);
 end;
 
-{ TANDMR_CScrollBar }
+{ THTL_CScrollBar }
 
-constructor TANDMR_CScrollBar.Create(AOwner: TComponent);
+constructor THTL_CScrollBar.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   ControlStyle := ControlStyle + [csOpaque, csAcceptsControls, csCaptureMouse, csClickEvents, csSetCaption, csDoubleClicks, csReplicatable, csNeedsBorderPaint]; // csNeedsBorderPaint for themes if needed
@@ -164,7 +164,7 @@ begin
   SetStyle(sbsSolid);
 end;
 
-destructor TANDMR_CScrollBar.Destroy;
+destructor THTL_CScrollBar.Destroy;
 begin
   FThumbSettings.Free;
   FTrackSettings.Free;
@@ -172,7 +172,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_CScrollBar.Paint;
+procedure THTL_CScrollBar.Paint;
 
   // Helper function to convert VCL TColor to GDI+ TGPColor
   function VclToGPColor(AColor: TColor): TGPColor;
@@ -391,14 +391,14 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.Resize;
+procedure THTL_CScrollBar.Resize;
 begin
   inherited Resize;
   UpdateThumbRect; // Thumb position and size might change relative to new control dimensions
   Invalidate;
 end;
 
-procedure TANDMR_CScrollBar.SetParams(APosition, AMin, AMax: Integer);
+procedure THTL_CScrollBar.SetParams(APosition, AMin, AMax: Integer);
 var
   OldPos, OldMin, OldMax: Integer;
 begin
@@ -428,7 +428,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.SetMin(Value: Integer);
+procedure THTL_CScrollBar.SetMin(Value: Integer);
 begin
   if FMin <> Value then
   begin
@@ -444,7 +444,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.SetMax(Value: Integer);
+procedure THTL_CScrollBar.SetMax(Value: Integer);
 begin
   if FMax <> Value then
   begin
@@ -460,7 +460,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.SetPosition(Value: Integer);
+procedure THTL_CScrollBar.SetPosition(Value: Integer);
 var
   OldPosition: Integer;
   ClampedValue: Integer;
@@ -491,7 +491,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.SetSmallChange(Value: Integer);
+procedure THTL_CScrollBar.SetSmallChange(Value: Integer);
 begin
   if Value < 1 then Value := 1;
   if FSmallChange <> Value then
@@ -501,7 +501,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.SetLargeChange(Value: Integer);
+procedure THTL_CScrollBar.SetLargeChange(Value: Integer);
 begin
   if Value < 1 then Value := 1;
   if FLargeChange <> Value then
@@ -512,7 +512,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.SetOrientation(Value: TANDMR_ScrollBarOrientation);
+procedure THTL_CScrollBar.SetOrientation(Value: THTL_ScrollBarOrientation);
 var
   OldWidth, OldHeight: Integer;
 begin
@@ -553,7 +553,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.SetStyle(Value: TANDMR_CScrollBarStyle);
+procedure THTL_CScrollBar.SetStyle(Value: THTL_CScrollBarStyle);
 var
  LBlendColor: TColor; // Moved declaration here as it's used in sbsGradient
 begin
@@ -709,31 +709,31 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.SetThumbSettings(Value: TBorderSettings);
+procedure THTL_CScrollBar.SetThumbSettings(Value: TBorderSettings);
 begin
   FThumbSettings.Assign(Value);
   // OnChange event is hooked up, SettingsChanged will be called by FThumbSettings.
 end;
 
-procedure TANDMR_CScrollBar.SetTrackSettings(Value: TBorderSettings);
+procedure THTL_CScrollBar.SetTrackSettings(Value: TBorderSettings);
 begin
   FTrackSettings.Assign(Value);
   // OnChange event is hooked up, SettingsChanged will be called by FTrackSettings.
 end;
 
-procedure TANDMR_CScrollBar.SetHoverSettings(Value: THoverSettings);
+procedure THTL_CScrollBar.SetHoverSettings(Value: THoverSettings);
 begin
   FHoverSettings.Assign(Value);
   // OnChange event is hooked up, SettingsChanged will be called by FHoverSettings.
 end;
 
-procedure TANDMR_CScrollBar.SettingsChanged(Sender: TObject);
+procedure THTL_CScrollBar.SettingsChanged(Sender: TObject);
 begin
   UpdateThumbRect;
   Invalidate;
 end;
 
-procedure TANDMR_CScrollBar.UpdateThumbRect;
+procedure THTL_CScrollBar.UpdateThumbRect;
 var
   TrackLength, ThumbLengthPixels, ThumbPosPixels: Integer;
   Range: Integer;
@@ -798,7 +798,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.KeyDown(var Key: Word; Shift: TShiftState);
+procedure THTL_CScrollBar.KeyDown(var Key: Word; Shift: TShiftState);
 var
   NewPos: Integer;
   Handled: Boolean;
@@ -836,7 +836,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure THTL_CScrollBar.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   TrackRect: TRect;
   MousePt: TPoint;
@@ -892,7 +892,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.MouseMove(Shift: TShiftState; X, Y: Integer);
+procedure THTL_CScrollBar.MouseMove(Shift: TShiftState; X, Y: Integer);
 var
   CurrentThumbHovered: Boolean;
   TrackMousePos, NewPosValue, TrackLengthPixels, ThumbLengthPxls, RangeScrollable: Integer;
@@ -948,7 +948,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure THTL_CScrollBar.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
   inherited MouseUp(Button, Shift, X, Y);
   if not Enabled then Exit;
@@ -984,14 +984,14 @@ begin
   end;
 end;
 
-procedure TANDMR_CScrollBar.CMEnabledChanged(var Message: TMessage);
+procedure THTL_CScrollBar.CMEnabledChanged(var Message: TMessage);
 begin
   inherited;
   UpdateThumbRect; // Thumb appearance might change
   Invalidate;
 end;
 
-procedure TANDMR_CScrollBar.CMMouseEnter(var Message: TMessage);
+procedure THTL_CScrollBar.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
   if not Enabled then Exit;
@@ -1001,7 +1001,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CScrollBar.CMMouseLeave(var Message: TMessage);
+procedure THTL_CScrollBar.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
   // FIsTrackHovered should remain true if mouse is still within client rect,
@@ -1013,13 +1013,13 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CScrollBar.DoChange;
+procedure THTL_CScrollBar.DoChange;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
-procedure TANDMR_CScrollBar.DoScroll;
+procedure THTL_CScrollBar.DoScroll;
 begin
   // UpdateThumbRect is now called by SetPosition before Invalidate and DoScroll.
   // This ensures FThumbRect is correct before any potential repaint triggered by OnScroll.
@@ -1028,17 +1028,17 @@ begin
     FOnScroll(Self);
 end;
 
-function TANDMR_CScrollBar.IsHorizontal: Boolean;
+function THTL_CScrollBar.IsHorizontal: Boolean;
 begin
   Result := FOrientation = soHorizontal;
 end;
 
-function TANDMR_CScrollBar.IsVertical: Boolean;
+function THTL_CScrollBar.IsVertical: Boolean;
 begin
   Result := FOrientation = soVertical;
 end;
 
-function TANDMR_CScrollBar.GetThumbTrackArea: TRect;
+function THTL_CScrollBar.GetThumbTrackArea: TRect;
 begin
   // For now, the entire client area is the track.
   // If arrows or margins are added, this function needs to be adjusted.

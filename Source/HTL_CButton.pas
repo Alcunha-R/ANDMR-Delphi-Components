@@ -1,4 +1,4 @@
-unit ANDMR_CButton;
+unit HTL_CButton;
 
 interface
 
@@ -26,7 +26,7 @@ type
     cptHelp
   );
 
-  TANDMR_CButton = class(TCustomControl)
+  THTL_CButton = class(TCustomControl)
   private
     FBorderSettings: TBorderSettings;
     FCaptionSettings: TCaptionSettings;
@@ -172,12 +172,12 @@ implementation
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CButton]);
+  RegisterComponents('HOTLINE', [THTL_CButton]);
 end;
 
-{ TANDMR_CButton }
+{ THTL_CButton }
 
-constructor TANDMR_CButton.Create(AOwner: TComponent);
+constructor THTL_CButton.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   ControlStyle := ControlStyle + [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable];
@@ -242,7 +242,7 @@ begin
   FOriginalEnabledState := True;
 end;
 
-destructor TANDMR_CButton.Destroy;
+destructor THTL_CButton.Destroy;
 begin
   FBorderSettings.OnChange := nil;
   FBorderSettings.Free;
@@ -275,7 +275,7 @@ begin
   inherited;
 end;
 
-procedure TANDMR_CButton.BreakPresetLink;
+procedure THTL_CButton.BreakPresetLink;
 begin
   if (csLoading in ComponentState) or (csDestroying in ComponentState) then
     Exit;
@@ -284,7 +284,7 @@ begin
     FPresetType := cptNone;
 end;
 
-procedure TANDMR_CButton.StartProcessing;
+procedure THTL_CButton.StartProcessing;
 begin
   if FProgressSettings.ShowProgress and not FProcessing then
   begin
@@ -304,7 +304,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.StopProcessing;
+procedure THTL_CButton.StopProcessing;
 begin
   if FProcessing then
   begin
@@ -320,27 +320,27 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetProgressSettings(const Value: TProgressSettings);
+procedure THTL_CButton.SetProgressSettings(const Value: TProgressSettings);
 begin
   FProgressSettings.Assign(Value);
 end;
 
-procedure TANDMR_CButton.SetImageSettings(const Value: TImageSettings);
+procedure THTL_CButton.SetImageSettings(const Value: TImageSettings);
 begin
   FImageSettings.Assign(Value);
 end;
 
-function TANDMR_CButton.GetImage: TPicture;
+function THTL_CButton.GetImage: TPicture;
 begin
   Result := FImageSettings.Picture;
 end;
 
-procedure TANDMR_CButton.SetImage(const Value: TPicture);
+procedure THTL_CButton.SetImage(const Value: TPicture);
 begin
   FImageSettings.Picture.Assign(Value);
 end;
 
-procedure TANDMR_CButton.ProgressTimerHandler(Sender: TObject);
+procedure THTL_CButton.ProgressTimerHandler(Sender: TObject);
 begin
   if FProcessing then
   begin
@@ -353,32 +353,32 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetHoverSettings(const Value: THoverSettings);
+procedure THTL_CButton.SetHoverSettings(const Value: THoverSettings);
 begin
   FHoverSettings.Assign(Value);
   Repaint;
 end;
 
-procedure TANDMR_CButton.HoverSettingsChanged(Sender: TObject);
+procedure THTL_CButton.HoverSettingsChanged(Sender: TObject);
 begin
   BreakPresetLink;
   Repaint;
 end;
 
-procedure TANDMR_CButton.BorderSettingsChanged(Sender: TObject);
+procedure THTL_CButton.BorderSettingsChanged(Sender: TObject);
 begin
   BreakPresetLink;
   Invalidate;
 end;
 
-procedure TANDMR_CButton.SettingsChanged(Sender: TObject);
+procedure THTL_CButton.SettingsChanged(Sender: TObject);
 begin
   BreakPresetLink;
   Repaint;
   Invalidate;
 end;
 
-procedure TANDMR_CButton.Loaded;
+procedure THTL_CButton.Loaded;
 begin
   inherited Loaded;
   if FGradientSettings.StartColor = clNone then
@@ -392,7 +392,7 @@ begin
   Repaint;
 end;
 
-procedure TANDMR_CButton.SetParent(AParent: TWinControl);
+procedure THTL_CButton.SetParent(AParent: TWinControl);
 begin
   inherited SetParent(AParent);
   if (csDesigning in ComponentState) and (AParent <> nil) then
@@ -402,17 +402,17 @@ begin
   end;
 end;
 
-function TANDMR_CButton.GetAlign: TAlign;
+function THTL_CButton.GetAlign: TAlign;
 begin
   Result := inherited Align;
 end;
 
-procedure TANDMR_CButton.SetAlign(const Value: TAlign);
+procedure THTL_CButton.SetAlign(const Value: TAlign);
 begin
   inherited Align := Value;
 end;
 
-procedure TANDMR_CButton.SetStyle(const Value: TButtonStyle);
+procedure THTL_CButton.SetStyle(const Value: TButtonStyle);
 begin
   if FStyle <> Value then
   begin
@@ -421,13 +421,13 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.Click;
+procedure THTL_CButton.Click;
 begin
   if Assigned(FOnClick) then
     FOnClick(Self);
 end;
 
-procedure TANDMR_CButton.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure THTL_CButton.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
   inherited;
   if (Button = mbLeft) and Enabled then
@@ -436,7 +436,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.StartClickEffect;
+procedure THTL_CButton.StartClickEffect;
 begin
   if not Enabled or not FClickSettings.Enabled or (FClickSettings.Duration <= 0) then Exit;
 
@@ -447,7 +447,7 @@ begin
   Repaint;
 end;
 
-procedure TANDMR_CButton.UpdateClickEffectTimerInterval;
+procedure THTL_CButton.UpdateClickEffectTimerInterval;
 const
   MIN_INTERVAL = 10;
   FADE_STEP_VALUE = 20;
@@ -468,12 +468,12 @@ begin
   FClickEffectTimer.Interval := Max(MIN_INTERVAL, NewInterval);
 end;
 
-function TANDMR_CButton.GetEnabled: Boolean;
+function THTL_CButton.GetEnabled: Boolean;
 begin
   Result := inherited Enabled;
 end;
 
-procedure TANDMR_CButton.SetEnabled(Value: Boolean);
+procedure THTL_CButton.SetEnabled(Value: Boolean);
 begin
   if inherited Enabled <> Value then
   begin
@@ -491,17 +491,17 @@ begin
   end;
 end;
 
-function TANDMR_CButton.IsEnabledStored: Boolean;
+function THTL_CButton.IsEnabledStored: Boolean;
 begin
   Result := not inherited Enabled;
 end;
 
-function TANDMR_CButton.GetCaption: string;
+function THTL_CButton.GetCaption: string;
 begin
   Result := FCaptionSettings.Text;
 end;
 
-procedure TANDMR_CButton.SetCaption(const Value: string);
+procedure THTL_CButton.SetCaption(const Value: string);
 begin
   if FCaptionSettings.Text <> Value then
   begin
@@ -510,27 +510,27 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetBorderSettings(const Value: TBorderSettings);
+procedure THTL_CButton.SetBorderSettings(const Value: TBorderSettings);
 begin
   FBorderSettings.Assign(Value);
 end;
 
-procedure TANDMR_CButton.SetCaptionSettings(const Value: TCaptionSettings);
+procedure THTL_CButton.SetCaptionSettings(const Value: TCaptionSettings);
 begin
   FCaptionSettings.Assign(Value);
 end;
 
-procedure TANDMR_CButton.SetClickSettings(const Value: TClickSettings);
+procedure THTL_CButton.SetClickSettings(const Value: TClickSettings);
 begin
   FClickSettings.Assign(Value);
 end;
 
-procedure TANDMR_CButton.SetGradientSettings(const Value: TGradientSettings);
+procedure THTL_CButton.SetGradientSettings(const Value: TGradientSettings);
 begin
   FGradientSettings.Assign(Value);
 end;
 
-procedure TANDMR_CButton.SetPresetType(const Value: TPresetType);
+procedure THTL_CButton.SetPresetType(const Value: TPresetType);
 var
   PresetCaption: string;
   BaseColor: TColor;
@@ -587,13 +587,13 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.FontChanged(Sender: TObject);
+procedure THTL_CButton.FontChanged(Sender: TObject);
 begin
   BreakPresetLink;
   Repaint;
 end;
 
-procedure TANDMR_CButton.SetDisabledCursor(const Value: TCursor);
+procedure THTL_CButton.SetDisabledCursor(const Value: TCursor);
 begin
   if FDisabledCursor <> Value then
   begin
@@ -603,7 +603,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.SetTransparent(const Value: Boolean);
+procedure THTL_CButton.SetTransparent(const Value: Boolean);
 begin
   if FTransparent <> Value then
   begin
@@ -616,7 +616,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.ClickEffectTimerHandler(Sender: TObject);
+procedure THTL_CButton.ClickEffectTimerHandler(Sender: TObject);
 const
   FADE_STEP_VALUE = 20;
 begin
@@ -644,7 +644,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.CMEnabledChanged(var Message: TMessage);
+procedure THTL_CButton.CMEnabledChanged(var Message: TMessage);
 begin
   inherited;
   Cursor := IfThen(Enabled, crHandPoint, FDisabledCursor);
@@ -659,7 +659,7 @@ begin
   Repaint;
 end;
 
-procedure TANDMR_CButton.CMMouseEnter(var Message: TMessage);
+procedure THTL_CButton.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
   if Enabled and FHoverSettings.Enabled then
@@ -668,7 +668,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.CMMouseLeave(var Message: TMessage);
+procedure THTL_CButton.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
   if Enabled and FHoverSettings.Enabled then
@@ -681,7 +681,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CButton.Paint;
+procedure THTL_CButton.Paint;
 var
   LPathRect, LShadowPathDrawRect: TGPRectF;
   LRadiusValue, LPathInset: Single;
@@ -1494,7 +1494,7 @@ begin
     DrawFocusRect(Canvas.Handle, ClientRect);
 end;
 
-procedure TANDMR_CButton.KeyDown(var Key: Word; Shift: TShiftState);
+procedure THTL_CButton.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited;
   if Enabled and (Key in [VK_RETURN, VK_SPACE]) then

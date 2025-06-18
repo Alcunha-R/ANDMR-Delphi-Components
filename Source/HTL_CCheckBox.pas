@@ -1,4 +1,4 @@
-unit ANDMR_CCheckBox;
+unit HTL_CCheckBox;
 
 interface
 
@@ -11,7 +11,7 @@ uses
 type
   TCheckBoxState = (csUnchecked, csChecked, csIndeterminate);
 
-  TANDMR_CCheckBoxStyle = (cbsCustom, cbsLight, cbsDark, cbsMaterial, cbsFlat, cbsModern,
+  THTL_CCheckBoxStyle = (cbsCustom, cbsLight, cbsDark, cbsMaterial, cbsFlat, cbsModern,
                           cbsGhost, cbsFaded, cbsBordered, cbsIOS, cbsWin11);
 
   // Enumeração para a posição do indicador de "marcado" (o elemento de check)
@@ -37,7 +37,7 @@ type
     CheckedIndicatorSize_IsSet: Boolean;        // New
   end;
 
-  TANDMR_CCheckBox = class(TCustomControl)
+  THTL_CCheckBox = class(TCustomControl)
   private
     FIndicatorBorderSettings: TBorderSettings; // Existing: for the check element's border and component background
     FCaptionSettings: TCaptionSettings;
@@ -49,7 +49,7 @@ type
     FOnClick: TNotifyEvent;
     FOnCheckChanged: TNotifyEvent;
     FHoverSettings: THoverSettings;
-    FCurrentStyle: TANDMR_CCheckBoxStyle;
+    FCurrentStyle: THTL_CCheckBoxStyle;
     FApplyingStyle: Boolean;
     FUserOverrides: TUserPropertyOverrides;
 
@@ -71,14 +71,14 @@ type
     procedure SetTransparent(const Value: Boolean);
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure SetEnabled(Value: Boolean);
-    procedure SetCurrentStyle(const Value: TANDMR_CCheckBoxStyle);
+    procedure SetCurrentStyle(const Value: THTL_CCheckBoxStyle);
 
     // Setters for new properties
     procedure SetOverallComponentBorder(const Value: TBorderSettings);
     procedure SetCheckedIndicatorPosition(const Value: TCheckBoxIndicatorPosition);
     procedure SetCheckedIndicatorSize(const Value: Integer);
 
-    procedure ApplyStyle(AStyle: TANDMR_CCheckBoxStyle);
+    procedure ApplyStyle(AStyle: THTL_CCheckBoxStyle);
 
     procedure HoverSettingsChanged(Sender: TObject);
     procedure SettingsChanged(Sender: TObject); // Handles FBorderSettings and FCaptionSettings
@@ -110,7 +110,7 @@ type
     property CheckMarkColor: TColor read FCheckMarkColor write SetCheckMarkColor default clWindowText;
     property Transparent: Boolean read FTransparent write SetTransparent default False;
     property Enabled: Boolean read GetEnabled write SetEnabled default True;
-    property CurrentStyle: TANDMR_CCheckBoxStyle read FCurrentStyle write SetCurrentStyle default cbsCustom;
+    property CurrentStyle: THTL_CCheckBoxStyle read FCurrentStyle write SetCurrentStyle default cbsCustom;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
 
     // New published properties
@@ -163,17 +163,17 @@ uses
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CCheckBox]);
+  RegisterComponents('HOTLINE', [THTL_CCheckBox]);
 end;
 
-{ TANDMR_CCheckBox }
+{ THTL_CCheckBox }
 
-procedure TANDMR_CCheckBox.InitializeUserOverrides;
+procedure THTL_CCheckBox.InitializeUserOverrides;
 begin
   FillChar(FUserOverrides, SizeOf(FUserOverrides), 0); // Sets all Boolean flags to False
 end;
 
-constructor TANDMR_CCheckBox.Create(AOwner: TComponent);
+constructor THTL_CCheckBox.Create(AOwner: TComponent);
 var
   TempTitleFont: TFont;
 begin
@@ -252,7 +252,7 @@ begin
   Enabled := True;
 end;
 
-destructor TANDMR_CCheckBox.Destroy;
+destructor THTL_CCheckBox.Destroy;
 begin
   if Assigned(FIndicatorBorderSettings) then
   begin
@@ -285,7 +285,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_CCheckBox.ClearUserOverrides;
+procedure THTL_CCheckBox.ClearUserOverrides;
 begin
   InitializeUserOverrides;
   // After clearing overrides, re-apply the current style to reset to its defaults
@@ -296,7 +296,7 @@ begin
     Invalidate; // If custom, just repaint with current (potentially mixed) values
 end;
 
-procedure TANDMR_CCheckBox.ApplyStyle(AStyle: TANDMR_CCheckBoxStyle);
+procedure THTL_CCheckBox.ApplyStyle(AStyle: THTL_CCheckBoxStyle);
 var
   TempCaptionFont: TFont;
 begin
@@ -735,7 +735,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.SetCurrentStyle(const Value: TANDMR_CCheckBoxStyle);
+procedure THTL_CCheckBox.SetCurrentStyle(const Value: THTL_CCheckBoxStyle);
 begin
   // Logic for SetCurrentStyle remains largely the same:
   // it clears FUserOverrides and calls ApplyStyle.
@@ -764,7 +764,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SettingsChanged(Sender: TObject);
+procedure THTL_CCheckBox.SettingsChanged(Sender: TObject);
 begin
   if not FApplyingStyle then
   begin
@@ -777,7 +777,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.OverallComponentBorderChanged(Sender: TObject);
+procedure THTL_CCheckBox.OverallComponentBorderChanged(Sender: TObject);
 begin
   if not FApplyingStyle then
   begin
@@ -788,7 +788,7 @@ begin
 end;
 
 
-procedure TANDMR_CCheckBox.HoverSettingsChanged(Sender: TObject);
+procedure THTL_CCheckBox.HoverSettingsChanged(Sender: TObject);
 begin
   if not FApplyingStyle then
   begin
@@ -798,7 +798,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.SetIndicatorBorder(const Value: TBorderSettings);
+procedure THTL_CCheckBox.SetIndicatorBorder(const Value: TBorderSettings);
 begin
   FIndicatorBorderSettings.Assign(Value); // For check element
   if not FApplyingStyle then
@@ -809,7 +809,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.SetCaptionSettings(const Value: TCaptionSettings);
+procedure THTL_CCheckBox.SetCaptionSettings(const Value: TCaptionSettings);
 begin
   FCaptionSettings.Assign(Value);
   if not FApplyingStyle then
@@ -821,7 +821,7 @@ begin
 end;
 
 // Setters for new properties
-procedure TANDMR_CCheckBox.SetOverallComponentBorder(const Value: TBorderSettings);
+procedure THTL_CCheckBox.SetOverallComponentBorder(const Value: TBorderSettings);
 begin
   FOverallComponentBorder.Assign(Value);
   if not FApplyingStyle then
@@ -832,7 +832,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.SetCheckedIndicatorPosition(const Value: TCheckBoxIndicatorPosition);
+procedure THTL_CCheckBox.SetCheckedIndicatorPosition(const Value: TCheckBoxIndicatorPosition);
 begin
   if FCheckedIndicatorPosition <> Value then
   begin
@@ -846,7 +846,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetCheckedIndicatorSize(const Value: Integer);
+procedure THTL_CCheckBox.SetCheckedIndicatorSize(const Value: Integer);
 begin
   if FCheckedIndicatorSize <> Value then
   begin
@@ -861,13 +861,13 @@ begin
 end;
 
 
-procedure TANDMR_CCheckBox.CMEnabledChanged(var Message: TMessage);
+procedure THTL_CCheckBox.CMEnabledChanged(var Message: TMessage);
 begin
   inherited;
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.CMMouseEnter(var Message: TMessage);
+procedure THTL_CCheckBox.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
   if Self.Enabled and Assigned(FHoverSettings) and FHoverSettings.Enabled then
@@ -876,7 +876,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.CMMouseLeave(var Message: TMessage);
+procedure THTL_CCheckBox.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
   if Assigned(FHoverSettings) then
@@ -885,7 +885,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.Click;
+procedure THTL_CCheckBox.Click;
 begin
   if not Enabled then Exit;
 
@@ -899,7 +899,7 @@ begin
     FOnClick(Self);
 end;
 
-procedure TANDMR_CCheckBox.KeyDown(var Key: Word; Shift: TShiftState);
+procedure THTL_CCheckBox.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   if Key = 0 then Exit;
@@ -911,7 +911,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.Paint;
+procedure THTL_CCheckBox.Paint;
 var
   LG: TGPGraphics;
   LGPPath: TGPGraphicsPath;
@@ -1274,12 +1274,12 @@ begin
   end;
 end;
 
-function TANDMR_CCheckBox.GetCaption: string;
+function THTL_CCheckBox.GetCaption: string;
 begin
   Result := FCaptionSettings.Text;
 end;
 
-procedure TANDMR_CCheckBox.SetCaption(const Value: string);
+procedure THTL_CCheckBox.SetCaption(const Value: string);
 begin
   if FCaptionSettings.Text <> Value then
   begin
@@ -1293,12 +1293,12 @@ begin
   end;
 end;
 
-function TANDMR_CCheckBox.GetChecked: Boolean;
+function THTL_CCheckBox.GetChecked: Boolean;
 begin
   Result := (FState = csChecked);
 end;
 
-procedure TANDMR_CCheckBox.SetChecked(const Value: Boolean);
+procedure THTL_CCheckBox.SetChecked(const Value: Boolean);
 var
   NewState: TCheckBoxState;
 begin
@@ -1309,7 +1309,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetState(const Value: TCheckBoxState);
+procedure THTL_CCheckBox.SetState(const Value: TCheckBoxState);
 begin
   if FState <> Value then
   begin
@@ -1320,7 +1320,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetBoxColorUnchecked(const Value: TColor);
+procedure THTL_CCheckBox.SetBoxColorUnchecked(const Value: TColor);
 begin
   if FBoxColorUnchecked <> Value then
   begin
@@ -1334,7 +1334,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetBoxColorChecked(const Value: TColor);
+procedure THTL_CCheckBox.SetBoxColorChecked(const Value: TColor);
 begin
   if FBoxColorChecked <> Value then
   begin
@@ -1348,7 +1348,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetCheckMarkColor(const Value: TColor);
+procedure THTL_CCheckBox.SetCheckMarkColor(const Value: TColor);
 begin
   if FCheckMarkColor <> Value then
   begin
@@ -1362,7 +1362,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetTransparent(const Value: Boolean);
+procedure THTL_CCheckBox.SetTransparent(const Value: Boolean);
 begin
   if FTransparent <> Value then
   begin
@@ -1381,7 +1381,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CCheckBox.SetHoverSettings(const Value: THoverSettings);
+procedure THTL_CCheckBox.SetHoverSettings(const Value: THoverSettings);
 begin
   FHoverSettings.Assign(Value);
   if not FApplyingStyle then
@@ -1392,7 +1392,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CCheckBox.SetEnabled(Value: Boolean);
+procedure THTL_CCheckBox.SetEnabled(Value: Boolean);
 begin
   if Enabled <> Value then // Use inherited GetEnabled
   begin

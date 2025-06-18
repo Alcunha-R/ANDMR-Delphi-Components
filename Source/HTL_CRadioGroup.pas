@@ -1,10 +1,10 @@
-unit ANDMR_CRadioGroup;
+unit HTL_CRadioGroup;
 
 interface
 
 uses
   System.SysUtils, System.Classes, System.Generics.Collections,
-  Vcl.Controls, ANDMR_CPanel, ANDMR_CRadioBox, ANDMR_ComponentUtils,
+  Vcl.Controls, HTL_CPanel, HTL_CRadioBox, HTL_ComponentUtils,
   Vcl.Graphics, Winapi.Windows, Winapi.Messages; // Ensure Vcl.Graphics is here for TFont, TColor
 
 type
@@ -37,12 +37,12 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-  TANDMR_CRadioGroup = class(TANDMR_CPanel)
+  THTL_CRadioGroup = class(THTL_CPanel)
   private
     FItems: TStringList;
     FItemIndex: Integer;
     FColumns: Integer;
-    FRadioButtons: TList<TANDMR_CRadioBox>;
+    FRadioButtons: TList<THTL_CRadioBox>;
     FOnChange: TNotifyEvent;
     FItemSettings: TRadioBoxItemSettings;
 
@@ -179,13 +179,13 @@ begin
 end;
 
 
-{ TANDMR_CRadioGroup }
+{ THTL_CRadioGroup }
 
-constructor TANDMR_CRadioGroup.Create(AOwner: TComponent);
+constructor THTL_CRadioGroup.Create(AOwner: TComponent);
 begin
-  inherited Create(AOwner); // This calls TANDMR_CPanel.Create, which sets modern panel defaults
+  inherited Create(AOwner); // This calls THTL_CPanel.Create, which sets modern panel defaults
 
-  // Default caption for the group itself (from TANDMR_CPanel's FCaptionSettings)
+  // Default caption for the group itself (from THTL_CPanel's FCaptionSettings)
   Self.CaptionSettings.Text := Self.Name; // Group Name as default caption
   Self.CaptionSettings.Alignment := taLeftJustify;
   Self.CaptionSettings.Font.Style := [fsBold];
@@ -194,7 +194,7 @@ begin
   // Specific RadioGroup initializations
   FItems := TStringList.Create;
   FItems.OnChange := ItemsChanged;
-  FRadioButtons := TList<TANDMR_CRadioBox>.Create;
+  FRadioButtons := TList<THTL_CRadioBox>.Create;
   FItemIndex := -1;
   FColumns := 1;
   FOnChange := nil;
@@ -203,7 +203,7 @@ begin
   FItemSettings.OnChange := ItemSettingsChanged;
 end;
 
-destructor TANDMR_CRadioGroup.Destroy;
+destructor THTL_CRadioGroup.Destroy;
 begin
   FItemSettings.Free;
   FItems.Free;
@@ -212,14 +212,14 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_CRadioGroup.ItemSettingsChanged(Sender: TObject);
+procedure THTL_CRadioGroup.ItemSettingsChanged(Sender: TObject);
 begin
   ApplyRadioBoxStylesToChildren;
 end;
 
-procedure TANDMR_CRadioGroup.ApplyRadioBoxStylesToChildren;
+procedure THTL_CRadioGroup.ApplyRadioBoxStylesToChildren;
 var
-  RadioButton: TANDMR_CRadioBox;
+  RadioButton: THTL_CRadioBox;
 begin
   for RadioButton in FRadioButtons do
   begin
@@ -237,7 +237,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioGroup.ItemsChanged(Sender: TObject);
+procedure THTL_CRadioGroup.ItemsChanged(Sender: TObject);
 begin
   ClearRadioButtons;
   CreateRadioButtonsFromItems;
@@ -245,12 +245,12 @@ begin
   Invalidate;
 end;
 
-function TANDMR_CRadioGroup.GetItems: TStringList;
+function THTL_CRadioGroup.GetItems: TStringList;
 begin
   Result := FItems;
 end;
 
-procedure TANDMR_CRadioGroup.SetItems(const Value: TStringList);
+procedure THTL_CRadioGroup.SetItems(const Value: TStringList);
 begin
   FItems.OnChange := nil;
   FItems.Assign(Value);
@@ -263,12 +263,12 @@ begin
   Invalidate;
 end;
 
-function TANDMR_CRadioGroup.GetItemIndex: Integer;
+function THTL_CRadioGroup.GetItemIndex: Integer;
 begin
   Result := FItemIndex;
 end;
 
-procedure TANDMR_CRadioGroup.SetItemIndex(const Value: Integer);
+procedure THTL_CRadioGroup.SetItemIndex(const Value: Integer);
 var
   PrevIndex: Integer;
   I: Integer;
@@ -301,12 +301,12 @@ begin
   Invalidate;
 end;
 
-function TANDMR_CRadioGroup.GetColumns: Integer;
+function THTL_CRadioGroup.GetColumns: Integer;
 begin
   Result := FColumns;
 end;
 
-procedure TANDMR_CRadioGroup.SetColumns(const Value: Integer);
+procedure THTL_CRadioGroup.SetColumns(const Value: Integer);
 begin
   if (FColumns <> Value) and (Value > 0) then
   begin
@@ -316,9 +316,9 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioGroup.SetEnabled(Value: Boolean);
+procedure THTL_CRadioGroup.SetEnabled(Value: Boolean);
 var
-  RadioButton: TANDMR_CRadioBox;
+  RadioButton: THTL_CRadioBox;
 begin
   if Enabled <> Value then
   begin
@@ -329,9 +329,9 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioGroup.ClearRadioButtons;
+procedure THTL_CRadioGroup.ClearRadioButtons;
 var
-  RadioButton: TANDMR_CRadioBox;
+  RadioButton: THTL_CRadioBox;
 begin
   while FRadioButtons.Count > 0 do
   begin
@@ -342,16 +342,16 @@ begin
   FItemIndex := -1;
 end;
 
-procedure TANDMR_CRadioGroup.CreateRadioButtonsFromItems;
+procedure THTL_CRadioGroup.CreateRadioButtonsFromItems;
 var
   i: Integer;
-  NewRadioBox: TANDMR_CRadioBox;
+  NewRadioBox: THTL_CRadioBox;
 begin
   if FItems = nil then Exit;
 
   for i := 0 to FItems.Count - 1 do
   begin
-    NewRadioBox := TANDMR_CRadioBox.Create(Self);
+    NewRadioBox := THTL_CRadioBox.Create(Self);
     NewRadioBox.Parent := Self;
     NewRadioBox.Caption := FItems[i];
     NewRadioBox.OnClick := RadioButtonClick;
@@ -374,7 +374,7 @@ begin
     FItemIndex := -1; // Ensure consistency if previous index is now invalid
 end;
 
-procedure TANDMR_CRadioGroup.RearrangeRadioButtons;
+procedure THTL_CRadioGroup.RearrangeRadioButtons;
 var
   i: Integer;
   ColumnWidth, X_Pos, Y_Pos: Double;
@@ -452,29 +452,29 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioGroup.RadioButtonClick(Sender: TObject);
+procedure THTL_CRadioGroup.RadioButtonClick(Sender: TObject);
 begin
-  if Sender is TANDMR_CRadioBox then
+  if Sender is THTL_CRadioBox then
   begin
-    Self.ItemIndex := (Sender as TANDMR_CRadioBox).Tag;
+    Self.ItemIndex := (Sender as THTL_CRadioBox).Tag;
   end;
 end;
 
-procedure TANDMR_CRadioGroup.Resize;
+procedure THTL_CRadioGroup.Resize;
 begin
   inherited Resize;
   RearrangeRadioButtons;
 end;
 
-procedure TANDMR_CRadioGroup.SetItemSettings(const Value: TRadioBoxItemSettings);
+procedure THTL_CRadioGroup.SetItemSettings(const Value: TRadioBoxItemSettings);
 begin
   FItemSettings.Assign(Value);
   ApplyRadioBoxStylesToChildren;
 end;
 
-procedure TANDMR_CRadioGroup.CMMouseEnter(var Message: TMessage);
+procedure THTL_CRadioGroup.CMMouseEnter(var Message: TMessage);
 var
-  RadioButton: TANDMR_CRadioBox;
+  RadioButton: THTL_CRadioBox;
 begin
   inherited;
   if Self.HoverSettings.Enabled and Self.Enabled then // Check if group itself should react
@@ -490,9 +490,9 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioGroup.CMMouseLeave(var Message: TMessage);
+procedure THTL_CRadioGroup.CMMouseLeave(var Message: TMessage);
 var
-  RadioButton: TANDMR_CRadioBox;
+  RadioButton: THTL_CRadioBox;
 begin
   inherited;
   for RadioButton in FRadioButtons do
@@ -503,7 +503,7 @@ end;
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CRadioGroup]);
+  RegisterComponents('HOTLINE', [THTL_CRadioGroup]);
 end;
 
 end.

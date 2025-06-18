@@ -709,7 +709,7 @@ var
   LProgressText: string;
   LShowProgressText: Boolean;
   DotYOffset: array[0..2] of Integer;
-  LImagePlacementRect, LTextPlacementRect: TRect; // <-- Varáveis ajustadas
+  LImagePlacementRect, LTextPlacementRect: TRect;
 
 const
   SHADOW_ALPHA = 50;
@@ -1127,20 +1127,27 @@ begin
       LGPPath.Free;
     end;
 
+    // --- REVISED: Define content areas for image and text ---
+
+    // Define a área de posicionamento para o texto e a imagem.
+    // LTextPlacementRect sempre representará a área *dentro* da borda.
     LTextPlacementRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
                                Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
                                Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
     if LDrawBorder and (LActualBorderThickness > 0) then
       InflateRect(LTextPlacementRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
 
+    // LImagePlacementRect define a área onde a imagem será contida.
     if FImageSettings.Placement = iplOutsideBounds then
     begin
+      // Para 'iplOutsideBounds', a imagem usa a área total do botão, ignorando a borda.
       LImagePlacementRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
                                   Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
                                   Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
     end
-    else
+    else // iplInsideBounds
     begin
+      // Para 'iplInsideBounds', a imagem é posicionada dentro da mesma área do texto.
       LImagePlacementRect := LTextPlacementRect;
     end;
 

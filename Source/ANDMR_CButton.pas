@@ -1140,7 +1140,220 @@ begin
 
     if FProcessing and FProgressSettings.ShowProgress then
     begin
-        // ... (código de desenho do progresso permanece o mesmo)
+      var LProgressRect: TRect;
+      var LArcThickness: Integer;
+      var LStartAngle, LSweepAngle: Single;
+      var LProgressBarPen: TGPPen;
+      var LProgressPath_Progress: TGPGraphicsPath;
+      var ArcRectF: TGPRectF;
+      var OriginalProgressRect: TRect;
+
+      LProgressRect := ClientRect;
+      if FBorderSettings.Thickness > 0 then
+        InflateRect(LProgressRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
+
+      OriginalProgressRect := LProgressRect;
+
+      if LShowProgressText and (LProgressText <> '') then
+      begin
+        if LProgressRect.Width > 100 then
+        begin
+          OriginalProgressRect.Right := LProgressRect.Left + Round(LProgressRect.Width * 0.4);
+          LProgressRect := OriginalProgressRect;
+        end
+        else
+        begin
+           InflateRect(LProgressRect, -Round(LProgressRect.Width * 0.1), -Round(LProgressRect.Height * 0.1));
+        end;
+      end;
+
+      if LAnimationStyle in [pasRotatingSemiCircle, pasFullCircularSpinner, pasBouncingDots] then
+      begin
+        if LProgressRect.Width > LProgressRect.Height then
+        begin
+            LProgressRect.Left := LProgressRect.Left + (LProgressRect.Width - LProgressRect.Height) div 2;
+            LProgressRect.Width := LProgressRect.Height;
+        end
+        else
+        begin
+            LProgressRect.Top := LProgressRect.Top + (LProgressRect.Height - LProgressRect.Width) div 2;
+            LProgressRect.Height := LProgressRect.Width;
+        end;
+        InflateRect(LProgressRect, -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)), -Max(2, Round(Min(LProgressRect.Width, LProgressRect.Height) * 0.1)));
+      end;
+
+
+      case LAnimationStyle of
+        pasRotatingSemiCircle:
+        begin
+          if (LProgressRect.Width > 4) and (LProgressRect.Height > 4) then
+          begin
+            LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8);
+            LStartAngle := (FProgressStep * 10) mod 360;
+            LSweepAngle := 270;
+            LProgressPath_Progress := TGPGraphicsPath.Create;
+            try
+              ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness);
+              if (ArcRectF.Width > 0) and (ArcRectF.Height > 0) then
+              begin
+                LProgressPath_Progress.AddArc(ArcRectF, LStartAngle, LSweepAngle);
+                LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressSettings.ProgressColor, 255), LArcThickness);
+                LProgressBarPen.SetStartCap(LineCapRound);
+                LProgressBarPen.SetEndCap(LineCapRound);
+                try
+                  LG.DrawPath(LProgressBarPen, LProgressPath_Progress);
+                finally
+                  LProgressBarPen.Free;
+                end;
+              end;
+            finally
+              LProgressPath_Progress.Free;
+            end;
+          end;
+        end;
+        pasFullCircularSpinner:
+        begin
+          if (LProgressRect.Width > 4) and (LProgressRect.Height > 4) then
+          begin
+            LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8);
+            LStartAngle := (FProgressStep * 12) mod 360;
+            LSweepAngle := 90;
+            LProgressPath_Progress := TGPGraphicsPath.Create;
+            try
+              ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness);
+              if (ArcRectF.Width > 0) and (ArcRectF.Height > 0) then
+              begin
+                LProgressPath_Progress.AddArc(ArcRectF, LStartAngle, LSweepAngle);
+                LProgressBarPen := TGPPen.Create(ColorToARGB(FProgressSettings.ProgressColor, 255), LArcThickness);
+                LProgressBarPen.SetStartCap(LineCapRound);
+                LProgressBarPen.SetEndCap(LineCapRound);
+                try
+                  LG.DrawPath(LProgressBarPen, LProgressPath_Progress);
+                finally
+                  LProgressBarPen.Free;
+                end;
+              end;
+            finally
+              LProgressPath_Progress.Free;
+            end;
+          end;
+        end;
+        pasHorizontalBar:
+        begin
+          var BarRect: TRect;
+          var InnerBarWidth, InnerBarX: Integer;
+          BarRect := OriginalProgressRect;
+          if LShowProgressText and (LProgressText <> '') and (OriginalProgressRect.Width > 100) then
+          begin
+             BarRect := LProgressRect;
+          end;
+
+          InflateRect(BarRect, 0, -BarRect.Height div 3);
+          if BarRect.Height < 4 then BarRect.Height := Max(2, Min(LProgressRect.Height, 4));
+          if BarRect.Width > 10 then
+          begin
+            LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 100));
+            try
+              LG.FillRectangle(LGPBrush, BarRect.Left, BarRect.Top, BarRect.Width, BarRect.Height);
+            finally
+              LGPBrush.Free;
+            end;
+            InnerBarWidth := BarRect.Width div 3;
+            if BarRect.Width - InnerBarWidth > 0 then
+                InnerBarX := (FProgressStep * 5) mod (BarRect.Width - InnerBarWidth)
+            else
+                InnerBarX := 0;
+
+            LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 255));
+            try
+              LG.FillRectangle(LGPBrush, BarRect.Left + InnerBarX, BarRect.Top, InnerBarWidth, BarRect.Height);
+            finally
+              LGPBrush.Free;
+            end;
+          end;
+        end;
+        pasBouncingDots:
+        begin
+          const DotCount = 3;
+          var DotSize, DotSpacing, TotalDotWidth, StartX, BaseY: Integer;
+          var i: Integer;
+
+          if (LProgressRect.Width > 0) and (LProgressRect.Height > 0) then
+          begin
+            DotSize := Max(4, Min(LProgressRect.Width div Max(1, (DotCount * 2)), LProgressRect.Height div 2));
+            DotSpacing := DotSize div 2;
+            TotalDotWidth := (DotCount * DotSize) + ((DotCount - 1) * DotSpacing);
+
+            if TotalDotWidth > LProgressRect.Width then
+            begin
+                DotSize := Max(2, LProgressRect.Width div (DotCount * 2));
+                DotSpacing := DotSize div 3;
+                TotalDotWidth := (DotCount * DotSize) + ((DotCount - 1) * DotSpacing);
+            end;
+
+            StartX := LProgressRect.Left + (LProgressRect.Width - TotalDotWidth) div 2;
+            BaseY := LProgressRect.Top + (LProgressRect.Height - DotSize) div 2;
+
+            for i := 0 to DotCount - 1 do
+            begin
+              DotYOffset[i] := Round( (DotSize / 2) * Sin( (FProgressStep * 0.2 + i * (PI/DotCount))) );
+            end;
+
+            LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 255));
+            try
+              for i := 0 to DotCount - 1 do
+              begin
+                LG.FillEllipse(LGPBrush, StartX + i * (DotSize + DotSpacing),
+                                         BaseY + DotYOffset[i],
+                                         DotSize, DotSize);
+              end;
+            finally
+              LGPBrush.Free;
+            end;
+          end;
+        end;
+      end;
+
+      if LShowProgressText and (LProgressText <> '') then
+      begin
+        var TextRect: TRect;
+        var ProgressCaptionFont: TFont;
+        var AnimationAreaRightBound: Integer;
+
+        if (OriginalProgressRect.Width > 100) and (LAnimationStyle <> pasHorizontalBar) then
+        begin
+            AnimationAreaRightBound := LProgressRect.Left + LProgressRect.Width;
+            TextRect.Left := AnimationAreaRightBound + Self.FCaptionSettings.Margins.Left;
+            TextRect.Top  := OriginalProgressRect.Top;
+            TextRect.Right := OriginalProgressRect.Left + OriginalProgressRect.Width - Self.FCaptionSettings.Margins.Right;
+            TextRect.Bottom := OriginalProgressRect.Bottom;
+        end
+        else if (LAnimationStyle = pasHorizontalBar) and (OriginalProgressRect.Width > 100) then
+        begin
+            TextRect.Left := OriginalProgressRect.Left + Self.FCaptionSettings.Margins.Left;
+            TextRect.Top := LProgressRect.Bottom + Self.FCaptionSettings.Margins.Top;
+            TextRect.Right := OriginalProgressRect.Right - Self.FCaptionSettings.Margins.Right;
+            TextRect.Bottom := OriginalProgressRect.Bottom;
+        end
+        else
+        begin
+            TextRect.Left := ClientRect.Left + Self.FCaptionSettings.Margins.Left;
+            TextRect.Top := LProgressRect.Bottom + Self.FCaptionSettings.Margins.Top;
+            TextRect.Right := ClientRect.Right - Self.FCaptionSettings.Margins.Right;
+            TextRect.Bottom := ClientRect.Bottom - Self.FCaptionSettings.Margins.Bottom;
+        end;
+
+        if (TextRect.Width > 0) and (TextRect.Height > 0) then
+        begin
+          ProgressCaptionFont := TFont.Create;
+          try
+            ProgressCaptionFont.Assign(Self.FCaptionSettings.Font);
+            DrawComponentCaption(Self.Canvas, TextRect, LProgressText, ProgressCaptionFont, ProgressCaptionFont.Color, taCenter, cvaCenter, False, 255);
+          finally
+            ProgressCaptionFont.Free;
+          end;
+        end;
+      end;
     end;
 
     if not (FProcessing and FProgressSettings.ShowProgress and FProgressSettings.HideCaptionWhileProcessing) then
@@ -1152,7 +1365,165 @@ begin
 
       if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and FImageSettings.Visible then
       begin
-        // ... (código de cálculo da imagem permanece o mesmo)
+        LImgW := FImageSettings.Picture.Width;
+        LImgH := FImageSettings.Picture.Height;
+
+        AvailableWidth  := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
+        AvailableHeight := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+
+        if FImageSettings.AutoSize then
+        begin
+          case FImageSettings.DrawMode of
+            idmStretch:
+            begin
+              LDrawW := AvailableWidth;
+              LDrawH := AvailableHeight;
+            end;
+            idmProportional:
+            begin
+              if (LImgW = 0) or (LImgH = 0) or (AvailableWidth <= 0) or (AvailableHeight <= 0) then
+              begin LDrawW := 0; LDrawH := 0; end
+              else
+              begin
+                imgAspectRatio := LImgW / LImgH;
+                availAspectRatio := AvailableWidth / AvailableHeight;
+                if availAspectRatio > imgAspectRatio then
+                begin
+                  LDrawH := AvailableHeight;
+                  LDrawW := Round(LDrawH * imgAspectRatio);
+                end
+                else
+                begin
+                  LDrawW := AvailableWidth;
+                  LDrawH := Round(LDrawW / imgAspectRatio);
+                end;
+              end;
+            end;
+            idmNormal:
+            begin
+              LDrawW := LImgW;
+              LDrawH := LImgH;
+            end;
+          else
+            LDrawW := LImgW; LDrawH := LImgH;
+          end;
+        end
+        else
+        begin
+          var targetW, targetH: Integer;
+          targetW := FImageSettings.TargetWidth;
+          targetH := FImageSettings.TargetHeight;
+
+          case FImageSettings.DrawMode of
+            idmStretch:
+            begin
+              LDrawW := targetW;
+              LDrawH := targetH;
+            end;
+            idmProportional:
+            begin
+              if (LImgW = 0) or (LImgH = 0) or (targetW <= 0) or (targetH <= 0) then
+              begin LDrawW := 0; LDrawH := 0; end
+              else
+              begin
+                imgAspectRatio := LImgW / LImgH;
+                targetAspectRatio := targetW / targetH;
+                if targetAspectRatio > imgAspectRatio then
+                begin
+                  LDrawH := targetH;
+                  LDrawW := Round(LDrawH * imgAspectRatio);
+                end
+                else
+                begin
+                  LDrawW := targetW;
+                  LDrawH := Round(LDrawW / imgAspectRatio);
+                end;
+              end;
+            end;
+            idmNormal:
+            begin
+              LDrawW := LImgW;
+              LDrawH := LImgH;
+            end;
+          else
+            LDrawW := LImgW; LDrawH := LImgH;
+          end;
+        end;
+
+        LDrawW := Max(0, LDrawW);
+        LDrawH := Max(0, LDrawH);
+
+        if LDrawW > AvailableWidth then LDrawW := AvailableWidth;
+        if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
+
+        imageCanvasX := LImageClipRect.Left + FImageSettings.Margins.Left;
+        imageCanvasY := LImageClipRect.Top + FImageSettings.Margins.Top;
+
+        case FImageSettings.HorizontalAlign of
+          ihaLeft:   LImgX := imageCanvasX;
+          ihaCenter: LImgX := imageCanvasX + (AvailableWidth - LDrawW) div 2;
+          ihaRight:  LImgX := imageCanvasX + AvailableWidth - LDrawW;
+        else LImgX := imageCanvasX;
+        end;
+
+        case FImageSettings.VerticalAlign of
+          ivaTop:    LImgY := imageCanvasY;
+          ivaCenter: LImgY := imageCanvasY + (AvailableHeight - LDrawH) div 2;
+          ivaBottom: LImgY := imageCanvasY + AvailableHeight - LDrawH;
+        else LImgY := imageCanvasY;
+        end;
+
+        case FImageSettings.ImagePosition of
+          ipLeft:
+            LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left,
+                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
+          ipRight:
+            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
+                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImgX - FImageSettings.Margins.Left - FCaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
+          ipTop:
+            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
+                              LImgY + LDrawH + FImageSettings.Margins.Bottom + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
+          ipBottom:
+            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
+                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
+                              LImgY - FImageSettings.Margins.Top - FCaptionSettings.Margins.Bottom);
+          ipCenter:
+            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left, LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right, LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
+        else
+           LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left,
+                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
+                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
+                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
+        end;
+        LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
+
+        if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
+        begin
+          LScaleFactor := 1 + (LHoverProgress * (1.05 - 1));
+          var ScaledW, ScaledH: Integer;
+          ScaledW := Round(LDrawW * LScaleFactor);
+          ScaledH := Round(LDrawH * LScaleFactor);
+          LDestRect.Left := LImgX + (LDrawW - ScaledW) div 2;
+          LDestRect.Top := LImgY + (LDrawH - ScaledH) div 2;
+          LDestRect.Right := LDestRect.Left + ScaledW;
+          LDestRect.Bottom := LDestRect.Top + ScaledH;
+        end;
+
+        if (LDestRect.Right > LDestRect.Left) and (LDestRect.Bottom > LDestRect.Top) then
+        begin
+          if FImageSettings.Picture.Graphic is TPNGImage then
+            DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, LDestRect, idmStretch)
+          else if FImageSettings.Picture.Graphic <> nil then
+            DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, LDestRect, idmStretch);
+        end;
       end
       else
       begin
@@ -1236,4 +1607,3 @@ begin
 end;
 
 end.
-

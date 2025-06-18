@@ -1,16 +1,16 @@
-unit ANDMR_CMemo;
+unit HTL_CMemo;
 
 interface
 
 uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
-  ANDMR_ComponentUtils,
+  HTL_ComponentUtils,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Vcl.Imaging.pngimage,
   System.Math;
 
 type
-  TANDMR_CMemo = class(TCustomControl)
+  THTL_CMemo = class(TCustomControl)
   private
     FBorderSettings: TBorderSettings;
     FFocusSettings: TFocusSettings;
@@ -18,7 +18,7 @@ type
     FImageSettings: TImageSettings;
     FCaptionSettings: TCaptionSettings;
     FHoverSettings: THoverSettings;
-    FTextMargins: TANDMR_Margins;
+    FTextMargins: THTL_Margins;
 
     FCaptionRect: TRect;
     FHovered: Boolean;
@@ -49,7 +49,7 @@ type
     procedure SetImageSettings(const Value: TImageSettings);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure SetHoverSettings(const Value: THoverSettings);
-    procedure SetTextMargins(const Value: TANDMR_Margins);
+    procedure SetTextMargins(const Value: THTL_Margins);
     procedure SetOpacity(const Value: Byte);
 
     procedure SettingsChanged(Sender: TObject);
@@ -95,7 +95,7 @@ type
     property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
-    property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
+    property TextMargins: THTL_Margins read FTextMargins write SetTextMargins;
 
     property Opacity: Byte read FOpacity write SetOpacity default 255;
 
@@ -125,12 +125,12 @@ implementation
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CMemo]);
+  RegisterComponents('HOTLINE', [THTL_CMemo]);
 end;
 
-{ TANDMR_CMemo }
+{ THTL_CMemo }
 
-constructor TANDMR_CMemo.Create(AOwner: TComponent);
+constructor THTL_CMemo.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csSetCaption, csAcceptsControls];
@@ -171,10 +171,8 @@ begin
   FImageSettings := TImageSettings.Create(Self);
   FImageSettings.OnChange := SettingsChanged;
   FImageSettings.Visible := True;
-  FImageSettings.Position := ipsLeft;
-  FImageSettings.AlignmentVertical := iavCenter;
+//  FImageSettings.Position := ipLeft;
   FImageSettings.Placement := iplInsideBounds;
-  FImageSettings.DrawMode := idmProportional;
 
   FCaptionSettings := TCaptionSettings.Create(Self);
   FCaptionSettings.OnChange := CaptionSettingsChanged;
@@ -182,7 +180,7 @@ begin
   FCaptionSettings.Font.Color := clGrayText; // Modernized
   FHoverSettings := THoverSettings.Create(Self);
   FHoverSettings.OnChange := HoverSettingsChanged;
-  FTextMargins := TANDMR_Margins.Create;
+  FTextMargins := THTL_Margins.Create;
   FTextMargins.OnChange := TextMarginsChanged;
 
   FCaptionRect := Rect(0,0,0,0);
@@ -210,7 +208,7 @@ begin
   FInternalMemo.OnKeyUp := InternalMemoKeyUp;
 end;
 
-destructor TANDMR_CMemo.Destroy;
+destructor THTL_CMemo.Destroy;
 begin
   if Assigned(FBorderSettings) then FBorderSettings.OnChange := nil;
   FreeAndNil(FBorderSettings);
@@ -231,7 +229,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_CMemo.Loaded;
+procedure THTL_CMemo.Loaded;
 begin
   inherited Loaded;
   UpdateInternalMemoBounds;
@@ -242,7 +240,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CMemo.SettingsChanged(Sender: TObject);
+procedure THTL_CMemo.SettingsChanged(Sender: TObject);
 begin
   if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
   begin
@@ -256,7 +254,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CMemo.CaptionSettingsChanged(Sender: TObject);
+procedure THTL_CMemo.CaptionSettingsChanged(Sender: TObject);
 begin
   if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
   begin
@@ -270,12 +268,12 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CMemo.HoverSettingsChanged(Sender: TObject);
+procedure THTL_CMemo.HoverSettingsChanged(Sender: TObject);
 begin
   Invalidate;
 end;
 
-procedure TANDMR_CMemo.TextMarginsChanged(Sender: TObject);
+procedure THTL_CMemo.TextMarginsChanged(Sender: TObject);
 begin
   if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
   begin
@@ -289,12 +287,12 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CMemo.InternalMemoChange(Sender: TObject);
+procedure THTL_CMemo.InternalMemoChange(Sender: TObject);
 begin
   if Assigned(FOnChange) then FOnChange(Self);
 end;
 
-procedure TANDMR_CMemo.InternalMemoEnter(Sender: TObject);
+procedure THTL_CMemo.InternalMemoEnter(Sender: TObject);
 begin
   if not Self.Focused then
   begin
@@ -302,69 +300,69 @@ begin
   end;
 end;
 
-procedure TANDMR_CMemo.InternalMemoExit(Sender: TObject);
+procedure THTL_CMemo.InternalMemoExit(Sender: TObject);
 begin
   Invalidate;
 end;
 
-procedure TANDMR_CMemo.InternalMemoKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+procedure THTL_CMemo.InternalMemoKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 begin
   if Assigned(FOnKeyDown) then FOnKeyDown(Self, Key, Shift);
 end;
 
-procedure TANDMR_CMemo.InternalMemoKeyPress(Sender: TObject; var Key: Char);
+procedure THTL_CMemo.InternalMemoKeyPress(Sender: TObject; var Key: Char);
 begin
   if Assigned(FOnKeyPress) then FOnKeyPress(Self, Key);
 end;
 
-procedure TANDMR_CMemo.InternalMemoKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
+procedure THTL_CMemo.InternalMemoKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
 begin
   if Assigned(FOnKeyUp) then FOnKeyUp(Self, Key, Shift);
 end;
 
-procedure TANDMR_CMemo.SetBorderSettings(const Value: TBorderSettings);
+procedure THTL_CMemo.SetBorderSettings(const Value: TBorderSettings);
 begin
   FBorderSettings.Assign(Value);
   SettingsChanged(Self);
 end;
 
-procedure TANDMR_CMemo.SetImageSettings(const Value: TImageSettings);
+procedure THTL_CMemo.SetImageSettings(const Value: TImageSettings);
 begin
   FImageSettings.Assign(Value);
   SettingsChanged(Self);
 end;
 
-procedure TANDMR_CMemo.SetSeparatorSettings(const Value: TSeparatorSettings);
+procedure THTL_CMemo.SetSeparatorSettings(const Value: TSeparatorSettings);
 begin
   FSeparatorSettings.Assign(Value);
   SettingsChanged(Self);
 end;
 
-procedure TANDMR_CMemo.SetCaptionSettings(const Value: TCaptionSettings);
+procedure THTL_CMemo.SetCaptionSettings(const Value: TCaptionSettings);
 begin
   FCaptionSettings.Assign(Value);
   CaptionSettingsChanged(Self);
 end;
 
-procedure TANDMR_CMemo.SetHoverSettings(const Value: THoverSettings);
+procedure THTL_CMemo.SetHoverSettings(const Value: THoverSettings);
 begin
   FHoverSettings.Assign(Value);
   HoverSettingsChanged(Self); // Call HoverSettingsChanged
 end;
 
-procedure TANDMR_CMemo.SetTextMargins(const Value: TANDMR_Margins);
+procedure THTL_CMemo.SetTextMargins(const Value: THTL_Margins);
 begin
   FTextMargins.Assign(Value);
   TextMarginsChanged(Self);
 end;
 
-procedure TANDMR_CMemo.SetFocusSettings(const Value: TFocusSettings);
+procedure THTL_CMemo.SetFocusSettings(const Value: TFocusSettings);
 begin
   FFocusSettings.Assign(Value);
   SettingsChanged(Self);
 end;
 
-procedure TANDMR_CMemo.SetOpacity(const Value: Byte);
+procedure THTL_CMemo.SetOpacity(const Value: Byte);
 begin
   if FOpacity <> Value then
   begin
@@ -382,57 +380,57 @@ begin
   end;
 end;
 
-function TANDMR_CMemo.GetLines: TStrings;
+function THTL_CMemo.GetLines: TStrings;
 begin
   Result := FInternalMemo.Lines;
 end;
 
-procedure TANDMR_CMemo.SetLines(const Value: TStrings);
+procedure THTL_CMemo.SetLines(const Value: TStrings);
 begin
   FInternalMemo.Lines.Assign(Value);
 end;
 
-function TANDMR_CMemo.GetReadOnly: Boolean;
+function THTL_CMemo.GetReadOnly: Boolean;
 begin
   Result := FInternalMemo.ReadOnly;
 end;
 
-procedure TANDMR_CMemo.SetReadOnly(const Value: Boolean);
+procedure THTL_CMemo.SetReadOnly(const Value: Boolean);
 begin
   FInternalMemo.ReadOnly := Value;
 end;
 
-function TANDMR_CMemo.GetWordWrap: Boolean;
+function THTL_CMemo.GetWordWrap: Boolean;
 begin
   Result := FInternalMemo.WordWrap;
 end;
 
-procedure TANDMR_CMemo.SetWordWrap(const Value: Boolean);
+procedure THTL_CMemo.SetWordWrap(const Value: Boolean);
 begin
   FInternalMemo.WordWrap := Value;
 end;
 
-function TANDMR_CMemo.GetScrollBars: TScrollStyle;
+function THTL_CMemo.GetScrollBars: TScrollStyle;
 begin
   Result := FInternalMemo.ScrollBars;
 end;
 
-procedure TANDMR_CMemo.SetScrollBars(const Value: TScrollStyle);
+procedure THTL_CMemo.SetScrollBars(const Value: TScrollStyle);
 begin
   FInternalMemo.ScrollBars := Value;
 end;
 
-function TANDMR_CMemo.GetMaxLength: Integer;
+function THTL_CMemo.GetMaxLength: Integer;
 begin
   Result := FInternalMemo.MaxLength;
 end;
 
-procedure TANDMR_CMemo.SetMaxLength(const Value: Integer);
+procedure THTL_CMemo.SetMaxLength(const Value: Integer);
 begin
   FInternalMemo.MaxLength := Value;
 end;
 
-procedure TANDMR_CMemo.CMFontChanged(var Message: TMessage);
+procedure THTL_CMemo.CMFontChanged(var Message: TMessage);
 begin
   inherited;
   if Assigned(FInternalMemo) then
@@ -443,7 +441,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CMemo.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
+procedure THTL_CMemo.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
 const
   DefaultCaptionOffset = 2;
 var
@@ -590,12 +588,6 @@ begin
               ImgW := availWForImg;
               ImgH := availHForImg;
             end;
-            idmNormal:
-            begin
-              ImgW := OriginalImgW;
-              ImgH := OriginalImgH;
-              // Implicitly clipped by availWForImg/availHForImg later if image is larger
-            end;
           else // Default, similar to proportional or normal based on context
             ImgW := OriginalImgW; ImgH := OriginalImgH;
           end;
@@ -633,15 +625,6 @@ begin
               ImgW := targetW;
               ImgH := targetH;
             end;
-            idmNormal:
-            begin
-              ImgW := OriginalImgW;
-              ImgH := OriginalImgH;
-              // As per plan, idmNormal uses original size, not constrained by targetW/H here.
-              // If it should be:
-              // ImgW := Min(ImgW, targetW);
-              // ImgH := Min(ImgH, targetH);
-            end;
           else // Default, similar to normal
             ImgW := OriginalImgW; ImgH := OriginalImgH;
           end;
@@ -678,38 +661,38 @@ begin
     var slotStartX, slotAvailableWidth, slotEndX: Integer; // For Horizontal Alignment
 
     // Horizontal positioning of image within ImagePlacementArea
-    if FImageSettings.Position = ipsLeft then
-    begin
-      slotStartX := ImagePlacementArea.Left + FImageSettings.Margins.Left;
-      slotAvailableWidth := availWForImg;
-      case FImageSettings.HorizontalAlign of
-        ihaLeft:   outImgRect.Left := slotStartX;
-        ihaCenter: outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2;
-        ihaRight:  outImgRect.Left := slotStartX + slotAvailableWidth - ImgW;
-      else         outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2; // Default center
-      end;
-      outImgRect.Right := outImgRect.Left + ImgW;
-    end
-    else // ipsRight
-    begin
-      slotEndX := ImagePlacementArea.Right - FImageSettings.Margins.Right;
-      slotAvailableWidth := availWForImg;
-      case FImageSettings.HorizontalAlign of
-        ihaLeft:   outImgRect.Left := slotEndX - slotAvailableWidth;
-        ihaCenter: outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2;
-        ihaRight:  outImgRect.Left := slotEndX - ImgW;
-      else         outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2; // Default center
-      end;
-      outImgRect.Right := outImgRect.Left + ImgW;
-    end;
+//    if FImageSettings.Position = ipLeft then
+//    begin
+//      slotStartX := ImagePlacementArea.Left + FImageSettings.Margins.Left;
+//      slotAvailableWidth := availWForImg;
+//      case FImageSettings.HorizontalAlign of
+//        ihaLeft:   outImgRect.Left := slotStartX;
+//        ihaCenter: outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2;
+//        ihaRight:  outImgRect.Left := slotStartX + slotAvailableWidth - ImgW;
+//      else         outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2; // Default center
+//      end;
+//      outImgRect.Right := outImgRect.Left + ImgW;
+//    end
+//    else // ipsRight
+//    begin
+//      slotEndX := ImagePlacementArea.Right - FImageSettings.Margins.Right;
+//      slotAvailableWidth := availWForImg;
+//      case FImageSettings.HorizontalAlign of
+//        ihaLeft:   outImgRect.Left := slotEndX - slotAvailableWidth;
+//        ihaCenter: outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2;
+//        ihaRight:  outImgRect.Left := slotEndX - ImgW;
+//      else         outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2; // Default center
+//      end;
+//      outImgRect.Right := outImgRect.Left + ImgW;
+//    end;
 
     // Vertical positioning of image within ImagePlacementArea
     availHForImgLayoutAdjusted := ImagePlacementArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
     availHForImgLayoutAdjusted := Max(0, availHForImgLayoutAdjusted);
-    case FImageSettings.AlignmentVertical of
-      iavTop:    outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top;
-      iavCenter: outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top + (availHForImgLayoutAdjusted - ImgH) div 2;
-      iavBottom: outImgRect.Top := ImagePlacementArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
+    case FImageSettings.VerticalAlign of
+      ivaTop:    outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top;
+      ivaCenter: outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top + (availHForImgLayoutAdjusted - ImgH) div 2;
+      ivaBottom: outImgRect.Top := ImagePlacementArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
     end;
     outImgRect.Bottom := outImgRect.Top + ImgH;
 
@@ -738,52 +721,52 @@ begin
   begin
     if FImageSettings.Placement = iplInsideBounds then
     begin // Image AND Separator (if visible) are INSIDE MemoDrawingArea, carving space from outTxtRect
-      if FImageSettings.Position = ipsLeft then
-      begin
-        if FSeparatorSettings.Visible and (SepW > 0) then
-        begin
-          outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding;
-          outSepRect.Right := outSepRect.Left + SepW;
-          outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
-        end
-        else // No separator
-        begin
-          outTxtRect.Left := outImgRect.Right + FImageSettings.Margins.Right;
-          outSepRect := Rect(0,0,0,0);
-        end;
-      end
-      else // Image position ipsRight
-      begin
-        if FSeparatorSettings.Visible and (SepW > 0) then
-        begin
-          outSepRect.Right := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding;
-          outSepRect.Left := outSepRect.Right - SepW;
-          outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
-        end
-        else // No separator
-        begin
-          outTxtRect.Right := outImgRect.Left - FImageSettings.Margins.Left;
-          outSepRect := Rect(0,0,0,0);
-        end;
-      end;
+//      if FImageSettings.Position = ipLeft then
+//      begin
+//        if FSeparatorSettings.Visible and (SepW > 0) then
+//        begin
+//          outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding;
+//          outSepRect.Right := outSepRect.Left + SepW;
+//          outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
+//        end
+//        else // No separator
+//        begin
+//          outTxtRect.Left := outImgRect.Right + FImageSettings.Margins.Right;
+//          outSepRect := Rect(0,0,0,0);
+//        end;
+//      end
+//      else // Image position ipsRight
+//      begin
+//        if FSeparatorSettings.Visible and (SepW > 0) then
+//        begin
+//          outSepRect.Right := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding;
+//          outSepRect.Left := outSepRect.Right - SepW;
+//          outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
+//        end
+//        else // No separator
+//        begin
+//          outTxtRect.Right := outImgRect.Left - FImageSettings.Margins.Left;
+//          outSepRect := Rect(0,0,0,0);
+//        end;
+//      end;
     end
     else // iplOutsideBounds: Image is OUTSIDE MemoDrawingArea. outTxtRect is not changed by image.
          // Separator is between image and MemoDrawingArea.
     begin
       if FSeparatorSettings.Visible and (SepW > 0) then
       begin
-        if FImageSettings.Position = ipsLeft then
-        begin
-          outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding;
-          outSepRect.Right := outSepRect.Left + SepW;
-          // Note: outTxtRect.Left (MemoDrawingArea.Left) is not affected by image/sep outside
-        end
-        else // ipsRight
-        begin
-          outSepRect.Right := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding;
-          outSepRect.Left := outSepRect.Right - SepW;
-          // Note: outTxtRect.Right (MemoDrawingArea.Right) is not affected by image/sep outside
-        end;
+//        if FImageSettings.Position = ipLeft then
+//        begin
+//          outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding;
+//          outSepRect.Right := outSepRect.Left + SepW;
+//          // Note: outTxtRect.Left (MemoDrawingArea.Left) is not affected by image/sep outside
+//        end
+//        else // ipsRight
+//        begin
+//          outSepRect.Right := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding;
+//          outSepRect.Left := outSepRect.Right - SepW;
+//          // Note: outTxtRect.Right (MemoDrawingArea.Right) is not affected by image/sep outside
+//        end;
       end
       else // No separator
       begin
@@ -858,7 +841,7 @@ begin
   if outTxtRect.Bottom < outTxtRect.Top then outTxtRect.Bottom := outTxtRect.Top;
 end;
 
-procedure TANDMR_CMemo.UpdateInternalMemoBounds;
+procedure THTL_CMemo.UpdateInternalMemoBounds;
 var
   LImgRect, LTxtRect, LSepRect: TRect;
   MemoRect: TRect;
@@ -914,14 +897,14 @@ begin
   end;
 end;
 
-procedure TANDMR_CMemo.Resize;
+procedure THTL_CMemo.Resize;
 begin
   inherited Resize;
   UpdateInternalMemoBounds;
   Invalidate;
 end;
 
-procedure TANDMR_CMemo.CMEnter(var Message: TCMEnter);
+procedure THTL_CMemo.CMEnter(var Message: TCMEnter);
 begin
   inherited;
   if FFocusSettings.BorderColorVisible or FFocusSettings.BackgroundColorVisible or FFocusSettings.UnderlineVisible then
@@ -932,7 +915,7 @@ begin
     FOnEnter(Self);
 end;
 
-procedure TANDMR_CMemo.CMExit(var Message: TCMExit);
+procedure THTL_CMemo.CMExit(var Message: TCMExit);
 begin
   if FFocusSettings.BorderColorVisible or FFocusSettings.BackgroundColorVisible or FFocusSettings.UnderlineVisible then
     Invalidate;
@@ -941,7 +924,7 @@ begin
     FOnExit(Self);
 end;
 
-procedure TANDMR_CMemo.CMMouseEnter(var Message: TMessage);
+procedure THTL_CMemo.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
   if not FHovered then
@@ -951,7 +934,7 @@ begin
   FHoverSettings.StartAnimation(True);
 end;
 
-procedure TANDMR_CMemo.CMMouseLeave(var Message: TMessage);
+procedure THTL_CMemo.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
   if FHovered then
@@ -961,14 +944,14 @@ begin
   FHoverSettings.StartAnimation(False);
 end;
 
-procedure TANDMR_CMemo.SetTabStop(Value: Boolean);
+procedure THTL_CMemo.SetTabStop(Value: Boolean);
 begin
   inherited TabStop := Value;
   if Assigned(FInternalMemo) then
     FInternalMemo.TabStop := Self.TabStop;
 end;
 
-procedure TANDMR_CMemo.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure THTL_CMemo.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
   inherited MouseDown(Button, Shift, X, Y);
   if Button = mbLeft then
@@ -984,7 +967,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CMemo.Paint;
+procedure THTL_CMemo.Paint;
 var
   LG: TGPGraphics;
   imgR, txtR, sepR: TRect;
@@ -1128,10 +1111,10 @@ end;
 
       if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
       begin
-        if (FImageSettings.Picture.Graphic is TPNGImage) then
-          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, imgR, idmStretch)
-        else
-          DrawNonPNGImageWithCanvas(Canvas, FImageSettings.Picture.Graphic, imgR, idmStretch);
+//        if (FImageSettings.Picture.Graphic is TPNGImage) then
+//          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, imgR, idmStretch)
+//        else
+//          DrawNonPNGImageWithCanvas(Canvas, FImageSettings.Picture.Graphic, imgR, idmStretch);
       end;
 
       if FSeparatorSettings.Visible and (FSeparatorSettings.Thickness > 0) and (sepR.Width > 0) and (sepR.Height > 0) then

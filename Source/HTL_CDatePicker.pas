@@ -1,4 +1,4 @@
-unit ANDMR_CDatePicker;
+unit HTL_CDatePicker;
 
 interface
 
@@ -23,7 +23,7 @@ type
   end;
 
   { Main Date Picker Component }
-  TANDMR_CDatePicker = class(TCustomControl)
+  THTL_CDatePicker = class(TCustomControl)
   private
     //--- Core Date Properties
     FStartDate: TDate;
@@ -176,7 +176,7 @@ const
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CDatePicker]);
+  RegisterComponents('HOTLINE', [THTL_CDatePicker]);
 end;
 
 { TFocusedDate }
@@ -193,9 +193,9 @@ begin
   FIsValid := True;
 end;
 
-{ TANDMR_CDatePicker }
+{ THTL_CDatePicker }
 
-constructor TANDMR_CDatePicker.Create(AOwner: TComponent);
+constructor THTL_CDatePicker.Create(AOwner: TComponent);
 var
   LToday: TDate;
   LDay: Word;
@@ -247,7 +247,7 @@ end;
 // Region: Main Drawing and Layout
 //------------------------------------------------------------------------------
 {$REGION 'Main Drawing and Layout'}
-procedure TANDMR_CDatePicker.Paint;
+procedure THTL_CDatePicker.Paint;
 begin
   inherited Paint;
   DrawCalendar(Canvas);
@@ -262,7 +262,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.CalculateLayout;
+procedure THTL_CDatePicker.CalculateLayout;
 var
   LClientWidth: Integer;
 begin
@@ -293,7 +293,7 @@ begin
     FCellHeight := MIN_CELL_DIM;
 end;
 
-procedure TANDMR_CDatePicker.DrawCalendar(ACanvas: TCanvas);
+procedure THTL_CDatePicker.DrawCalendar(ACanvas: TCanvas);
 var
   i, LDaysInMonth, LCurrentDay, Row, Col: Integer;
   LDateToDraw, LFirstDayOfMonth: TDate;
@@ -377,7 +377,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.DrawDayCell(ACanvas: TCanvas; const ARect: TRect; ADay: Integer;
+procedure THTL_CDatePicker.DrawDayCell(ACanvas: TCanvas; const ARect: TRect; ADay: Integer;
   AIsSelectedStart, AIsSelectedEnd, AIsInRange, AIsToday, AIsFocused, AIsHot, AIsEnabled: Boolean);
 var
   LDayStr: string;
@@ -442,7 +442,7 @@ begin
   DrawText(ACanvas.Handle, PChar(LDayStr), -1, TempRect, DT_CENTER_FLAGS);
 end;
 
-procedure TANDMR_CDatePicker.DrawButton(ACanvas: TCanvas; const ARect: TRect; const ACaption: string; AIsPressed, AEnabled: Boolean);
+procedure THTL_CDatePicker.DrawButton(ACanvas: TCanvas; const ARect: TRect; const ACaption: string; AIsPressed, AEnabled: Boolean);
 var
   LTempRect: TRect;
   LBackgroundColor: TColor;
@@ -504,7 +504,7 @@ end;
 // Region: User Interaction (Mouse & Keyboard)
 //------------------------------------------------------------------------------
 {$REGION 'User Interaction (Mouse & Keyboard)'}
-procedure TANDMR_CDatePicker.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure THTL_CDatePicker.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   LPt: TPoint;
   LClickedDay: Integer;
@@ -528,7 +528,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure THTL_CDatePicker.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   LPt: TPoint;
 begin
@@ -546,7 +546,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.MouseMove(Shift: TShiftState; X, Y: Integer);
+procedure THTL_CDatePicker.MouseMove(Shift: TShiftState; X, Y: Integer);
 var
   LPt: TPoint;
   LDayUnderCursor: Integer;
@@ -559,7 +559,7 @@ begin
   UpdateHotDay(LDayUnderCursor);
 end;
 
-procedure TANDMR_CDatePicker.KeyDown(var Key: Word; Shift: TShiftState);
+procedure THTL_CDatePicker.KeyDown(var Key: Word; Shift: TShiftState);
 var
   LNewFocusedDate: TDate;
 begin
@@ -608,7 +608,7 @@ begin
   Key := 0;
 end;
 
-procedure TANDMR_CDatePicker.DayCellClick(ADay: Integer);
+procedure THTL_CDatePicker.DayCellClick(ADay: Integer);
 var
   LClickedDate: TDate;
 begin
@@ -655,7 +655,7 @@ end;
 // Region: Internal Helper Functions
 //------------------------------------------------------------------------------
 {$REGION 'Internal Helper Functions'}
-function TANDMR_CDatePicker.GetDayFromPoint(const APoint: TPoint): Integer;
+function THTL_CDatePicker.GetDayFromPoint(const APoint: TPoint): Integer;
 var
   Col, Row, FirstDayOffset, DayIndex: Integer;
   LFirstDayOfMonth: TDate;
@@ -680,14 +680,14 @@ begin
     Result := DayIndex;
 end;
 
-function TANDMR_CDatePicker.IsDateEnabled(const ADate: TDate): Boolean;
+function THTL_CDatePicker.IsDateEnabled(const ADate: TDate): Boolean;
 begin
   Result := True;
   if (FMinDate <> 0) and (ADate < FMinDate) then Exit(False);
   if (FMaxDate <> 0) and (ADate > FMaxDate) then Exit(False);
 end;
 
-procedure TANDMR_CDatePicker.UpdateHotDay(NewHotDay: Integer);
+procedure THTL_CDatePicker.UpdateHotDay(NewHotDay: Integer);
 begin
   if FHotDay <> NewHotDay then
   begin
@@ -696,7 +696,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.UpdateFocusedDate(NewDate: TDate; AForceVisible: Boolean);
+procedure THTL_CDatePicker.UpdateFocusedDate(NewDate: TDate; AForceVisible: Boolean);
 var
   LOldFocusedDate: TDate;
   LDay: Word;
@@ -717,7 +717,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CDatePicker.ChangeMonth(ADelta: Integer);
+procedure THTL_CDatePicker.ChangeMonth(ADelta: Integer);
 var
   LCurrentDate: TDate;
   LDay: Word; // Dummy variable for the day part, which we don't need here.
@@ -732,7 +732,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CDatePicker.DoChange;
+procedure THTL_CDatePicker.DoChange;
 begin
   Invalidate;
   if Assigned(FOnChange) then
@@ -744,7 +744,7 @@ end;
 // Region: Public Methods
 //------------------------------------------------------------------------------
 {$REGION 'Public Methods'}
-procedure TANDMR_CDatePicker.ClearSelection;
+procedure THTL_CDatePicker.ClearSelection;
 begin
   if (FStartDate <> 0) or (FEndDate <> 0) then
   begin
@@ -754,7 +754,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.GoToToday;
+procedure THTL_CDatePicker.GoToToday;
 begin
   UpdateFocusedDate(Date);
 end;
@@ -764,25 +764,25 @@ end;
 // Region: Overridden Focus and Message Handlers
 //------------------------------------------------------------------------------
 {$REGION 'Overridden Focus and Message Handlers'}
-procedure TANDMR_CDatePicker.WMSize(var Message: TWMSize);
+procedure THTL_CDatePicker.WMSize(var Message: TWMSize);
 begin
   inherited;
   CalculateLayout;
   Invalidate;
 end;
 
-procedure TANDMR_CDatePicker.CMMouseEnter(var Message: TMessage);
+procedure THTL_CDatePicker.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
 end;
 
-procedure TANDMR_CDatePicker.CMMouseLeave(var Message: TMessage);
+procedure THTL_CDatePicker.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
   UpdateHotDay(INVALID_DAY);
 end;
 
-procedure TANDMR_CDatePicker.CMGotFocus(var Message: TMessage);
+procedure THTL_CDatePicker.CMGotFocus(var Message: TMessage);
 begin
   inherited;
   if not FFocusedDate.IsValid then
@@ -795,7 +795,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CDatePicker.CMLostFocus(var Message: TMessage);
+procedure THTL_CDatePicker.CMLostFocus(var Message: TMessage);
 begin
   inherited;
   Invalidate;
@@ -806,7 +806,7 @@ end;
 // Region: Property Setters
 //------------------------------------------------------------------------------
 {$REGION 'Property Setters'}
-procedure TANDMR_CDatePicker.SetStartDate(const Value: TDate);
+procedure THTL_CDatePicker.SetStartDate(const Value: TDate);
 begin
   if FStartDate <> Value then
   begin
@@ -819,7 +819,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetEndDate(const Value: TDate);
+procedure THTL_CDatePicker.SetEndDate(const Value: TDate);
 begin
   if FEndDate <> Value then
   begin
@@ -832,7 +832,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetMinDate(const Value: TDate);
+procedure THTL_CDatePicker.SetMinDate(const Value: TDate);
 begin
   if FMinDate <> Value then
   begin
@@ -843,7 +843,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetMaxDate(const Value: TDate);
+procedure THTL_CDatePicker.SetMaxDate(const Value: TDate);
 begin
   if FMaxDate <> Value then
   begin
@@ -854,7 +854,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetRangeColor(const Value: TColor);
+procedure THTL_CDatePicker.SetRangeColor(const Value: TColor);
 begin
   if FRangeColor <> Value then
   begin
@@ -863,7 +863,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetTodayBorderColor(const Value: TColor);
+procedure THTL_CDatePicker.SetTodayBorderColor(const Value: TColor);
 begin
   if FTodayBorderColor <> Value then
   begin
@@ -872,7 +872,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetSelectionFontColor(const Value: TColor);
+procedure THTL_CDatePicker.SetSelectionFontColor(const Value: TColor);
 begin
   if FSelectionFontColor <> Value then
   begin
@@ -881,7 +881,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetSelectionColor(const Value: TColor);
+procedure THTL_CDatePicker.SetSelectionColor(const Value: TColor);
 begin
   if FSelectionColor <> Value then
   begin
@@ -890,7 +890,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetHotBackColor(const Value: TColor);
+procedure THTL_CDatePicker.SetHotBackColor(const Value: TColor);
 begin
   if FHotBackColor <> Value then
   begin
@@ -899,7 +899,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetHotFontColor(const Value: TColor);
+procedure THTL_CDatePicker.SetHotFontColor(const Value: TColor);
 begin
   if FHotFontColor <> Value then
   begin
@@ -908,7 +908,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetFocusedBorderColor(const Value: TColor);
+procedure THTL_CDatePicker.SetFocusedBorderColor(const Value: TColor);
 begin
   if FFocusedBorderColor <> Value then
   begin
@@ -917,7 +917,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetShowTodayIndicator(const Value: Boolean);
+procedure THTL_CDatePicker.SetShowTodayIndicator(const Value: Boolean);
 begin
   if FShowTodayIndicator <> Value then
   begin
@@ -926,7 +926,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CDatePicker.SetShowRangeHighlight(const Value: Boolean);
+procedure THTL_CDatePicker.SetShowRangeHighlight(const Value: Boolean);
 begin
   if FShowRangeHighlight <> Value then
   begin

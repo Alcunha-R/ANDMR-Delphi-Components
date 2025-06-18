@@ -11,10 +11,6 @@ uses
 type
   THoverEffect = (heNone, heFade, heScale);
   TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom);
-  TImagePosition = (ipLeft, ipRight, ipTop, ipBottom, ipFill, ipCenter, ipBehind);
-  TImagePlacement = (iplInsideBounds, iplOutsideBounds);
-  TImageAlignmentVertical = (iavTop, iavCenter, iavBottom);
-  TImageDrawMode = (idmStretch, idmProportional, idmNormal);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
   TGradientType = (gtLinearVertical, gtLinearHorizontal, gtRadial, gtDiagonalDown, gtDiagonalUp, gtCenterBurst);
   TRoundCornerType = (rctNone, rctAll, rctTopLeft, rctTopRight, rctBottomLeft, rctBottomRight, rctTop, rctBottom, rctLeft, rctRight, rctTopLeftBottomRight, rctTopRightBottomLeft);
@@ -24,8 +20,12 @@ type
   TPredefinedMaskType = (pmtNone, pmtCustom, pmtCPF, pmtCNPJ, pmtCEP, pmtPhoneBR, pmtDateDMY);
   TCEditStatus = (cepsNormal, cepsError, cepsWarning, cepsSuccess);
   TProgressAnimationStyle = (pasRotatingSemiCircle, pasFullCircularSpinner, pasHorizontalBar, pasBouncingDots);
+
   TImageHorizontalAlignment = (ihaLeft, ihaCenter, ihaRight);
   TImageVerticalAlignment = (ivaTop, ivaCenter, ivaBottom);
+  TImagePosition = (ipLeft, ipRight, ipTop, ipBottom, ipFill, ipCenter, ipBehind);
+  TImagePlacement = (iplInsideBounds, iplOutsideBounds);
+  TImageDrawMode = (idmStretch, idmProportional, idmNormal);
 
   TClickSettings = class(TPersistent)
   private

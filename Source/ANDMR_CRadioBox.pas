@@ -1,4 +1,4 @@
-unit ANDMR_CRadioBox;
+unit HTL_CRadioBox;
 
 interface
 
@@ -7,7 +7,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.Types, ANDMR_ComponentUtils;
 
 type
-  TANDMR_CRadioBoxStyle = (crsCustom, crsDefault);
+  THTL_CRadioBoxStyle = (crsCustom, crsDefault);
 
   TRadioUserPropertyOverrides = record
     Transparent_IsSet: Boolean;
@@ -21,7 +21,7 @@ type
     OverallComponentBorder_IsCustomized: Boolean;
   end;
 
-  TANDMR_CRadioBox = class(TCustomControl)
+  THTL_CRadioBox = class(TCustomControl)
   private
     FChecked: Boolean;
     FCaptionSettings: TCaptionSettings;
@@ -33,7 +33,7 @@ type
     FRadioColorChecked: TColor;
     FMarkColor: TColor;
     FTransparent: Boolean;
-    FCurrentStyle: TANDMR_CRadioBoxStyle;
+    FCurrentStyle: THTL_CRadioBoxStyle;
     FApplyingStyle: Boolean;
     FUserOverrides: TRadioUserPropertyOverrides;
     FIsGroupHovered: Boolean;
@@ -55,11 +55,11 @@ type
     procedure SetRadioColorChecked(const Value: TColor);
     procedure SetMarkColor(const Value: TColor);
     procedure SetTransparent(const Value: Boolean);
-    procedure SetCurrentStyle(const Value: TANDMR_CRadioBoxStyle);
+    procedure SetCurrentStyle(const Value: THTL_CRadioBoxStyle);
     procedure SetEnabled(Value: Boolean);
 
     procedure InitializeUserOverrides;
-    procedure ApplyStyle(AStyle: TANDMR_CRadioBoxStyle);
+    procedure ApplyStyle(AStyle: THTL_CRadioBoxStyle);
     procedure SettingsChanged(Sender: TObject);
     procedure HoverSettingsChanged(Sender: TObject);
     procedure FocusSettingsChanged(Sender: TObject);
@@ -92,7 +92,7 @@ type
     property MarkColor: TColor read FMarkColor write SetMarkColor default clWhite;
 
     property Transparent: Boolean read FTransparent write SetTransparent default False;
-    property CurrentStyle: TANDMR_CRadioBoxStyle read FCurrentStyle write SetCurrentStyle default crsCustom;
+    property CurrentStyle: THTL_CRadioBoxStyle read FCurrentStyle write SetCurrentStyle default crsCustom;
 
     property Enabled;
     property TabStop default True;
@@ -129,12 +129,12 @@ uses
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CRadioBox]);
+  RegisterComponents('HOTLINE', [THTL_CRadioBox]);
 end;
 
-{ TANDMR_CRadioBox }
+{ THTL_CRadioBox }
 
-constructor TANDMR_CRadioBox.Create(AOwner: TComponent);
+constructor THTL_CRadioBox.Create(AOwner: TComponent);
 var
   TempCaptionFont: TFont;
 begin
@@ -208,7 +208,7 @@ begin
   DoubleBuffered := True;
 end;
 
-destructor TANDMR_CRadioBox.Destroy;
+destructor THTL_CRadioBox.Destroy;
 begin
   if Assigned(FRadioIndicatorBorderSettings) then
   begin
@@ -238,12 +238,12 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_CRadioBox.InitializeUserOverrides;
+procedure THTL_CRadioBox.InitializeUserOverrides;
 begin
   FillChar(FUserOverrides, SizeOf(FUserOverrides), 0);
 end;
 
-procedure TANDMR_CRadioBox.ClearUserOverrides;
+procedure THTL_CRadioBox.ClearUserOverrides;
 begin
   InitializeUserOverrides;
   if FCurrentStyle <> crsCustom then
@@ -252,7 +252,7 @@ begin
     Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.ApplyStyle(AStyle: TANDMR_CRadioBoxStyle);
+procedure THTL_CRadioBox.ApplyStyle(AStyle: THTL_CRadioBoxStyle);
 begin
   if FApplyingStyle then Exit;
   if AStyle = crsCustom then
@@ -319,7 +319,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SettingsChanged(Sender: TObject);
+procedure THTL_CRadioBox.SettingsChanged(Sender: TObject);
 begin
   if not FApplyingStyle then
   begin
@@ -334,7 +334,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.HoverSettingsChanged(Sender: TObject);
+procedure THTL_CRadioBox.HoverSettingsChanged(Sender: TObject);
 begin
   if not FApplyingStyle then
   begin
@@ -344,7 +344,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.FocusSettingsChanged(Sender: TObject);
+procedure THTL_CRadioBox.FocusSettingsChanged(Sender: TObject);
 begin
   if not FApplyingStyle then
   begin
@@ -354,7 +354,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SetChecked(const Value: Boolean);
+procedure THTL_CRadioBox.SetChecked(const Value: Boolean);
 var
   I: Integer;
   Sibling: TControl;
@@ -370,9 +370,9 @@ begin
         for I := 0 to Parent.ControlCount - 1 do
         begin
           Sibling := Parent.Controls[I];
-          if (Sibling is TANDMR_CRadioBox) and (Sibling <> Self) then
+          if (Sibling is THTL_CRadioBox) and (Sibling <> Self) then
           begin
-            TANDMR_CRadioBox(Sibling).SetChecked(False);
+            THTL_CRadioBox(Sibling).SetChecked(False);
           end;
         end;
       end;
@@ -384,12 +384,12 @@ begin
   end;
 end;
 
-function TANDMR_CRadioBox.GetCaption: string;
+function THTL_CRadioBox.GetCaption: string;
 begin
   Result := FCaptionSettings.Text;
 end;
 
-procedure TANDMR_CRadioBox.SetCaption(const Value: string);
+procedure THTL_CRadioBox.SetCaption(const Value: string);
 begin
   if FCaptionSettings.Text <> Value then
   begin
@@ -398,7 +398,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.SetCaptionSettings(const Value: TCaptionSettings);
+procedure THTL_CRadioBox.SetCaptionSettings(const Value: TCaptionSettings);
 begin
   FCaptionSettings.Assign(Value);
   if not FApplyingStyle then
@@ -409,7 +409,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SetRadioIndicatorBorder(const Value: TBorderSettings);
+procedure THTL_CRadioBox.SetRadioIndicatorBorder(const Value: TBorderSettings);
 begin
   FRadioIndicatorBorderSettings.Assign(Value);
   if not FApplyingStyle then
@@ -420,7 +420,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SetOverallComponentBorder(const Value: TBorderSettings);
+procedure THTL_CRadioBox.SetOverallComponentBorder(const Value: TBorderSettings);
 begin
   FOverallComponentBorder.Assign(Value);
   if not FApplyingStyle then
@@ -431,7 +431,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SetHoverSettings(const Value: THoverSettings);
+procedure THTL_CRadioBox.SetHoverSettings(const Value: THoverSettings);
 begin
   FHoverSettings.Assign(Value);
   if not FApplyingStyle then
@@ -442,7 +442,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SetFocusSettings(const Value: TFocusSettings);
+procedure THTL_CRadioBox.SetFocusSettings(const Value: TFocusSettings);
 begin
   FFocusSettings.Assign(Value);
   if not FApplyingStyle then
@@ -453,7 +453,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SetRadioColorUnchecked(const Value: TColor);
+procedure THTL_CRadioBox.SetRadioColorUnchecked(const Value: TColor);
 begin
   if FRadioColorUnchecked <> Value then
   begin
@@ -467,7 +467,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.SetRadioColorChecked(const Value: TColor);
+procedure THTL_CRadioBox.SetRadioColorChecked(const Value: TColor);
 begin
   if FRadioColorChecked <> Value then
   begin
@@ -481,7 +481,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.SetMarkColor(const Value: TColor);
+procedure THTL_CRadioBox.SetMarkColor(const Value: TColor);
 begin
   if FMarkColor <> Value then
   begin
@@ -495,7 +495,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.SetTransparent(const Value: Boolean);
+procedure THTL_CRadioBox.SetTransparent(const Value: Boolean);
 begin
   if FTransparent <> Value then
   begin
@@ -514,7 +514,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.SetCurrentStyle(const Value: TANDMR_CRadioBoxStyle);
+procedure THTL_CRadioBox.SetCurrentStyle(const Value: THTL_CRadioBoxStyle);
 begin
   if Value = crsCustom then
   begin
@@ -538,7 +538,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.SetEnabled(Value: Boolean);
+procedure THTL_CRadioBox.SetEnabled(Value: Boolean);
 begin
   if inherited Enabled <> Value then
   begin
@@ -546,7 +546,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.Paint;
+procedure THTL_CRadioBox.Paint;
 var
   LG: TGPGraphics;
   LGPPath: TGPGraphicsPath;
@@ -758,7 +758,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.Click;
+procedure THTL_CRadioBox.Click;
 begin
   if not Enabled then Exit;
   if not FChecked then
@@ -768,7 +768,7 @@ begin
   inherited Click;
 end;
 
-procedure TANDMR_CRadioBox.KeyDown(var Key: Word; Shift: TShiftState);
+procedure THTL_CRadioBox.KeyDown(var Key: Word; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   if Key = 0 then Exit;
@@ -782,7 +782,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.CMMouseEnter(var Message: TMessage);
+procedure THTL_CRadioBox.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
   if Self.Enabled and Assigned(FHoverSettings) and FHoverSettings.Enabled then
@@ -791,7 +791,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.CMMouseLeave(var Message: TMessage);
+procedure THTL_CRadioBox.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
   if Assigned(FHoverSettings) then
@@ -800,7 +800,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.CMEnabledChanged(var Message: TMessage);
+procedure THTL_CRadioBox.CMEnabledChanged(var Message: TMessage);
 begin
   inherited;
   if not Enabled then
@@ -810,13 +810,13 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.CMFocusChanged(var Message: TCMFocusChanged);
+procedure THTL_CRadioBox.CMFocusChanged(var Message: TCMFocusChanged);
 begin
   inherited;
   Invalidate;
 end;
 
-procedure TANDMR_CRadioBox.SetIsGroupHovered(const Value: Boolean);
+procedure THTL_CRadioBox.SetIsGroupHovered(const Value: Boolean);
 begin
   if FIsGroupHovered <> Value then
   begin
@@ -825,7 +825,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CRadioBox.SetGroupHoverCaptionBackgroundColor(const Value: TColor);
+procedure THTL_CRadioBox.SetGroupHoverCaptionBackgroundColor(const Value: TColor);
 begin
   if FGroupHoverCaptionBackgroundColor <> Value then
   begin

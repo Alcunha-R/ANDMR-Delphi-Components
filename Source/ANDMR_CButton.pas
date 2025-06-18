@@ -1505,7 +1505,7 @@ begin
         end;
         LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
 
-        if Enabled and GetEnableHoverEffect and (FInternalHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
+        if Enabled and FHoverSettings.Enabled and (FHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
         begin
           LScaleFactor := 1 + (LHoverProgress * (1.05 - 1));
           var ScaledW, ScaledH: Integer;

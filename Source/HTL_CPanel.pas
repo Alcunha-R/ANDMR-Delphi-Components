@@ -1,4 +1,4 @@
-unit ANDMR_CPanel;
+unit HTL_CPanel;
 
 interface
 
@@ -16,7 +16,7 @@ uses
   ANDMR_ComponentUtils;
 
 type
-  TANDMR_CPanel = class(TCustomControl)
+  THTL_CPanel = class(TCustomControl)
   private
     // New Settings Objects
     FBorderSettings: TBorderSettings;
@@ -97,10 +97,10 @@ implementation
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CPanel]);
+  RegisterComponents('HOTLINE', [THTL_CPanel]);
 end;
 
-constructor TANDMR_CPanel.Create(AOwner: TComponent);
+constructor THTL_CPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
 
@@ -150,7 +150,7 @@ begin
   SetOpacity(FOpacity); // Apply initial opacity and set ControlStyle flags
 end;
 
-destructor TANDMR_CPanel.Destroy;
+destructor THTL_CPanel.Destroy;
 begin
   if FWindowRegion <> 0 then
   begin
@@ -171,31 +171,31 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_CPanel.SettingsChanged(Sender: TObject);
+procedure THTL_CPanel.SettingsChanged(Sender: TObject);
 begin
   UpdateRegion;
   Invalidate;
 end;
 
-procedure TANDMR_CPanel.SetBorderSettings(const Value: TBorderSettings);
+procedure THTL_CPanel.SetBorderSettings(const Value: TBorderSettings);
 begin
   FBorderSettings.Assign(Value);
   SettingsChanged(Self);
 end;
 
-procedure TANDMR_CPanel.SetCaptionSettings(const Value: TCaptionSettings);
+procedure THTL_CPanel.SetCaptionSettings(const Value: TCaptionSettings);
 begin
   FCaptionSettings.Assign(Value);
   SettingsChanged(Self);
 end;
 
-procedure TANDMR_CPanel.SetDropShadowSettings(const Value: TDropShadowSettings);
+procedure THTL_CPanel.SetDropShadowSettings(const Value: TDropShadowSettings);
 begin
   FDropShadowSettings.Assign(Value);
   SettingsChanged(Self);
 end;
 
-procedure TANDMR_CPanel.SetOpacity(const Value: Byte);
+procedure THTL_CPanel.SetOpacity(const Value: Byte);
 begin
   if FOpacity <> Value then
   begin
@@ -214,7 +214,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CPanel.SetTransparentChildren(const Value: Boolean);
+procedure THTL_CPanel.SetTransparentChildren(const Value: Boolean);
 begin
   if FTransparentChildren <> Value then
   begin
@@ -223,17 +223,17 @@ begin
   end;
 end;
 
-procedure TANDMR_CPanel.SetHoverSettings(const Value: THoverSettings);
+procedure THTL_CPanel.SetHoverSettings(const Value: THoverSettings);
 begin
   FHoverSettings.Assign(Value);
 end;
 
-procedure TANDMR_CPanel.HoverSettingsChanged(Sender: TObject);
+procedure THTL_CPanel.HoverSettingsChanged(Sender: TObject);
 begin
   Invalidate;
 end;
 
-procedure TANDMR_CPanel.Paint;
+procedure THTL_CPanel.Paint;
 var
   LG: TGPGraphics;
   LClientRect: TRect;
@@ -357,7 +357,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CPanel.Loaded;
+procedure THTL_CPanel.Loaded;
 begin
   inherited Loaded;
   if FOpacity < 255 then
@@ -372,19 +372,19 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CPanel.Resize;
+procedure THTL_CPanel.Resize;
 begin
   inherited Resize;
   UpdateRegion;
 end;
 
-procedure TANDMR_CPanel.CreateWnd;
+procedure THTL_CPanel.CreateWnd;
 begin
   inherited CreateWnd;
   UpdateRegion;
 end;
 
-procedure TANDMR_CPanel.UpdateRegion;
+procedure THTL_CPanel.UpdateRegion;
 var
   LPath: TGPGraphicsPath;
   LGDIRgn: TGPRegion;
@@ -456,7 +456,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CPanel.CMMouseEnter(var Message: TMessage);
+procedure THTL_CPanel.CMMouseEnter(var Message: TMessage);
 begin
   inherited;
   if not FIsHovering then
@@ -466,7 +466,7 @@ begin
   FHoverSettings.StartAnimation(True);
 end;
 
-procedure TANDMR_CPanel.CMMouseLeave(var Message: TMessage);
+procedure THTL_CPanel.CMMouseLeave(var Message: TMessage);
 begin
   inherited;
   if FIsHovering then

@@ -213,18 +213,16 @@ begin
 
   FBorderSettings := TBorderSettings.Create;
   FBorderSettings.OnChange := BorderSettingsChanged;
-  FBorderSettings.CornerRadius := 12;
+  FBorderSettings.CornerRadius := 8;
   FBorderSettings.RoundCornerType := rctAll;
-  FBorderSettings.BackgroundColor := clTeal;
-  FBorderSettings.Color := clBlack;
+  FBorderSettings.BackgroundColor := clBtnFace;
+  FBorderSettings.Color := clSilver;
   FBorderSettings.Thickness := 1;
   FBorderSettings.Style := psSolid;
 
   FCaptionSettings := TCaptionSettings.Create(Self);
   FCaptionSettings.OnChange := SettingsChanged;
   FCaptionSettings.Text := Self.Name;
-  FCaptionSettings.Font.Name := 'Segoe UI';
-  FCaptionSettings.Font.Size := 9;
   FCaptionSettings.Font.Style := [fsBold];
   FCaptionSettings.Font.Color := clWindowText;
   FCaptionSettings.Font.OnChange := FontChanged;
@@ -693,8 +691,8 @@ var
   LGPBrush: TGPBrush;
   LGPPath: TGPGraphicsPath;
   LGPPen: TGPPen;
-  LTextArea, LDestRect, LImageClipRect: TRect;
-  LImgW, LImgH, LDrawW, LDrawH, LImgX, LImgY, AvailableHeight, AvailableWidth: Integer;
+  LTextArea, LDestRect: TRect;
+  LImgW, LImgH, LDrawW, LDrawH, LImgX, LImgY, AvailableWidth, AvailableHeight: Integer;
   LScaleFactor: Single;
   LCurrentTitleFont: TFont;
   LDrawFill, LDrawBorder, LCurrentGradientEnabled: Boolean;
@@ -711,6 +709,7 @@ var
   LProgressText: string;
   LShowProgressText: Boolean;
   DotYOffset: array[0..2] of Integer;
+  LImagePlacementRect, LTextPlacementRect: TRect; // <-- Varáveis ajustadas
 
 const
   SHADOW_ALPHA = 50;
@@ -1031,12 +1030,12 @@ begin
       LShadowPathDrawRect := MakeRect(ButtonRectEffectiveF.X + LPathInset + LShadowOffsetXToUse,
                                       ButtonRectEffectiveF.Y + LPathInset + LShadowOffsetYToUse,
                                       LPathWidth, LPathHeight);
-    LRadiusValue := Min(FBorderSettings.CornerRadius, Min(LShadowPathDrawRect.Width, LShadowPathDrawRect.Height) / 2.0);
+      LRadiusValue := Min(FBorderSettings.CornerRadius, Min(LShadowPathDrawRect.Width, LShadowPathDrawRect.Height) / 2.0);
       LRadiusValue := Max(0, LRadiusValue);
 
       LGPPath := TGPGraphicsPath.Create;
       try
-      CreateGPRoundedPath(LGPPath, LShadowPathDrawRect, LRadiusValue, FBorderSettings.RoundCornerType);
+        CreateGPRoundedPath(LGPPath, LShadowPathDrawRect, LRadiusValue, FBorderSettings.RoundCornerType);
         if LGPPath.GetPointCount > 0 then
         begin
           LGPBrush := TGPSolidBrush.Create(ColorToARGB(clBlack, LShadowAlphaToUse));
@@ -1128,14 +1127,21 @@ begin
       LGPPath.Free;
     end;
 
-    LImageClipRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
-                              Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
-                              Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
+    LTextPlacementRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
+                               Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
+                               Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
+    if LDrawBorder and (LActualBorderThickness > 0) then
+      InflateRect(LTextPlacementRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
 
-    if FImageSettings.Placement = iplInsideBounds then
+    if FImageSettings.Placement = iplOutsideBounds then
     begin
-      if LDrawBorder and (LActualBorderThickness > 0) then
-          InflateRect(LImageClipRect, -Round(LActualBorderThickness), -Round(LActualBorderThickness));
+      LImagePlacementRect := Rect(Round(ButtonRectEffectiveF.X), Round(ButtonRectEffectiveF.Y),
+                                  Round(ButtonRectEffectiveF.X + ButtonRectEffectiveF.Width),
+                                  Round(ButtonRectEffectiveF.Y + ButtonRectEffectiveF.Height));
+    end
+    else
+    begin
+      LImagePlacementRect := LTextPlacementRect;
     end;
 
     if FProcessing and FProgressSettings.ShowProgress then
@@ -1368,8 +1374,8 @@ begin
         LImgW := FImageSettings.Picture.Width;
         LImgH := FImageSettings.Picture.Height;
 
-        AvailableWidth  := Max(0, LImageClipRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
-        AvailableHeight := Max(0, LImageClipRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+        AvailableWidth  := Max(0, LImagePlacementRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
+        AvailableHeight := Max(0, LImagePlacementRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
 
         if FImageSettings.AutoSize then
         begin
@@ -1456,8 +1462,8 @@ begin
         if LDrawW > AvailableWidth then LDrawW := AvailableWidth;
         if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
 
-        imageCanvasX := LImageClipRect.Left + FImageSettings.Margins.Left;
-        imageCanvasY := LImageClipRect.Top + FImageSettings.Margins.Top;
+        imageCanvasX := LImagePlacementRect.Left + FImageSettings.Margins.Left;
+        imageCanvasY := LImagePlacementRect.Top + FImageSettings.Margins.Top;
 
         case FImageSettings.HorizontalAlign of
           ihaLeft:   LImgX := imageCanvasX;
@@ -1473,37 +1479,19 @@ begin
         else LImgY := imageCanvasY;
         end;
 
-        case FImageSettings.ImagePosition of
-          ipLeft:
-            LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left,
-                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
-                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
-                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
-          ipRight:
-            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
-                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
-                              LImgX - FImageSettings.Margins.Left - FCaptionSettings.Margins.Right,
-                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
-          ipTop:
-            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
-                              LImgY + LDrawH + FImageSettings.Margins.Bottom + FCaptionSettings.Margins.Top,
-                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
-                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
-          ipBottom:
-            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left,
-                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
-                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
-                              LImgY - FImageSettings.Margins.Top - FCaptionSettings.Margins.Bottom);
-          ipCenter:
-            LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left, LImageClipRect.Top + FCaptionSettings.Margins.Top,
-                              LImageClipRect.Right - FCaptionSettings.Margins.Right, LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
-        else
-           LTextArea := Rect(LImgX + LDrawW + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left,
-                              LImageClipRect.Top + FCaptionSettings.Margins.Top,
-                              LImageClipRect.Right - FCaptionSettings.Margins.Right,
-                              LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
-        end;
         LDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
+
+        // A área de texto começa como a área total dentro da borda e é reduzida pelo espaço da imagem.
+        LTextArea := LTextPlacementRect;
+        case FImageSettings.ImagePosition of
+          ipLeft:   LTextArea.Left := Max(LTextArea.Left, LDestRect.Right + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left);
+          ipRight:  LTextArea.Right := Min(LTextArea.Right, LDestRect.Left - FImageSettings.Margins.Left - FCaptionSettings.Margins.Right);
+          ipTop:    LTextArea.Top := Max(LTextArea.Top, LDestRect.Bottom + FImageSettings.Margins.Bottom + FCaptionSettings.Margins.Top);
+          ipBottom: LTextArea.Bottom := Min(LTextArea.Bottom, LDestRect.Top - FImageSettings.Margins.Top - FCaptionSettings.Margins.Bottom);
+        end;
+        if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
+        if LTextArea.Bottom < LTextArea.Top then LTextArea.Bottom := LTextArea.Top;
+
 
         if Enabled and FHoverSettings.Enabled and (FHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
         begin
@@ -1527,8 +1515,12 @@ begin
       end
       else
       begin
-        LTextArea := Rect(LImageClipRect.Left + FCaptionSettings.Margins.Left, LImageClipRect.Top + FCaptionSettings.Margins.Top,
-                          LImageClipRect.Right - FCaptionSettings.Margins.Right, LImageClipRect.Bottom - FCaptionSettings.Margins.Bottom);
+        // Se não houver imagem, a área de texto preenche a área de texto disponível.
+        LTextArea := LTextPlacementRect;
+        LTextArea.Left   := LTextArea.Left   + FCaptionSettings.Margins.Left;
+        LTextArea.Top    := LTextArea.Top    + FCaptionSettings.Margins.Top;
+        LTextArea.Right  := LTextArea.Right  - FCaptionSettings.Margins.Right;
+        LTextArea.Bottom := LTextArea.Bottom - FCaptionSettings.Margins.Bottom;
       end;
 
       if Trim(Self.CaptionSettings.Text) <> '' then
@@ -1568,13 +1560,6 @@ begin
           begin
             LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, clGray, 0.6);
           end;
-
-          if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
-          if LTextArea.Bottom < LTextArea.Top then LTextArea.Bottom := LTextArea.Top;
-          LTextArea.Left   := Max(LImageClipRect.Left, LTextArea.Left);
-          LTextArea.Top    := Max(LImageClipRect.Top, LTextArea.Top);
-          LTextArea.Right  := Min(LImageClipRect.Right, LTextArea.Right);
-          LTextArea.Bottom := Min(LImageClipRect.Bottom, LTextArea.Bottom);
 
           if (LTextArea.Width > 0) and (LTextArea.Height > 0) then
           begin

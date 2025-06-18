@@ -1,4 +1,4 @@
-unit ANDMR_CEdit;
+unit HTL_CEdit;
 
 interface
 
@@ -7,10 +7,10 @@ uses
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX,
   Vcl.ExtCtrls, Vcl.Imaging.pngimage,
-  ANDMR_ComponentUtils;
+  HTL_ComponentUtils;
 
 type
-  TANDMR_CEdit = class(TCustomControl)
+  THTL_CEdit = class(TCustomControl)
   private
     // New Settings Objects
     FBorderSettings: TBorderSettings;
@@ -36,7 +36,7 @@ type
     FCaptionRect: TRect;
     FHoverSettings: THoverSettings;
     FHovered: Boolean;
-    FTextMargins: TANDMR_Margins;
+    FTextMargins: THTL_Margins;
     FPredefinedMask: TPredefinedMaskType;
     FOnExit: TNotifyEvent;
     FOnChange: TNotifyEvent;
@@ -65,7 +65,7 @@ type
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure HoverSettingsChanged(Sender: TObject);
     procedure TextMarginsChanged(Sender: TObject);
-    procedure SetTextMargins(const Value: TANDMR_Margins);
+    procedure SetTextMargins(const Value: THTL_Margins);
     procedure SetPredefinedMask(const Value: TPredefinedMaskType);
     procedure SetStatus(const Value: TCEditStatus); // New setter declaration
 
@@ -130,7 +130,7 @@ type
     property InputMask: string read FInputMask write SetInputMask;
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
-    property TextMargins: TANDMR_Margins read FTextMargins write SetTextMargins;
+    property TextMargins: THTL_Margins read FTextMargins write SetTextMargins;
     property PredefinedMask: TPredefinedMaskType read FPredefinedMask write SetPredefinedMask default pmtNone;
     property Status: TCEditStatus read FStatus write SetStatus; // New published property
   end;
@@ -144,12 +144,12 @@ uses
 
 procedure Register;
 begin
-  RegisterComponents('ANDMR', [TANDMR_CEdit]);
+  RegisterComponents('HOTLINE', [THTL_CEdit]);
 end;
 
-{ TANDMR_CEdit }
+{ THTL_CEdit }
 
-constructor TANDMR_CEdit.Create(AOwner: TComponent);
+constructor THTL_CEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable];
@@ -221,13 +221,13 @@ begin
   FHoverSettings := THoverSettings.Create(Self);
   FHoverSettings.OnChange := HoverSettingsChanged;
   FHovered := False;
-  FTextMargins := TANDMR_Margins.Create;
+  FTextMargins := THTL_Margins.Create;
   FTextMargins.OnChange := TextMarginsChanged;
   FPredefinedMask := pmtNone;
   FStatus := cepsNormal; // Initialize new field
 end;
 
-destructor TANDMR_CEdit.Destroy;
+destructor THTL_CEdit.Destroy;
 begin
   FBorderSettings.OnChange := nil;
   FBorderSettings.Free;
@@ -247,7 +247,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TANDMR_CEdit.SetText(const Value: string);
+procedure THTL_CEdit.SetText(const Value: string);
 var
   OldFDisplayText: string;
   ProcessedRawText: string;
@@ -341,7 +341,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CEdit.SetMaxLength(const Value: Integer);
+procedure THTL_CEdit.SetMaxLength(const Value: Integer);
 var OldText: string; TextChanged: Boolean;
 begin
   if FMaxLength <> Value then
@@ -369,7 +369,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CEdit.SetPasswordChar(const Value: Char);
+procedure THTL_CEdit.SetPasswordChar(const Value: Char);
 begin
   if FPasswordChar <> Value then
   begin
@@ -378,58 +378,58 @@ begin
   end;
 end;
 
-procedure TANDMR_CEdit.SetReadOnly(const Value: Boolean); begin if FReadOnly <> Value then begin FReadOnly := Value; Invalidate; end; end;
+procedure THTL_CEdit.SetReadOnly(const Value: Boolean); begin if FReadOnly <> Value then begin FReadOnly := Value; Invalidate; end; end;
 
-procedure TANDMR_CEdit.SetBorderSettings(const Value: TBorderSettings);
+procedure THTL_CEdit.SetBorderSettings(const Value: TBorderSettings);
 begin
   FBorderSettings.Assign(Value);
   Invalidate;
 end;
 
-procedure TANDMR_CEdit.SettingsChanged(Sender: TObject);
+procedure THTL_CEdit.SettingsChanged(Sender: TObject);
 begin
   Invalidate;
 end;
 
-procedure TANDMR_CEdit.ImageSettingsChanged(Sender: TObject);
+procedure THTL_CEdit.ImageSettingsChanged(Sender: TObject);
 begin
   Invalidate;
 end;
 
-procedure TANDMR_CEdit.SetImageSettings(const Value: TImageSettings);
+procedure THTL_CEdit.SetImageSettings(const Value: TImageSettings);
 begin
   FImageSettings.Assign(Value);
   Invalidate; // Or call ImageSettingsChanged if more logic is needed
 end;
 
-procedure TANDMR_CEdit.SetSeparatorSettings(const Value: TSeparatorSettings);
+procedure THTL_CEdit.SetSeparatorSettings(const Value: TSeparatorSettings);
 begin
   FSeparatorSettings.Assign(Value);
   Invalidate;
 end;
 
-procedure TANDMR_CEdit.CaretTimerTick(Sender: TObject); begin if Focused then begin FCaretVisible := not FCaretVisible; Invalidate; end else begin FCaretVisible := False; FCaretTimer.Enabled := False; Invalidate; end; end;
+procedure THTL_CEdit.CaretTimerTick(Sender: TObject); begin if Focused then begin FCaretVisible := not FCaretVisible; Invalidate; end else begin FCaretVisible := False; FCaretTimer.Enabled := False; Invalidate; end; end;
 
-procedure TANDMR_CEdit.SetFocusSettings(const Value: TFocusSettings);
+procedure THTL_CEdit.SetFocusSettings(const Value: TFocusSettings);
 begin
   FFocusSettings.Assign(Value);
   Invalidate;
 end;
 
-procedure TANDMR_CEdit.SetOpacity(const Value: Byte); begin if FOpacity <> Value then begin FOpacity := Value; if FOpacity < 255 then begin ControlStyle := ControlStyle - [csOpaque]; if Parent <> nil then Parent.Invalidate; end else begin ControlStyle := ControlStyle + [csOpaque]; end; Invalidate; end; end;
-procedure TANDMR_CEdit.SetCurrentCursor(const Value: TCursor); begin if FCurrentCursor <> Value then begin FCurrentCursor := Value; Self.Cursor := FCurrentCursor; end; end;
-procedure TANDMR_CEdit.SetInputType(const Value: TInputType); begin if FInputType <> Value then begin FInputType := Value; end; end;
-procedure TANDMR_CEdit.SetTextCase(const Value: TTextCase); var OldText: string; TransformedText: string; begin if FTextCase <> Value then begin OldText := FText; FTextCase := Value; TransformedText := FText; case FTextCase of tcUppercase: TransformedText := System.SysUtils.UpperCase(FText); tcLowercase: TransformedText := System.SysUtils.LowerCase(FText); end; if FText <> TransformedText then begin FText := TransformedText; FCaretPosition := Length(FText); if Assigned(FOnChange) then FOnChange(Self); Invalidate; end else if (OldText = TransformedText) and (Value <> tcNormal) then begin Invalidate; end; end; end;
-procedure TANDMR_CEdit.SetInputMask(const Value: string); var OldRawText: string; begin if FInputMask <> Value then begin OldRawText := FRawText; FInputMask := Value; if FInputMask = '' then FPredefinedMask := pmtNone else FPredefinedMask := pmtCustom; SetText(OldRawText); Invalidate; end; end;
-procedure TANDMR_CEdit.SetCaptionSettings(const Value: TCaptionSettings); begin FCaptionSettings.Assign(Value); CaptionSettingsChanged(Self); end;
-procedure TANDMR_CEdit.CaptionSettingsChanged(Sender: TObject); begin Invalidate; end;
-procedure TANDMR_CEdit.SetHoverSettings(const Value: THoverSettings); begin FHoverSettings.Assign(Value); HoverSettingsChanged(Self); end;
-procedure TANDMR_CEdit.HoverSettingsChanged(Sender: TObject); begin if FHovered or (not FHoverSettings.Enabled) then Invalidate; end;
-procedure TANDMR_CEdit.TextMarginsChanged(Sender: TObject); begin Invalidate; end;
-procedure TANDMR_CEdit.SetTextMargins(const Value: TANDMR_Margins); begin FTextMargins.Assign(Value); end;
-procedure TANDMR_CEdit.SetPredefinedMask(const Value: TPredefinedMaskType); var NewMaskValue: string; OldRawText: string; begin if FPredefinedMask <> Value then begin OldRawText := FRawText; FPredefinedMask := Value; case FPredefinedMask of pmtCPF: NewMaskValue := '000.000.000-00'; pmtCNPJ: NewMaskValue := '00.000.000/0000-00'; pmtCEP: NewMaskValue := '00000-000'; pmtPhoneBR: NewMaskValue := '(00) 90000-0000'; pmtDateDMY: NewMaskValue := '00/00/0000'; pmtCustom: Exit; pmtNone: NewMaskValue := ''; else NewMaskValue := ''; end; if FInputMask <> NewMaskValue then begin FInputMask := NewMaskValue; SetText(OldRawText); end; Invalidate; end; end;
+procedure THTL_CEdit.SetOpacity(const Value: Byte); begin if FOpacity <> Value then begin FOpacity := Value; if FOpacity < 255 then begin ControlStyle := ControlStyle - [csOpaque]; if Parent <> nil then Parent.Invalidate; end else begin ControlStyle := ControlStyle + [csOpaque]; end; Invalidate; end; end;
+procedure THTL_CEdit.SetCurrentCursor(const Value: TCursor); begin if FCurrentCursor <> Value then begin FCurrentCursor := Value; Self.Cursor := FCurrentCursor; end; end;
+procedure THTL_CEdit.SetInputType(const Value: TInputType); begin if FInputType <> Value then begin FInputType := Value; end; end;
+procedure THTL_CEdit.SetTextCase(const Value: TTextCase); var OldText: string; TransformedText: string; begin if FTextCase <> Value then begin OldText := FText; FTextCase := Value; TransformedText := FText; case FTextCase of tcUppercase: TransformedText := System.SysUtils.UpperCase(FText); tcLowercase: TransformedText := System.SysUtils.LowerCase(FText); end; if FText <> TransformedText then begin FText := TransformedText; FCaretPosition := Length(FText); if Assigned(FOnChange) then FOnChange(Self); Invalidate; end else if (OldText = TransformedText) and (Value <> tcNormal) then begin Invalidate; end; end; end;
+procedure THTL_CEdit.SetInputMask(const Value: string); var OldRawText: string; begin if FInputMask <> Value then begin OldRawText := FRawText; FInputMask := Value; if FInputMask = '' then FPredefinedMask := pmtNone else FPredefinedMask := pmtCustom; SetText(OldRawText); Invalidate; end; end;
+procedure THTL_CEdit.SetCaptionSettings(const Value: TCaptionSettings); begin FCaptionSettings.Assign(Value); CaptionSettingsChanged(Self); end;
+procedure THTL_CEdit.CaptionSettingsChanged(Sender: TObject); begin Invalidate; end;
+procedure THTL_CEdit.SetHoverSettings(const Value: THoverSettings); begin FHoverSettings.Assign(Value); HoverSettingsChanged(Self); end;
+procedure THTL_CEdit.HoverSettingsChanged(Sender: TObject); begin if FHovered or (not FHoverSettings.Enabled) then Invalidate; end;
+procedure THTL_CEdit.TextMarginsChanged(Sender: TObject); begin Invalidate; end;
+procedure THTL_CEdit.SetTextMargins(const Value: THTL_Margins); begin FTextMargins.Assign(Value); end;
+procedure THTL_CEdit.SetPredefinedMask(const Value: TPredefinedMaskType); var NewMaskValue: string; OldRawText: string; begin if FPredefinedMask <> Value then begin OldRawText := FRawText; FPredefinedMask := Value; case FPredefinedMask of pmtCPF: NewMaskValue := '000.000.000-00'; pmtCNPJ: NewMaskValue := '00.000.000/0000-00'; pmtCEP: NewMaskValue := '00000-000'; pmtPhoneBR: NewMaskValue := '(00) 90000-0000'; pmtDateDMY: NewMaskValue := '00/00/0000'; pmtCustom: Exit; pmtNone: NewMaskValue := ''; else NewMaskValue := ''; end; if FInputMask <> NewMaskValue then begin FInputMask := NewMaskValue; SetText(OldRawText); end; Invalidate; end; end;
 
-procedure TANDMR_CEdit.SetStatus(const Value: TCEditStatus);
+procedure THTL_CEdit.SetStatus(const Value: TCEditStatus);
 begin
   if FStatus <> Value then
   begin
@@ -478,10 +478,10 @@ begin
   end;
 end;
 
-procedure TANDMR_CEdit.CMMouseEnter(var Message: TMessage); begin inherited; if not FHovered then begin FHovered := True; end; FHoverSettings.StartAnimation(True); end;
-procedure TANDMR_CEdit.CMMouseLeave(var Message: TMessage); begin inherited; if FHovered then begin FHovered := False; end; FHoverSettings.StartAnimation(False); end;
+procedure THTL_CEdit.CMMouseEnter(var Message: TMessage); begin inherited; if not FHovered then begin FHovered := True; end; FHoverSettings.StartAnimation(True); end;
+procedure THTL_CEdit.CMMouseLeave(var Message: TMessage); begin inherited; if FHovered then begin FHovered := False; end; FHoverSettings.StartAnimation(False); end;
 
-procedure TANDMR_CEdit.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
+procedure THTL_CEdit.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
 const
   CaptionLayoutOffset = 2; // Default offset if FCaptionSettings.Offset is not available
 var
@@ -606,12 +606,6 @@ begin
               ImgW := availWForImg;
               ImgH := availHForImg;
             end;
-            idmNormal:
-            begin
-              ImgW := OriginalImgW;
-              ImgH := OriginalImgH;
-              // Image will be clipped by outImgRect calculation if larger than ImagePlacementArea margins
-            end;
           else // Default for AutoSize True if unknown draw mode
             ImgW := OriginalImgW; ImgH := OriginalImgH;
           end;
@@ -646,12 +640,6 @@ begin
               ImgW := targetW;
               ImgH := targetH;
             end;
-            idmNormal:
-            begin
-              ImgW := OriginalImgW;
-              ImgH := OriginalImgH;
-              // Optional: ImgW := Min(ImgW, targetW); ImgH := Min(ImgH, targetH);
-            end;
           else // Default for AutoSize False if unknown draw mode
             ImgW := 0; ImgH := 0;
           end;
@@ -677,7 +665,7 @@ begin
 
   if FImageSettings.Visible and (ImgW > 0) and (ImgH > 0) then
   begin
-    if FImageSettings.Position = ipsLeft then
+//    if FImageSettings.Position = ipLeft then
     begin
       slotStartX := ImagePlacementArea.Left + FImageSettings.Margins.Left;
       slotAvailableWidth := availWForImg; // Calculated based on ImagePlacementArea and ImageSettings.Margins
@@ -688,8 +676,8 @@ begin
       else         outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2; // Default center
       end;
       outImgRect.Right := outImgRect.Left + ImgW;
-    end
-    else // ipsRight
+    end;
+//    else // ipsRight
     begin
       slotEndX := ImagePlacementArea.Right - FImageSettings.Margins.Right;
       slotAvailableWidth := availWForImg;
@@ -705,11 +693,11 @@ begin
     AvailHForImgLayoutAdjusted := ImagePlacementArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
     AvailHForImgLayoutAdjusted := Max(0, AvailHForImgLayoutAdjusted);
 
-    case FImageSettings.AlignmentVertical of
-      iavTop:    outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top;
-      iavCenter: outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top + (AvailHForImgLayoutAdjusted - ImgH) div 2;
-      iavBottom: outImgRect.Top := ImagePlacementArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
-    end;
+//    case FImageSettings.Position of
+//      ipAbove:    outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top;
+//      ipBehind: outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top + (AvailHForImgLayoutAdjusted - ImgH) div 2;
+//      ipBelow: outImgRect.Top := ImagePlacementArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
+//    end;
     outImgRect.Bottom := outImgRect.Top + ImgH;
 
     // Clip outImgRect against ImagePlacementArea
@@ -736,13 +724,13 @@ begin
   begin
     if FImageSettings.Visible and (ImgW > 0) then
     begin
-      if FImageSettings.Position = ipsLeft then outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding
-      else outSepRect.Left := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding - SepW;
+//      if FImageSettings.Position = ipLeft then outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding
+//      else outSepRect.Left := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding - SepW;
     end
     else
     begin
-      if FImageSettings.Position = ipsLeft then outSepRect.Left := WorkArea.Left + FSeparatorSettings.Padding
-      else outSepRect.Left := WorkArea.Right - FSeparatorSettings.Padding - SepW;
+//      if FImageSettings.Position = ipLeft then outSepRect.Left := WorkArea.Left + FSeparatorSettings.Padding
+//      else outSepRect.Left := WorkArea.Right - FSeparatorSettings.Padding - SepW;
     end;
     outSepRect.Right := outSepRect.Left + SepW;
 
@@ -769,27 +757,27 @@ begin
 
   if FImageSettings.Visible and (ImgW > 0) then
   begin
-    if FImageSettings.Position = ipsLeft then
-    begin
-      outTxtRect.Left := outImgRect.Right + FImageSettings.Margins.Right;
-      if SepW > 0 then outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
-    end
-    else
-    begin
-      outTxtRect.Right := outImgRect.Left - FImageSettings.Margins.Left;
-      if SepW > 0 then outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
-    end;
+//    if FImageSettings.Position = ipLeft then
+//    begin
+//      outTxtRect.Left := outImgRect.Right + FImageSettings.Margins.Right;
+//      if SepW > 0 then outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
+//    end
+//    else
+//    begin
+//      outTxtRect.Right := outImgRect.Left - FImageSettings.Margins.Left;
+//      if SepW > 0 then outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
+//    end;
   end
   else if SepW > 0 then
   begin
-    if FImageSettings.Position = ipsLeft then outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding
-    else outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
+//    if FImageSettings.Position = ipLeft then outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding
+//    else outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
   end;
 
   if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left; if outTxtRect.Left < WorkArea.Left then outTxtRect.Left := WorkArea.Left; if outTxtRect.Right > WorkArea.Right then outTxtRect.Right := WorkArea.Right; if outTxtRect.Top < WorkArea.Top then outTxtRect.Top := WorkArea.Top; if outTxtRect.Bottom > WorkArea.Bottom then outTxtRect.Bottom := WorkArea.Bottom; if outTxtRect.Bottom < outTxtRect.Top then outTxtRect.Bottom := outTxtRect.Top;
 end;
 
-procedure TANDMR_CEdit.Paint;
+procedure THTL_CEdit.Paint;
 var
   LG: TGPGraphics;
   TextToDisplay: string;
@@ -926,10 +914,10 @@ begin
 
       if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
       begin
-        if (FImageSettings.Picture.Graphic is TPNGImage) then
-          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, imgR, idmStretch)
-        else
-          DrawNonPNGImageWithCanvas(Canvas, FImageSettings.Picture.Graphic, imgR, idmStretch);
+//        if (FImageSettings.Picture.Graphic is TPNGImage) then
+//          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, imgR, idmStretch)
+//        else
+//          DrawNonPNGImageWithCanvas(Canvas, FImageSettings.Picture.Graphic, imgR, idmStretch);
       end;
 
       if FSeparatorSettings.Visible and (FSeparatorSettings.Thickness > 0) and (sepR.Width > 0) and (sepR.Height > 0) then
@@ -1023,7 +1011,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CEdit.CMEnter(var Message: TCMEnter);
+procedure THTL_CEdit.CMEnter(var Message: TCMEnter);
 begin
   inherited;
   FCaretVisible := True;
@@ -1034,7 +1022,7 @@ begin
   Invalidate;
 end;
 
-procedure TANDMR_CEdit.CMExit(var Message: TCMExit);
+procedure THTL_CEdit.CMExit(var Message: TCMExit);
 var
   TempText: string;
   OriginalFText: string;
@@ -1071,7 +1059,7 @@ begin
     Invalidate; // Invalidate even if text didn't change, to remove focus visuals
 end;
 
-procedure TANDMR_CEdit.KeyDown(var Key: Word; Shift: TShiftState);
+procedure THTL_CEdit.KeyDown(var Key: Word; Shift: TShiftState);
 var
   OldText: string;
   Changed: Boolean;
@@ -1208,7 +1196,7 @@ begin
   end;
 end;
 
-procedure TANDMR_CEdit.KeyPress(var Key: Char);
+procedure THTL_CEdit.KeyPress(var Key: Char);
 var
   OldText: string;
   AllowChar: Boolean;
@@ -1407,13 +1395,13 @@ begin
   Key := #0; // Mark key as handled or rejected
 end;
 
-procedure TANDMR_CEdit.Click;
+procedure THTL_CEdit.Click;
 begin
   inherited Click;
   // Additional click logic if needed, though MouseDown usually handles focus/caret
 end;
 
-procedure TANDMR_CEdit.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure THTL_CEdit.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   I: Integer;
   ClickX_RelativeToPaddedText: Integer;

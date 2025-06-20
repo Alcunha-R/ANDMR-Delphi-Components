@@ -73,54 +73,16 @@ procedure Register;
 
 implementation
 
-// --- Funções Auxiliares de Cor ---
-
-function InterpolateColor(ColorA, ColorB: TColor; Factor: Single): TColor;
-var
-  R1, G1, B1, R2, G2, B2, R, G, B: Byte;
-begin
-  R1 := GetRValue(ColorToRGB(ColorA));
-  G1 := GetGValue(ColorToRGB(ColorA));
-  B1 := GetBValue(ColorToRGB(ColorA));
-  R2 := GetRValue(ColorToRGB(ColorB));
-  G2 := GetGValue(ColorToRGB(ColorB));
-  B2 := GetBValue(ColorToRGB(ColorB));
-  R := Round(R1 + (R2 - R1) * Factor);
-  G := Round(G1 + (G2 - G1) * Factor);
-  B := Round(B1 + (B2 - B1) * Factor);
-  Result := RGB(R, G, B);
-end;
-
-function DarkenColor(AColor: TColor; AAmount: Integer): TColor;
-var
-  R, G, B: Byte;
-begin
-  R := GetRValue(ColorToRGB(AColor));
-  G := GetGValue(ColorToRGB(AColor));
-  B := GetBValue(ColorToRGB(AColor));
-  if R > AAmount then R := R - AAmount else R := 0;
-  if G > AAmount then G := G - AAmount else G := 0;
-  if B > AAmount then B := B - AAmount else B := 0;
-  Result := RGB(R, G, B);
-end;
-
-function LightenColor(AColor: TColor; AAmount: Integer): TColor;
-var
-  R, G, B: Byte;
-begin
-  R := GetRValue(ColorToRGB(AColor));
-  G := GetGValue(ColorToRGB(AColor));
-  B := GetBValue(ColorToRGB(AColor));
-  if R < (255 - AAmount) then R := R + AAmount else R := 255;
-  if G < (255 - AAmount) then G := G + AAmount else G := 255;
-  if B < (255 - AAmount) then B := B + AAmount else B := 255;
-  Result := RGB(R, G, B);
-end;
-
+uses
+  System.Math,
+  Winapi.GDIPOBJ,
+  Winapi.GDIPAPI,
+  Winapi.GDIPUTIL,
+  HTL_ComponentUtils;
 
 procedure Register;
 begin
-  RegisterComponents('HTL', [THTL_CToggleSwitch]);
+  RegisterComponents('HOTLINE', [THTL_CToggleSwitch]);
 end;
 
 { THTL_CToggleSwitch }
@@ -283,59 +245,109 @@ begin
   Invalidate; // Redesenha o controle a cada passo da animação
 end;
 
-
 procedure THTL_CToggleSwitch.Paint;
+const
+  BorderWidth = 1.0;
 var
-  LBackgroundColor: TColor;
-  LTrackRect: TRect;
-  LThumbRect: TRect;
-  LRadius: Integer;
-  LPadding: Integer;
-  LThumbSize: Integer;
-  LThumbX: Integer;
+  LG: TGPGraphics;
+  LBackgroundColor, CurrentBorderColor, CurrentThumbColor, CurrentThumbBorderColor: TColor;
+  LTrackRectF, LThumbRectF: TGPRectF;
+  LRadius, LThumbX: Single;
+  LPadding, LThumbSize: Integer;
+  LPath: TGPGraphicsPath;
+  LBrush: TGPBrush;
+  LPen: TGPPen;
 begin
   inherited;
 
-  // --- Calcula dimensões ---
-  LRadius := Height div 2;
-  LPadding := 2;
-  LThumbSize := Height - (LPadding * 2);
-  LTrackRect := Rect(0, 0, Width, Height);
+  LG := TGPGraphics.Create(Canvas.Handle);
+  try
+    // Ativa o Anti-aliasing para um desenho suave
+    LG.SetSmoothingMode(SmoothingModeAntiAlias);
+    // CORREÇÃO: Ajusta o alinhamento de pixel para evitar cortes
+    LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-  // --- Define cores com base no estado e animação ---
-  LBackgroundColor := InterpolateColor(FOffColor, FOnColor, FAnimationPosition);
+    // --- Calcula dimensões ---
+    LPadding := 2;
+    LThumbSize := Height - (LPadding * 2);
 
-  // Cor quando desabilitado
-  if not Enabled then
-  begin
-    LBackgroundColor := clBtnFace;
+    // Inseta o retângulo de desenho pela metade da espessura da borda
+    LTrackRectF.X := BorderWidth / 2.0;
+    LTrackRectF.Y := BorderWidth / 2.0;
+    LTrackRectF.Width := Max(0, Self.Width - BorderWidth);
+    LTrackRectF.Height := Max(0, Self.Height - BorderWidth);
+
+    // CORREÇÃO: O raio deve ser baseado na altura do retângulo de desenho
+    LRadius := LTrackRectF.Height / 2.0;
+
+
+    // --- Define cores com base no estado e animação ---
+    LBackgroundColor := BlendColors(FOffColor, FOnColor, FAnimationPosition);
+    CurrentBorderColor := FBorderColor;
+    CurrentThumbColor := FThumbColor;
+    CurrentThumbBorderColor := DarkerColor(FBorderColor, 20);
+
+    if not Enabled then
+    begin
+      LBackgroundColor := clBtnFace;
+      CurrentBorderColor := clGray;
+      CurrentThumbColor := LighterColor(clBtnFace, 20);
+      CurrentThumbBorderColor := DarkerColor(clBtnFace, 20);
+    end;
+
+    // --- Desenha a trilha (track) com GDI+ ---
+    LPath := TGPGraphicsPath.Create;
+    try
+      // Cria um caminho de retângulo arredondado para a trilha
+      CreateGPRoundedPath(LPath, LTrackRectF, LRadius, rctAll);
+
+      // Preenche a trilha
+      LBrush := TGPSolidBrush.Create(ColorToARGB(LBackgroundColor));
+      try
+        LG.FillPath(LBrush, LPath);
+      finally
+        LBrush.Free;
+      end;
+
+      // Desenha a borda da trilha
+      LPen := TGPPen.Create(ColorToARGB(CurrentBorderColor), BorderWidth);
+      try
+        LG.DrawPath(LPen, LPath);
+      finally
+        LPen.Free;
+      end;
+    finally
+      LPath.Free;
+    end;
+
+    // --- Calcula a posição do botão (thumb) ---
+    LThumbX := LPadding + ((Width - (LPadding * 2) - LThumbSize) * FAnimationPosition);
+
+    LThumbRectF.X := LThumbX;
+    LThumbRectF.Y := LPadding;
+    LThumbRectF.Width := LThumbSize;
+    LThumbRectF.Height := LThumbSize;
+
+    // --- Desenha o botão (thumb) com GDI+ ---
+    // Preenchimento do botão
+    LBrush := TGPSolidBrush.Create(ColorToARGB(CurrentThumbColor));
+    try
+      LG.FillEllipse(LBrush, LThumbRectF);
+    finally
+      LBrush.Free;
+    end;
+
+    // Borda do botão
+    LPen := TGPPen.Create(ColorToARGB(CurrentThumbBorderColor), BorderWidth);
+    try
+      LG.DrawEllipse(LPen, LThumbRectF);
+    finally
+      LPen.Free;
+    end;
+
+  finally
+    LG.Free;
   end;
-
-  // --- Desenha a trilha (track) ---
-  Canvas.Pen.Color := FBorderColor;
-  Canvas.Pen.Width := 1;
-  Canvas.Brush.Color := LBackgroundColor;
-
-  if not Enabled then
-     Canvas.Pen.Color := clGray;
-
-  Canvas.RoundRect(LTrackRect.Left, LTrackRect.Top, LTrackRect.Right, LTrackRect.Bottom, LRadius, LRadius);
-
-  // --- Calcula a posição do botão (thumb) ---
-  LThumbX := LPadding + Round((Width - (LPadding * 2) - LThumbSize) * FAnimationPosition);
-  LThumbRect := Rect(LThumbX, LPadding, LThumbX + LThumbSize, LPadding + LThumbSize);
-
-  // --- Desenha o botão (thumb) ---
-  Canvas.Pen.Color := DarkenColor(FBorderColor, 20); // Borda sutil para o botão
-  Canvas.Brush.Color := FThumbColor;
-
-  if not Enabled then
-  begin
-    Canvas.Pen.Color := DarkenColor(clBtnFace, 20);
-    Canvas.Brush.Color := LightenColor(clBtnFace, 20);
-  end;
-
-  Canvas.Ellipse(LThumbRect);
 end;
 
 end.

@@ -1355,107 +1355,151 @@ begin
     end
     else
     begin
-      LTextArea := LTextPlacementRect;
-      if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and FImageSettings.Visible then
+      // --- LÓGICA DE LAYOUT CORRIGIDA ---
+      var imageSlotRect, textSlotRect: TRect;
+      var imageAndMarginsW, imageAndMarginsH: Integer;
+
+      // Inicializa os retângulos de slot com a área de conteúdo disponível
+      if FImageSettings.Placement = iplInsideBounds then
       begin
-        if FImageSettings.Placement = iplOutsideBounds then
-          LImagePlacementRect := ImageDrawingArea
-        else
-          LImagePlacementRect := LTextPlacementRect;
-
-        AvailableWidth  := Max(0, LImagePlacementRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
-        AvailableHeight := Max(0, LImagePlacementRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
-        LImgW := FImageSettings.Picture.Width;
-        LImgH := FImageSettings.Picture.Height;
-
-        if FImageSettings.AutoSize then
-        begin
-           case FImageSettings.DrawMode of
-            idmStretch: begin LDrawW := AvailableWidth; LDrawH := AvailableHeight; end;
-            idmProportional:
-            begin
-              if (LImgW > 0) and (LImgH > 0) and (AvailableWidth > 0) and (AvailableHeight > 0) then
-              begin
-                var imgAspectRatio := LImgW / LImgH; var availAspectRatio := AvailableWidth / AvailableHeight;
-                if availAspectRatio > imgAspectRatio then begin LDrawH := AvailableHeight; LDrawW := Round(LDrawH * imgAspectRatio); end
-                else begin LDrawW := AvailableWidth; LDrawH := Round(LDrawW / imgAspectRatio); end;
-              end else begin LDrawW := 0; LDrawH := 0; end;
-            end;
-            idmNormal: begin LDrawW := LImgW; LDrawH := LImgH; end;
-            else LDrawW := LImgW; LDrawH := LImgH;
-          end;
-        end
-        else
-        begin
-           var targetW, targetH: Integer; targetW := FImageSettings.TargetWidth; targetH := FImageSettings.TargetHeight;
-           case FImageSettings.DrawMode of
-            idmStretch: begin LDrawW := targetW; LDrawH := targetH; end;
-            idmProportional:
-            begin
-              if (LImgW > 0) and (LImgH > 0) and (targetW > 0) and (targetH > 0) then
-              begin
-                var imgAspectRatio := LImgW / LImgH; var targetAspectRatio := targetW / targetH;
-                if targetAspectRatio > imgAspectRatio then begin LDrawH := targetH; LDrawW := Round(LDrawH * imgAspectRatio); end
-                else begin LDrawW := targetW; LDrawH := Round(LDrawW / imgAspectRatio); end;
-              end else begin LDrawW := 0; LDrawH := 0; end;
-            end;
-            idmNormal: begin LDrawW := LImgW; LDrawH := LImgH; end;
-            else begin LDrawW := LImgW; LDrawH := LImgH; end;
-          end;
-        end;
-
-        LDrawW := Max(0, LDrawW); LDrawH := Max(0, LDrawH);
-        if LDrawW > AvailableWidth then LDrawW := AvailableWidth;
-        if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
-
-        var imageCanvasX := LImagePlacementRect.Left + FImageSettings.Margins.Left;
-        var imageCanvasY := LImagePlacementRect.Top + FImageSettings.Margins.Top;
-        case FImageSettings.HorizontalAlign of
-          ihaLeft: LImgX := imageCanvasX; ihaCenter: LImgX := imageCanvasX + (AvailableWidth - LDrawW) div 2;
-          ihaRight:  LImgX := imageCanvasX + AvailableWidth - LDrawW; else LImgX := imageCanvasX;
-        end;
-        case FImageSettings.VerticalAlign of
-          ivaTop: LImgY := imageCanvasY; ivaCenter: LImgY := imageCanvasY + (AvailableHeight - LDrawH) div 2;
-          ivaBottom: LImgY := imageCanvasY + AvailableHeight - LDrawH; else LImgY := imageCanvasY;
-        end;
-        ImageFinalDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
-
-        if FImageSettings.Placement = iplInsideBounds then
-        begin
-          case FImageSettings.ImagePosition of
-            ipLeft:   LTextArea.Left := Max(LTextArea.Left, ImageFinalDestRect.Right + FImageSettings.Margins.Right + FCaptionSettings.Margins.Left);
-            ipRight:  LTextArea.Right := Min(LTextArea.Right, ImageFinalDestRect.Left - FImageSettings.Margins.Left - FCaptionSettings.Margins.Right);
-            ipTop:    LTextArea.Top := Max(LTextArea.Top, ImageFinalDestRect.Bottom + FImageSettings.Margins.Bottom + FCaptionSettings.Margins.Top);
-            ipBottom: LTextArea.Bottom := Min(LTextArea.Bottom, ImageFinalDestRect.Top - FImageSettings.Margins.Top - FCaptionSettings.Margins.Bottom);
-          end;
-          if LTextArea.Right < LTextArea.Left then LTextArea.Right := LTextArea.Left;
-          if LTextArea.Bottom < LTextArea.Top then LTextArea.Bottom := LTextArea.Top;
-        end;
-
-        if Enabled and FHoverSettings.Enabled and (FHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
-        begin
-          LScaleFactor := 1 + (LHoverProgress * (1.05 - 1)); var ScaledW, ScaledH: Integer;
-          ScaledW := Round(LDrawW * LScaleFactor); ScaledH := Round(LDrawH * LScaleFactor);
-          ImageFinalDestRect.Left := LImgX + (LDrawW - ScaledW) div 2; ImageFinalDestRect.Top := LImgY + (LDrawH - ScaledH) div 2;
-          ImageFinalDestRect.Right := ImageFinalDestRect.Left + ScaledW; ImageFinalDestRect.Bottom := ImageFinalDestRect.Top + ScaledH;
-        end;
-
-        if (ImageFinalDestRect.Right > ImageFinalDestRect.Left) and (ImageFinalDestRect.Bottom > ImageFinalDestRect.Top) then
-        begin
-          if FImageSettings.Picture.Graphic is TPNGImage then
-            DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, ImageFinalDestRect, idmStretch)
-          else if FImageSettings.Picture.Graphic <> nil then
-            DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, ImageFinalDestRect, idmStretch);
-        end;
+        textSlotRect := LTextPlacementRect;
+        imageSlotRect := LTextPlacementRect;
       end
       else
       begin
-        LTextArea.Left   := LTextArea.Left   + FCaptionSettings.Margins.Left;
-        LTextArea.Top    := LTextArea.Top    + FCaptionSettings.Margins.Top;
-        LTextArea.Right  := LTextArea.Right  - FCaptionSettings.Margins.Right;
-        LTextArea.Bottom := LTextArea.Bottom - FCaptionSettings.Margins.Bottom;
+        textSlotRect := LTextPlacementRect;
+        imageSlotRect := ImageDrawingArea;
       end;
 
+      LImgW := 0; LImgH := 0; LDrawW := 0; LDrawH := 0;
+
+      // Calcula o tamanho que a imagem ocupará (LDrawW, LDrawH)
+      if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and FImageSettings.Visible then
+      begin
+          AvailableWidth  := Max(0, imageSlotRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
+          AvailableHeight := Max(0, imageSlotRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+          LImgW := FImageSettings.Picture.Width;
+          LImgH := FImageSettings.Picture.Height;
+
+          // (O código para calcular LDrawW e LDrawH baseado no AutoSize e DrawMode continua o mesmo)
+          if FImageSettings.AutoSize then
+          begin
+             case FImageSettings.DrawMode of
+              idmStretch: begin LDrawW := AvailableWidth; LDrawH := AvailableHeight; end;
+              idmProportional:
+              begin
+                if (LImgW > 0) and (LImgH > 0) and (AvailableWidth > 0) and (AvailableHeight > 0) then
+                begin
+                  var imgAspectRatio := LImgW / LImgH; var availAspectRatio := AvailableWidth / AvailableHeight;
+                  if availAspectRatio > imgAspectRatio then begin LDrawH := AvailableHeight; LDrawW := Round(LDrawH * imgAspectRatio); end
+                  else begin LDrawW := AvailableWidth; LDrawH := Round(LDrawW / imgAspectRatio); end;
+                end else begin LDrawW := 0; LDrawH := 0; end;
+              end;
+              idmNormal: begin LDrawW := LImgW; LDrawH := LImgH; end;
+              else LDrawW := LImgW; LDrawH := LImgH;
+            end;
+          end
+          else
+          begin
+             var targetW, targetH: Integer; targetW := FImageSettings.TargetWidth; targetH := FImageSettings.TargetHeight;
+             case FImageSettings.DrawMode of
+              idmStretch: begin LDrawW := targetW; LDrawH := targetH; end;
+              idmProportional:
+              begin
+                if (LImgW > 0) and (LImgH > 0) and (targetW > 0) and (targetH > 0) then
+                begin
+                  var imgAspectRatio := LImgW / LImgH; var targetAspectRatio := targetW / targetH;
+                  if targetAspectRatio > imgAspectRatio then begin LDrawH := targetH; LDrawW := Round(LDrawH * imgAspectRatio); end
+                  else begin LDrawW := targetW; LDrawH := Round(LDrawW / imgAspectRatio); end;
+                end else begin LDrawW := 0; LDrawH := 0; end;
+              end;
+              idmNormal: begin LDrawW := LImgW; LDrawH := LImgH; end;
+              else begin LDrawW := LImgW; LDrawH := LImgH; end;
+            end;
+          end;
+          LDrawW := Max(0, LDrawW); LDrawH := Max(0, LDrawH);
+          if LDrawW > AvailableWidth then LDrawW := AvailableWidth;
+          if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
+      end;
+
+      // Particiona o espaço entre o slot da imagem e o slot do texto
+      if (LDrawW > 0) and (FImageSettings.Placement = iplInsideBounds) then
+      begin
+          imageAndMarginsW := LDrawW + FImageSettings.Margins.Left + FImageSettings.Margins.Right;
+          imageAndMarginsH := LDrawH + FImageSettings.Margins.Top + FImageSettings.Margins.Bottom;
+
+          case FImageSettings.ImagePosition of
+            ipLeft:
+            begin
+              imageSlotRect.Width := imageAndMarginsW;
+              textSlotRect.Left := imageSlotRect.Right;
+            end;
+            ipRight:
+            begin
+              imageSlotRect.Left := imageSlotRect.Right - imageAndMarginsW;
+              textSlotRect.Right := imageSlotRect.Left;
+            end;
+            ipTop:
+            begin
+              imageSlotRect.Height := imageAndMarginsH;
+              textSlotRect.Top := imageSlotRect.Bottom;
+            end;
+            ipBottom:
+            begin
+              imageSlotRect.Top := imageSlotRect.Bottom - imageAndMarginsH;
+              textSlotRect.Bottom := imageSlotRect.Top;
+            end;
+            ipCenter, ipFill, ipBehind: ; // Nestes casos, os slots se sobrepõem
+          end;
+      end;
+
+      // Desenha a imagem dentro do seu slot
+      if (LDrawW > 0) then
+      begin
+          // Calcula a posição final da imagem (LImgX, LImgY) DENTRO DO SEU SLOT
+          AvailableWidth  := Max(0, imageSlotRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
+          AvailableHeight := Max(0, imageSlotRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+
+          case FImageSettings.HorizontalAlign of
+            ihaLeft:   LImgX := imageSlotRect.Left + FImageSettings.Margins.Left;
+            ihaCenter: LImgX := imageSlotRect.Left + FImageSettings.Margins.Left + (AvailableWidth - LDrawW) div 2;
+            ihaRight:  LImgX := imageSlotRect.Right - FImageSettings.Margins.Right - LDrawW;
+          else LImgX := imageSlotRect.Left + FImageSettings.Margins.Left;
+          end;
+
+          case FImageSettings.VerticalAlign of
+            ivaTop:    LImgY := imageSlotRect.Top + FImageSettings.Margins.Top;
+            ivaCenter: LImgY := imageSlotRect.Top + FImageSettings.Margins.Top + (AvailableHeight - LDrawH) div 2;
+            ivaBottom: LImgY := imageSlotRect.Bottom - FImageSettings.Margins.Bottom - LDrawH;
+          else LImgY := imageSlotRect.Top + FImageSettings.Margins.Top;
+          end;
+
+          ImageFinalDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
+
+          // Efeito de escala no hover
+          if Enabled and FHoverSettings.Enabled and (FHoverSettings.HoverEffect = heScale) and (LHoverProgress > 0) then
+          begin
+            LScaleFactor := 1 + (LHoverProgress * (1.05 - 1));
+            var ScaledW := Round(LDrawW * LScaleFactor);
+            var ScaledH := Round(LDrawH * LScaleFactor);
+            ImageFinalDestRect.Left := LImgX + (LDrawW - ScaledW) div 2;
+            ImageFinalDestRect.Top := LImgY + (LDrawH - ScaledH) div 2;
+            ImageFinalDestRect.Right := ImageFinalDestRect.Left + ScaledW;
+            ImageFinalDestRect.Bottom := ImageFinalDestRect.Top + ScaledH;
+          end;
+
+          // Desenha a imagem
+          if (ImageFinalDestRect.Right > ImageFinalDestRect.Left) and (ImageFinalDestRect.Bottom > ImageFinalDestRect.Top) then
+          begin
+            if FImageSettings.Picture.Graphic is TPNGImage then
+              DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, ImageFinalDestRect, idmStretch)
+            else if FImageSettings.Picture.Graphic <> nil then
+              DrawNonPNGImageWithCanvas(Self.Canvas, FImageSettings.Picture.Graphic, ImageFinalDestRect, idmStretch);
+          end;
+      end;
+
+      // Desenha o texto dentro do seu slot
+      LTextArea := textSlotRect;
       if Trim(Self.CaptionSettings.Text) <> '' then LFinalCaptionToDraw := Self.CaptionSettings.Text
       else if Trim(LPresetDefaultCaption) <> '' then LFinalCaptionToDraw := LPresetDefaultCaption
       else LFinalCaptionToDraw := '';
@@ -1465,6 +1509,7 @@ begin
         LCurrentTitleFont := TFont.Create;
         try
           LCurrentTitleFont.Assign(FCaptionSettings.Font);
+          // (código de ajuste de cor e tamanho da fonte baseado no estado, como estava antes)
           if Enabled then
           begin
             if FHoverSettings.Enabled and (LHoverProgress > 0) and not FProcessing then
@@ -1480,6 +1525,13 @@ begin
             end;
           end
           else if not Enabled then begin LCurrentTitleFont.Color := BlendColors(FCaptionSettings.Font.Color, clGray, 0.6); end;
+
+          // Aplica as margens do texto dentro do seu slot
+          LTextArea.Left   := LTextArea.Left   + FCaptionSettings.Margins.Left;
+          LTextArea.Top    := LTextArea.Top    + FCaptionSettings.Margins.Top;
+          LTextArea.Right  := LTextArea.Right  - FCaptionSettings.Margins.Right;
+          LTextArea.Bottom := LTextArea.Bottom - FCaptionSettings.Margins.Bottom;
+
           if (LTextArea.Width > 0) and (LTextArea.Height > 0) then
             DrawComponentCaption( Self.Canvas, LTextArea, LFinalCaptionToDraw, LCurrentTitleFont, LCurrentTitleFont.Color, FCaptionSettings.Alignment, cvaCenter, False, 255 );
         finally

@@ -195,7 +195,7 @@ uses
   System.Math;
 
 const
-  InternalPadding = 1; // Padding interno para evitar que os botões toquem a borda
+  InternalPadding = 0; // Padding interno para evitar que os botões toquem a borda
 
 procedure Register;
 begin
@@ -600,9 +600,6 @@ var
   ItemRect: TRect;
   ItemColor, ItemBorderColor, ItemFontColor: TColor;
   LCaptionPaintRect, LBorderRect: TRect;
-  FirstVisibleIndex, LastVisibleIndex: Integer;
-  ItemCornerType: TRoundCornerType;
-  ItemCornerRadius: Integer;
   MainPath: TGPGraphicsPath;
   MainClipRegion: TGPRegion;
   OriginalClip: TGPRegion;
@@ -615,7 +612,7 @@ begin
     LG.SetInterpolationMode(InterpolationModeHighQualityBicubic);
     LG.SetPixelOffsetMode(PixelOffsetModeHighQuality);
 
-    // Etapa 1: Definir a área da borda principal
+    // Etapa 1: Definir a área da borda principal que conterá os botões
     LBorderRect := ClientRect;
     if (FCaptionPlacement = plcOutside) and FCaption.Visible and (FCaption.Text <> '') then
     begin
@@ -634,38 +631,25 @@ begin
 
     MainPath := TGPGraphicsPath.Create;
     try
-      // Cria o caminho para a borda principal
+      // Etapa 2: Criar o caminho para a borda principal, que servirá de máscara de corte
       var DrawRect := LBorderRect;
+      // Ajuste para o desenho da borda, se houver
       if FBorder.Visible and (FBorder.Thickness > 0) then
       begin
-        if DrawRect.Width > 0 then Dec(DrawRect.Right);
-        if DrawRect.Height > 0 then Dec(DrawRect.Bottom);
+        // Um pequeno ajuste para garantir que o preenchimento não vaze por baixo da borda anti-aliased
+        InflateRect(DrawRect, -1, -1);
       end;
       GPRect.X := DrawRect.Left; GPRect.Y := DrawRect.Top;
       GPRect.Width := DrawRect.Width; GPRect.Height := DrawRect.Height;
       CreateGPRoundedPath(MainPath, GPRect, FBorder.CornerRadius, FBorder.RoundCornerType);
 
-      // Etapa 2: Desenhar o frame principal do grupo (A BORDA AGORA É DESENHADA POR ÚLTIMO)
-
-      // Etapa 3: Configurar o clipping para os botões internos
+      // Etapa 3: Configurar a região de corte (clipping)
       MainClipRegion := TGPRegion.Create(MainPath);
       OriginalClip := TGPRegion.Create;
       LG.GetClip(OriginalClip);
-      LG.SetClip(MainClipRegion, CombineModeReplace);
+      LG.SetClip(MainClipRegion, CombineModeReplace); // <-- A MÁGICA ACONTECE AQUI
       try
-        // Etapa 4: Achar o primeiro e último item visível
-        FirstVisibleIndex := -1;
-        LastVisibleIndex := -1;
-        for i := 0 to FItems.Count - 1 do
-        begin
-          if FItems[i].Visible then
-          begin
-            if FirstVisibleIndex = -1 then FirstVisibleIndex := i;
-            LastVisibleIndex := i;
-          end;
-        end;
-
-        // Etapa 5: Desenhar cada item (botão)
+        // Etapa 4: Desenhar cada item (botão) dentro da área de corte
         for i := 0 to FItems.Count - 1 do
         begin
           Item := FItems[i];
@@ -674,6 +658,7 @@ begin
           ItemRect := GetItemRect(Item);
           if IsRectEmpty(ItemRect) then continue;
 
+          // Define as cores do botão (base, hover, etc.)
           ItemColor := Item.Border.BackgroundColor;
           ItemBorderColor := Item.Border.Color;
           ItemFontColor := Item.CaptionSettings.Font.Color;
@@ -685,11 +670,12 @@ begin
              if Item.Hover.FontColor <> clNone then ItemFontColor := Item.Hover.FontColor;
           end;
 
-          // Desenha o botão como um retângulo simples; o clipping fará o resto.
-          // Não arredondamos cantos aqui.
+          // Etapa 5: Desenhar o botão como um retângulo SIMPLES.
+          // O corte é feito pela região de clip, então não precisamos de cantos arredondados aqui.
           DrawEditBox(LG, ItemRect, ItemColor, ItemBorderColor, Item.Border.Thickness,
-            Item.Border.Style, 0, rctNone, 255);
+            Item.Border.Style, 0, rctNone, 255); // <-- RAIO E TIPO DE CANTO SÃO ZERADOS
 
+          // Desenha o conteúdo do botão (texto, imagem)
           var ButtonContentRect := ItemRect;
           InflateRect(ButtonContentRect, -Item.Border.Thickness, -Item.Border.Thickness);
 
@@ -700,7 +686,7 @@ begin
           end;
         end;
       finally
-        // Etapa 6: Restaurar o clipping
+        // Etapa 6: Restaurar a região de corte original
         LG.SetClip(OriginalClip, CombineModeReplace);
         OriginalClip.Free;
         MainClipRegion.Free;
@@ -709,16 +695,17 @@ begin
       MainPath.Free;
     end;
 
-    // Etapa 7: Desenhar a borda por cima de tudo
+    // Etapa 7: Desenhar a borda principal POR CIMA de tudo
     if FBorder.Visible then
     begin
+        // Usamos o LBorderRect original, que define o contorno completo
         DrawEditBox(LG, LBorderRect, clNone, FBorder.Color, FBorder.Thickness, FBorder.Style, FBorder.CornerRadius, FBorder.RoundCornerType, 255);
     end;
 
-    // Etapa 8: Desenhar o Caption do Grupo (fora da área de clipping)
+    // Etapa 8: Desenhar o Caption do Grupo (fora da área de clipping, se necessário)
     if FCaption.Visible and (FCaption.Text <> '') then
     begin
-      LCaptionPaintRect := ClientRect;
+      LCaptionPaintRect := ClientRect; // Recalcula a área do caption
       if FCaptionPlacement = plcInside then
       begin
         if FBorder.Visible then InflateRect(LCaptionPaintRect, -FBorder.Thickness, -FBorder.Thickness);

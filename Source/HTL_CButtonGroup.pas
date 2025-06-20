@@ -194,6 +194,9 @@ implementation
 uses
   System.Math;
 
+const
+  InternalPadding = 1; // Padding interno para evitar que os botões toquem a borda
+
 procedure Register;
 begin
   RegisterComponents('HOTLINE', [THTL_CButtonGroup]);
@@ -483,6 +486,7 @@ begin
   if FBorder.Visible then
   begin
     InflateRect(Result, -FBorder.Thickness, -FBorder.Thickness);
+    InflateRect(Result, -InternalPadding, -InternalPadding);
   end;
 
   if (FCaptionPlacement = plcInside) and FCaption.Visible and (FCaption.Text <> '') then
@@ -510,7 +514,7 @@ procedure THTL_CButtonGroup.UpdateLayout;
 var
   i: Integer;
   BtnContentW, BtnContentH, MaxItemW, MaxItemH: Integer;
-  CaptionW, CaptionH, FrameW, FrameH, TotalW, TotalH, Padding: Integer;
+  CaptionW, CaptionH, FrameW, FrameH, TotalW, TotalH: Integer;
   ContentW, ContentH: Integer;
 begin
   if (csLoading in ComponentState) or not FAutoSize then Exit;
@@ -561,14 +565,14 @@ begin
   end;
 
   // 4. Calcula o tamanho do frame (borda + padding)
-  FrameW := 0; FrameH := 0; Padding := 0; // Padding removido
+  FrameW := 0; FrameH := 0;
   if FBorder.Visible then
   begin
     FrameW := FBorder.Thickness * 2;
     FrameH := FBorder.Thickness * 2;
   end;
-  FrameW := FrameW + Padding;
-  FrameH := FrameH + Padding;
+  FrameW := FrameW + (InternalPadding * 2);
+  FrameH := FrameH + (InternalPadding * 2);
 
   // 5. Calcula o tamanho total do componente
   TotalW := ContentW + FrameW;
@@ -577,7 +581,7 @@ begin
   begin
     case FCaption.Position of
       cpAbove, cpBelow: TotalH := TotalH + CaptionH;
-      cpLeft, cpRight:  TotalW := TotalW + TotalW;
+      cpLeft, cpRight:  TotalW := TotalW + CaptionW;
     end;
   end;
 
@@ -599,11 +603,17 @@ var
   FirstVisibleIndex, LastVisibleIndex: Integer;
   ItemCornerType: TRoundCornerType;
   ItemCornerRadius: Integer;
+  MainPath: TGPGraphicsPath;
+  MainClipRegion: TGPRegion;
+  OriginalClip: TGPRegion;
+  GPRect: TGPRectF;
 begin
   inherited;
   LG := TGPGraphics.Create(Self.Canvas.Handle);
   try
-    LG.SetSmoothingMode(SmoothingModeAntiAlias);
+    LG.SetSmoothingMode(SmoothingModeHighQuality);
+    LG.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    LG.SetPixelOffsetMode(PixelOffsetModeHighQuality);
 
     // Etapa 1: Definir a área da borda principal
     LBorderRect := ClientRect;
@@ -622,95 +632,90 @@ begin
         end;
     end;
 
-    // Etapa 2: Desenhar o frame principal do grupo
-    if FBorder.Visible then
-    begin
-        var DrawRect := LBorderRect;
+    MainPath := TGPGraphicsPath.Create;
+    try
+      // Cria o caminho para a borda principal
+      var DrawRect := LBorderRect;
+      if FBorder.Visible and (FBorder.Thickness > 0) then
+      begin
         if DrawRect.Width > 0 then Dec(DrawRect.Right);
         if DrawRect.Height > 0 then Dec(DrawRect.Bottom);
-        DrawEditBox(LG, DrawRect, FBorder.BackgroundColor, FBorder.Color, FBorder.Thickness, FBorder.Style, FBorder.CornerRadius, FBorder.RoundCornerType, 255);
-    end;
-
-    // Etapa 3: Achar o primeiro e último item visível
-    FirstVisibleIndex := -1;
-    LastVisibleIndex := -1;
-    for i := 0 to FItems.Count - 1 do
-    begin
-      if FItems[i].Visible then
-      begin
-        if FirstVisibleIndex = -1 then
-          FirstVisibleIndex := i;
-        LastVisibleIndex := i;
       end;
-    end;
+      GPRect.X := DrawRect.Left; GPRect.Y := DrawRect.Top;
+      GPRect.Width := DrawRect.Width; GPRect.Height := DrawRect.Height;
+      CreateGPRoundedPath(MainPath, GPRect, FBorder.CornerRadius, FBorder.RoundCornerType);
 
-    // Etapa 4: Desenhar cada item (botão)
-    for i := 0 to FItems.Count - 1 do
-    begin
-      Item := FItems[i];
-      if not Item.Visible then Continue;
+      // Etapa 2: Desenhar o frame principal do grupo (A BORDA AGORA É DESENHADA POR ÚLTIMO)
 
-      // Determinar o arredondamento do canto para o item atual
-      ItemCornerRadius := Item.Border.CornerRadius;
-      ItemCornerType := Item.Border.RoundCornerType;
-
-      if FBorder.CornerRadius > 0 then
-      begin
-        var EffectiveRadius: Integer := Max(0, FBorder.CornerRadius - FBorder.Thickness);
-        ItemCornerRadius := EffectiveRadius;
-
-        if FirstVisibleIndex = LastVisibleIndex then // Apenas um botão visível
+      // Etapa 3: Configurar o clipping para os botões internos
+      MainClipRegion := TGPRegion.Create(MainPath);
+      OriginalClip := TGPRegion.Create;
+      LG.GetClip(OriginalClip);
+      LG.SetClip(MainClipRegion, CombineModeReplace);
+      try
+        // Etapa 4: Achar o primeiro e último item visível
+        FirstVisibleIndex := -1;
+        LastVisibleIndex := -1;
+        for i := 0 to FItems.Count - 1 do
         begin
-          ItemCornerType := FBorder.RoundCornerType;
-        end
-        else if i = FirstVisibleIndex then
-        begin
-          if FOrientation = bgoHorizontal then ItemCornerType := rctLeft
-          else ItemCornerType := rctTop;
-        end
-        else if i = LastVisibleIndex then
-        begin
-          if FOrientation = bgoHorizontal then ItemCornerType := rctRight
-          else ItemCornerType := rctBottom;
-        end
-        else // Botões do meio
-        begin
-          ItemCornerType := rctNone;
+          if FItems[i].Visible then
+          begin
+            if FirstVisibleIndex = -1 then FirstVisibleIndex := i;
+            LastVisibleIndex := i;
+          end;
         end;
-      end
-      else
-      begin
-        ItemCornerType := rctNone;
+
+        // Etapa 5: Desenhar cada item (botão)
+        for i := 0 to FItems.Count - 1 do
+        begin
+          Item := FItems[i];
+          if not Item.Visible then Continue;
+
+          ItemRect := GetItemRect(Item);
+          if IsRectEmpty(ItemRect) then continue;
+
+          ItemColor := Item.Border.BackgroundColor;
+          ItemBorderColor := Item.Border.Color;
+          ItemFontColor := Item.CaptionSettings.Font.Color;
+
+          if Item = FHoveredItem then
+          begin
+             if Item.Hover.BackgroundColor <> clNone then ItemColor := Item.Hover.BackgroundColor;
+             if Item.Hover.BorderColor <> clNone then ItemBorderColor := Item.Hover.BorderColor;
+             if Item.Hover.FontColor <> clNone then ItemFontColor := Item.Hover.FontColor;
+          end;
+
+          // Desenha o botão como um retângulo simples; o clipping fará o resto.
+          // Não arredondamos cantos aqui.
+          DrawEditBox(LG, ItemRect, ItemColor, ItemBorderColor, Item.Border.Thickness,
+            Item.Border.Style, 0, rctNone, 255);
+
+          var ButtonContentRect := ItemRect;
+          InflateRect(ButtonContentRect, -Item.Border.Thickness, -Item.Border.Thickness);
+
+          if (Item.Caption <> '') and Assigned(Item.CaptionSettings) then
+          begin
+            DrawComponentCaption(Self.Canvas, ButtonContentRect, Item.Caption, Item.CaptionSettings.Font,
+              ItemFontColor, Item.CaptionSettings.Alignment, Item.CaptionSettings.VerticalAlignment, Item.CaptionSettings.WordWrap, 255);
+          end;
+        end;
+      finally
+        // Etapa 6: Restaurar o clipping
+        LG.SetClip(OriginalClip, CombineModeReplace);
+        OriginalClip.Free;
+        MainClipRegion.Free;
       end;
-
-      ItemRect := GetItemRect(Item);
-      if IsRectEmpty(ItemRect) then continue;
-
-      ItemColor := Item.Border.BackgroundColor;
-      ItemBorderColor := Item.Border.Color;
-      ItemFontColor := Item.CaptionSettings.Font.Color;
-
-      if Item = FHoveredItem then
-      begin
-         if Item.Hover.BackgroundColor <> clNone then ItemColor := Item.Hover.BackgroundColor;
-         if Item.Hover.BorderColor <> clNone then ItemBorderColor := Item.Hover.BorderColor;
-         if Item.Hover.FontColor <> clNone then ItemFontColor := Item.Hover.FontColor;
-      end;
-
-      DrawEditBox(LG, ItemRect, ItemColor, ItemBorderColor, Item.Border.Thickness,
-        Item.Border.Style, ItemCornerRadius, ItemCornerType, 255);
-
-      var ButtonContentRect := ItemRect;
-      InflateRect(ButtonContentRect, -Item.Border.Thickness, -Item.Border.Thickness);
-
-      if (Item.Caption <> '') and Assigned(Item.CaptionSettings) then
-      begin
-        DrawComponentCaption(Self.Canvas, ButtonContentRect, Item.Caption, Item.CaptionSettings.Font,
-          ItemFontColor, Item.CaptionSettings.Alignment, Item.CaptionSettings.VerticalAlignment, Item.CaptionSettings.WordWrap, 255);
-      end;
+    finally
+      MainPath.Free;
     end;
 
-    // Etapa 5: Desenhar o Caption do Grupo
+    // Etapa 7: Desenhar a borda por cima de tudo
+    if FBorder.Visible then
+    begin
+        DrawEditBox(LG, LBorderRect, clNone, FBorder.Color, FBorder.Thickness, FBorder.Style, FBorder.CornerRadius, FBorder.RoundCornerType, 255);
+    end;
+
+    // Etapa 8: Desenhar o Caption do Grupo (fora da área de clipping)
     if FCaption.Visible and (FCaption.Text <> '') then
     begin
       LCaptionPaintRect := ClientRect;
@@ -739,7 +744,6 @@ begin
         FCaption.Font, FCaption.Color, FCaption.Alignment, FCaption.VerticalAlignment,
         FCaption.WordWrap, 255);
     end;
-
   finally
     LG.Free;
   end;
@@ -750,6 +754,7 @@ var
   i: Integer;
   CurrentX, CurrentY: Integer;
   LContentRect: TRect;
+  ItemX, ItemY: Integer;
 begin
   Result := Rect(0,0,0,0);
   LContentRect := GetContentRect;
@@ -763,7 +768,18 @@ begin
 
     if FItems[i] = Item then
     begin
-      Result := Rect(CurrentX, CurrentY, CurrentX + Item.Width, CurrentY + Item.Height);
+      if FOrientation = bgoHorizontal then
+      begin
+        // Vertically center the item within the content rectangle
+        ItemY := LContentRect.Top + (LContentRect.Height - Item.Height) div 2;
+        Result := Rect(CurrentX, ItemY, CurrentX + Item.Width, ItemY + Item.Height);
+      end
+      else // bgoVertical
+      begin
+        // Horizontally center the item within the content rectangle
+        ItemX := LContentRect.Left + (LContentRect.Width - Item.Width) div 2;
+        Result := Rect(ItemX, CurrentY, ItemX + Item.Width, CurrentY + Item.Height);
+      end;
       Exit;
     end;
 

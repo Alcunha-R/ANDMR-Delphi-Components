@@ -1,0 +1,461 @@
+unit HTL_CTabBar;
+
+interface
+
+uses
+  System.SysUtils, System.Classes, System.Generics.Collections, System.Types,
+  Vcl.Controls, Vcl.Graphics, Vcl.ExtCtrls,
+  Winapi.Windows, Winapi.Messages, System.UITypes,
+  Winapi.GDIPOBJ, Winapi.GDIPAPI,
+  HTL_ComponentUtils;
+
+type
+  TTabBarStyle = (
+    tsContained,
+    tsPill,
+    tsUnderlined,
+    tsGradientUnderlined,
+    tsDottedIndicator,
+    tsSegmented,
+    tsBordered,
+    tsDualLine,
+    tsSideLines
+  );
+
+  THTL_CTabBar = class;
+
+  THTL_CTabItem = class(TCollectionItem)
+  private
+    FCaption: string;
+    FVisible: Boolean;
+    FEnabled: Boolean;
+    FTag: Integer;
+    FWidth: Integer;
+    procedure SetCaption(const Value: string);
+    procedure SetVisible(const Value: Boolean);
+    procedure SetEnabled(const Value: Boolean);
+    procedure SetWidth(const Value: Integer);
+  protected
+    function GetDisplayName: string; override;
+  public
+    constructor Create(Collection: TCollection); override;
+  published
+    property Caption: string read FCaption write SetCaption;
+    property Width: Integer read FWidth write SetWidth default 80;
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property Enabled: Boolean read FEnabled write SetEnabled default True;
+    property Tag: Integer read FTag write FTag default 0;
+  end;
+
+  THTL_CTabItems = class(TCollection)
+  private
+    FOwner: THTL_CTabBar;
+    function GetItem(Index: Integer): THTL_CTabItem;
+    procedure SetItem(Index: Integer; const Value: THTL_CTabItem);
+  protected
+    function GetOwner: TPersistent; override;
+    procedure Update(Item: TCollectionItem); override;
+  public
+    constructor Create(AOwner: THTL_CTabBar);
+    function Add: THTL_CTabItem;
+    property Items[Index: Integer]: THTL_CTabItem read GetItem write SetItem; default;
+  end;
+
+  THTL_CTabBar = class(TCustomControl)
+  private
+    FItems: THTL_CTabItems;
+    FContainer: TBorderSettings;
+    FStyle: TTabBarStyle;
+    FSpacing: Integer;
+    FAutoSizeTabs: Boolean;
+    FActiveIndex: Integer;
+    FActiveIndicator: TBorderSettings;
+    FGradient: TGradientSettings;
+    FActiveFontColor: TColor;
+    FInactiveFontColor: TColor;
+    FHoverFontColor: TColor;
+    FHoveredItem: THTL_CTabItem;
+    FAnimationTimer: TTimer;
+    FAnimationProgress: Single;
+    FFromRect: TRect;
+    FToRect: TRect;
+    FOnChange: TNotifyEvent;
+
+    procedure SetItems(const Value: THTL_CTabItems);
+    procedure SetContainer(const Value: TBorderSettings);
+    procedure SetStyle(const Value: TTabBarStyle);
+    procedure SetSpacing(const Value: Integer);
+    procedure SetAutoSizeTabs(const Value: Boolean);
+    procedure SetActiveIndex(const Value: Integer);
+    procedure SetActiveIndicator(const Value: TBorderSettings);
+    procedure SetGradient(const Value: TGradientSettings);
+    procedure SetActiveFontColor(const Value: TColor);
+    procedure SetInactiveFontColor(const Value: TColor);
+    procedure SetHoverFontColor(const Value: TColor);
+    procedure Animate(Sender: TObject);
+    procedure SettingsChanged(Sender: TObject);
+    procedure UpdateLayout;
+    function GetItemAt(X, Y: Integer): THTL_CTabItem;
+    function GetItemRect(Item: THTL_CTabItem): TRect;
+
+  protected
+    procedure Paint; override;
+    procedure Loaded; override;
+    procedure Resize; override;
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
+    procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
+
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+
+  published
+    property Items: THTL_CTabItems read FItems write SetItems;
+    property ActiveIndex: Integer read FActiveIndex write SetActiveIndex default -1;
+    property Style: TTabBarStyle read FStyle write SetStyle default tsContained;
+    property Spacing: Integer read FSpacing write SetSpacing default 0;
+    property AutoSizeTabs: Boolean read FAutoSizeTabs write SetAutoSizeTabs default True;
+    property Container: TBorderSettings read FContainer write SetContainer;
+    property ActiveIndicator: TBorderSettings read FActiveIndicator write SetActiveIndicator;
+    property Gradient: TGradientSettings read FGradient write SetGradient;
+    property ActiveFontColor: TColor read FActiveFontColor write SetActiveFontColor default clHighlightText;
+    property InactiveFontColor: TColor read FInactiveFontColor write SetInactiveFontColor default clWindowText;
+    property HoverFontColor: TColor read FHoverFontColor write SetHoverFontColor default clHighlight;
+    property Align;
+    property Anchors;
+    property Constraints;
+    property Enabled;
+    property Font;
+    property ParentShowHint;
+    property PopupMenu;
+    property ShowHint;
+    property TabOrder;
+    property TabStop default True;
+    property Visible;
+    property OnClick;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+    property OnMouseDown;
+    property OnMouseMove;
+    property OnMouseUp;
+  end;
+
+procedure Register;
+
+implementation
+
+uses System.Math;
+
+procedure Register;
+begin
+  RegisterComponents('HOTLINE', [THTL_CTabBar]);
+end;
+
+{ THTL_CTabItem }
+constructor THTL_CTabItem.Create(Collection: TCollection);
+begin
+  inherited Create(Collection);
+  FVisible := True;
+  FEnabled := True;
+  FWidth := 80;
+  FCaption := 'Tab ' + IntToStr(Collection.Count);
+end;
+
+function THTL_CTabItem.GetDisplayName: string;
+begin
+  if FCaption <> '' then Result := FCaption else Result := inherited GetDisplayName;
+end;
+
+procedure THTL_CTabItem.SetCaption(const Value: string); begin if FCaption <> Value then begin FCaption := Value; Changed(False); end; end;
+procedure THTL_CTabItem.SetVisible(const Value: Boolean); begin if FVisible <> Value then begin FVisible := Value; Changed(False); end; end;
+procedure THTL_CTabItem.SetEnabled(const Value: Boolean); begin if FEnabled <> Value then begin FEnabled := Value; Changed(False); end; end;
+procedure THTL_CTabItem.SetWidth(const Value: Integer); begin if FWidth <> Value then begin FWidth := Value; Changed(False); end; end;
+
+{ THTL_CTabItems }
+constructor THTL_CTabItems.Create(AOwner: THTL_CTabBar);
+begin
+  inherited Create(THTL_CTabItem);
+  FOwner := AOwner;
+end;
+
+function THTL_CTabItems.Add: THTL_CTabItem; begin Result := THTL_CTabItem(inherited Add); end;
+function THTL_CTabItems.GetItem(Index: Integer): THTL_CTabItem; begin Result := THTL_CTabItem(inherited GetItem(Index)); end;
+function THTL_CTabItems.GetOwner: TPersistent; begin Result := FOwner; end;
+procedure THTL_CTabItems.SetItem(Index: Integer; const Value: THTL_CTabItem); begin inherited SetItem(Index, Value); end;
+procedure THTL_CTabItems.Update(Item: TCollectionItem); begin inherited; if Assigned(FOwner) and not (csLoading in FOwner.ComponentState) then FOwner.UpdateLayout; end;
+
+{ THTL_CTabBar }
+constructor THTL_CTabBar.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  ControlStyle := [csOpaque, csReplicatable, csDoubleClicks, csCaptureMouse, csSetCaption];
+  DoubleBuffered := True;
+  Width := 250;
+  Height := 40;
+  TabStop := True;
+  Font.Name := 'Segoe UI';
+  Font.Size := 10;
+  FItems := THTL_CTabItems.Create(Self);
+  FContainer := TBorderSettings.Create;
+  FContainer.OnChange := SettingsChanged;
+  FContainer.BackgroundColor := TColor($00F2F2F2);
+  FContainer.Color := TColor($00CCCCCC);
+  FContainer.Thickness := 1;
+  FContainer.CornerRadius := 8;
+  FActiveIndicator := TBorderSettings.Create;
+  FActiveIndicator.OnChange := SettingsChanged;
+  FActiveIndicator.BackgroundColor := clWhite;
+  FActiveIndicator.Color := TColor($00E0E0E0);
+  FActiveIndicator.Thickness := 2;
+  FActiveIndicator.CornerRadius := 6;
+  FGradient := TGradientSettings.Create;
+  FGradient.OnChange := SettingsChanged;
+  FGradient.Enabled := False;
+  FGradient.StartColor := TColor($00FF8C00);
+  FGradient.EndColor := TColor($004169E1);
+  FStyle := tsContained;
+  FSpacing := 0;
+  FAutoSizeTabs := True;
+  FActiveIndex := -1;
+  FActiveFontColor := clBlack;
+  FInactiveFontColor := TColor($00666666);
+  FHoverFontColor := clBlack;
+  FAnimationProgress := 1.0;
+  FAnimationTimer := TTimer.Create(Self);
+  FAnimationTimer.Enabled := False;
+  FAnimationTimer.Interval := 15;
+  FAnimationTimer.OnTimer := Animate;
+end;
+
+destructor THTL_CTabBar.Destroy;
+begin
+  FItems.Free;
+  FContainer.Free;
+  FActiveIndicator.Free;
+  FGradient.Free;
+  FAnimationTimer.Free;
+  inherited Destroy;
+end;
+
+procedure THTL_CTabBar.Loaded; begin inherited; UpdateLayout; end;
+procedure THTL_CTabBar.Resize; begin inherited; UpdateLayout; end;
+procedure THTL_CTabBar.SettingsChanged(Sender: TObject); begin Invalidate; end;
+procedure THTL_CTabBar.UpdateLayout; begin Invalidate; end;
+procedure THTL_CTabBar.Animate(Sender: TObject); const AnimationStep = 0.15; begin FAnimationProgress := FAnimationProgress + AnimationStep; if FAnimationProgress >= 1.0 then begin FAnimationProgress := 1.0; FAnimationTimer.Enabled := False; end; Invalidate; end;
+function THTL_CTabBar.GetItemAt(X, Y: Integer): THTL_CTabItem; var i: Integer; begin for i := 0 to FItems.Count - 1 do begin if FItems[i].Visible and PtInRect(GetItemRect(FItems[i]), Point(X, Y)) then Exit(FItems[i]); end; Result := nil; end;
+procedure THTL_CTabBar.CMMouseLeave(var Message: TMessage); begin inherited; if FHoveredItem <> nil then begin FHoveredItem := nil; Invalidate; end; end;
+procedure THTL_CTabBar.MouseMove(Shift: TShiftState; X, Y: Integer); var Item: THTL_CTabItem; begin inherited; Item := GetItemAt(X, Y); if Item <> FHoveredItem then begin FHoveredItem := Item; Invalidate; end; end;
+procedure THTL_CTabBar.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); var Item: THTL_CTabItem; begin inherited; if Button = mbLeft then begin Item := GetItemAt(X, Y); if (Item <> nil) and Item.Enabled then begin Self.ActiveIndex := Item.Index; end; end; end;
+procedure THTL_CTabBar.SetActiveIndex(const Value: Integer); var PrevIndex: Integer; begin PrevIndex := FActiveIndex; if (Value >= -1) and (Value < FItems.Count) and (FActiveIndex <> Value) then begin FActiveIndex := Value; if (PrevIndex > -1) and (PrevIndex < FItems.Count) then FFromRect := GetItemRect(FItems[PrevIndex]) else if FItems.Count > 0 then FFromRect := GetItemRect(FItems[IfThen(Value > -1, Value, 0)]); if (FActiveIndex > -1) then FToRect := GetItemRect(FItems[FActiveIndex]) else FToRect := Rect(0,0,0,0); FAnimationProgress := 0.0; FAnimationTimer.Enabled := True; if Assigned(FOnChange) then FOnChange(Self); Invalidate; end; end;
+procedure THTL_CTabBar.SetItems(const Value: THTL_CTabItems); begin FItems.Assign(Value); UpdateLayout; Invalidate; end;
+procedure THTL_CTabBar.SetContainer(const Value: TBorderSettings); begin FContainer.Assign(Value); Invalidate; end;
+procedure THTL_CTabBar.SetSpacing(const Value: Integer); begin if FSpacing <> Value then begin FSpacing := Value; UpdateLayout; Invalidate; end; end;
+procedure THTL_CTabBar.SetActiveIndicator(const Value: TBorderSettings); begin FActiveIndicator.Assign(Value); Invalidate; end;
+procedure THTL_CTabBar.SetActiveFontColor(const Value: TColor); begin if FActiveFontColor <> Value then begin FActiveFontColor := Value; Invalidate; end; end;
+procedure THTL_CTabBar.SetInactiveFontColor(const Value: TColor); begin if FInactiveFontColor <> Value then begin FInactiveFontColor := Value; Invalidate; end; end;
+procedure THTL_CTabBar.SetHoverFontColor(const Value: TColor); begin if FHoverFontColor <> Value then begin FHoverFontColor := Value; Invalidate; end; end;
+procedure THTL_CTabBar.SetGradient(const Value: TGradientSettings); begin FGradient.Assign(Value); Invalidate; end;
+procedure THTL_CTabBar.SetAutoSizeTabs(const Value: Boolean); begin if FAutoSizeTabs <> Value then begin FAutoSizeTabs := Value; UpdateLayout; Invalidate; end; end;
+procedure THTL_CTabBar.SetStyle(const Value: TTabBarStyle); begin if FStyle <> Value then begin FStyle := Value; FAnimationProgress := 1.0; if (FActiveIndex >= 0) and (FActiveIndex < FItems.Count) then begin FToRect := GetItemRect(FItems[FActiveIndex]); FFromRect := FToRect; end; if FStyle = tsGradientUnderlined then FGradient.Enabled := True else FGradient.Enabled := False; Invalidate; end; end;
+
+// <<< FUNÇÃO GetItemRect TOTALMENTE REESCRITA PARA ALINHAMENTO PERFEITO >>>
+function THTL_CTabBar.GetItemRect(Item: THTL_CTabItem): TRect;
+var
+  i, VisibleItemIndex: Integer;
+  ContentWidth, ContentHeight, TotalSpacing, TotalManualWidth: Integer;
+  VisibleItems: TList<THTL_CTabItem>;
+  CurrentX: Integer;
+begin
+  Result := Rect(0, 0, 0, 0);
+  if not Assigned(Item) or (Item.Collection <> FItems) then Exit;
+
+  // 1. Cria uma lista apenas com os itens visíveis
+  VisibleItems := TList<THTL_CTabItem>.Create;
+  try
+    for i := 0 to FItems.Count - 1 do
+      if FItems[i].Visible then
+        VisibleItems.Add(FItems[i]);
+
+    if VisibleItems.Count = 0 then Exit; // Sai se não houver itens visíveis
+
+    ContentWidth := Self.ClientWidth - (FContainer.Thickness * 2);
+    ContentHeight := Self.ClientHeight - (FContainer.Thickness * 2);
+
+    if FAutoSizeTabs then
+    begin
+      // MODO AUTOSIZE (PREENCHER)
+      TotalSpacing := Max(0, VisibleItems.Count - 1) * FSpacing;
+      var NetTabWidth := ContentWidth - TotalSpacing;
+
+      VisibleItemIndex := VisibleItems.IndexOf(Item);
+      if VisibleItemIndex < 0 then Exit; // Item não está na lista de visíveis
+
+      // Calcula a posição inicial e final usando double para precisão e arredondando no final
+      Result.Left := FContainer.Thickness + Round(VisibleItemIndex * (NetTabWidth / VisibleItems.Count) + (VisibleItemIndex * FSpacing));
+      Result.Right := FContainer.Thickness + Round((VisibleItemIndex + 1) * (NetTabWidth / VisibleItems.Count) + (VisibleItemIndex * FSpacing));
+
+      // Garante que o último item termine exatamente na borda do conteúdo
+      if VisibleItemIndex = VisibleItems.Count - 1 then
+        Result.Right := FContainer.Thickness + ContentWidth;
+
+      Result.Top := FContainer.Thickness;
+      Result.Bottom := FContainer.Thickness + ContentHeight;
+    end
+    else
+    begin
+      // MODO DE LARGURA MANUAL
+      TotalManualWidth := 0;
+      for i := 0 to VisibleItems.Count - 1 do TotalManualWidth := TotalManualWidth + VisibleItems[i].Width;
+      TotalManualWidth := TotalManualWidth + Max(0, VisibleItems.Count - 1) * FSpacing;
+      CurrentX := FContainer.Thickness + Max(0, (ContentWidth - TotalManualWidth) div 2);
+
+      for i := 0 to VisibleItems.Count - 1 do
+      begin
+        if VisibleItems[i] = Item then
+        begin
+          Result := Rect(CurrentX, FContainer.Thickness, CurrentX + Item.Width, FContainer.Thickness + ContentHeight);
+          Exit;
+        end;
+        CurrentX := CurrentX + VisibleItems[i].Width + FSpacing;
+      end;
+    end;
+  finally
+    VisibleItems.Free;
+  end;
+end;
+
+procedure THTL_CTabBar.Paint;
+var
+  LG: TGPGraphics;
+  i: Integer;
+  Item: THTL_CTabItem;
+  ItemRect: TRect;
+  ItemFontColor: TColor;
+  IndicatorRect: TRect;
+  IndicatorPen: TGPPen;
+  IndicatorBrush: TGPBrush;
+  SeparatorPen: TGPPen;
+  LastVisibleIndex: Integer;
+begin
+  inherited;
+  LG := TGPGraphics.Create(Self.Canvas.Handle);
+  try
+    LG.SetSmoothingMode(SmoothingModeHighQuality);
+    LG.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    LG.SetPixelOffsetMode(PixelOffsetModeHalf);
+
+    if FStyle = tsSegmented then
+    begin
+      if FContainer.Visible then
+        DrawEditBox(LG, ClientRect, FContainer.BackgroundColor, FContainer.Color, FContainer.Thickness,
+          FContainer.Style, FContainer.CornerRadius, FContainer.RoundCornerType, 255);
+
+      LastVisibleIndex := -1;
+      for i := FItems.Count - 1 downto 0 do if FItems[i].Visible then begin LastVisibleIndex := i; break; end;
+
+      SeparatorPen := TGPPen.Create(ColorToARGB(FContainer.Color), FContainer.Thickness);
+      try
+        for i := 0 to FItems.Count - 1 do
+        begin
+          Item := FItems[i];
+          if not Item.Visible then Continue;
+          ItemRect := GetItemRect(Item);
+          if IsRectEmpty(ItemRect) then continue;
+
+          if i = FActiveIndex then
+          begin
+            ItemFontColor := FActiveFontColor;
+            DrawEditBox(LG, ItemRect, FActiveIndicator.BackgroundColor, FActiveIndicator.Color, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, rctAll, 255);
+          end
+          else
+          begin
+            if (Item = FHoveredItem) and Item.Enabled then ItemFontColor := FHoverFontColor
+            else ItemFontColor := FInactiveFontColor;
+          end;
+
+          if not Item.Enabled then ItemFontColor := clGrayText;
+          DrawComponentCaption(Self.Canvas, ItemRect, Item.Caption, Self.Font, ItemFontColor, taCenter, cvaCenter, false, 255);
+
+          if i < LastVisibleIndex then
+            LG.DrawLine(SeparatorPen, ItemRect.Right, ItemRect.Top + FContainer.Thickness, ItemRect.Right, ItemRect.Bottom - FContainer.Thickness);
+        end;
+      finally
+        SeparatorPen.Free;
+      end;
+    end
+    else
+    begin
+      if FContainer.Visible then
+        DrawEditBox(LG, ClientRect, FContainer.BackgroundColor, FContainer.Color, FContainer.Thickness, FContainer.Style, FContainer.CornerRadius, FContainer.RoundCornerType, 255);
+
+      if (FActiveIndex >= 0) and (FActiveIndex < FItems.Count) and FItems[FActiveIndex].Visible then
+      begin
+        IndicatorRect.Left   := Round(FFromRect.Left + (FToRect.Left - FFromRect.Left) * FAnimationProgress);
+        IndicatorRect.Top    := Round(FFromRect.Top + (FToRect.Top - FFromRect.Top) * FAnimationProgress);
+        IndicatorRect.Right  := Round(FFromRect.Right + (FToRect.Right - FFromRect.Right) * FAnimationProgress);
+        IndicatorRect.Bottom := Round(FFromRect.Bottom + (FToRect.Bottom - FFromRect.Bottom) * FAnimationProgress);
+        InflateRect(IndicatorRect, -FSpacing, -FSpacing);
+
+        case FStyle of
+          tsContained: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FActiveIndicator.Color, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, FActiveIndicator.RoundCornerType, 255);
+          tsPill: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FActiveIndicator.Color, FActiveIndicator.Thickness, FActiveIndicator.Style, IndicatorRect.Height div 2, rctAll, 255);
+          tsUnderlined:
+          begin
+            IndicatorPen := TGPPen.Create(ColorToARGB(FActiveIndicator.BackgroundColor), FActiveIndicator.Thickness);
+            try IndicatorPen.SetStartCap(LineCapRound); IndicatorPen.SetEndCap(LineCapRound); LG.DrawLine(IndicatorPen, IndicatorRect.Left + FActiveIndicator.CornerRadius, IndicatorRect.Bottom - FActiveIndicator.Thickness, IndicatorRect.Right - FActiveIndicator.CornerRadius, IndicatorRect.Bottom - FActiveIndicator.Thickness); finally IndicatorPen.Free; end;
+          end;
+          tsGradientUnderlined:
+          begin
+            var GradRect: TGPRectF;
+            GradRect.X := IndicatorRect.Left; GradRect.Y := IndicatorRect.Bottom - FActiveIndicator.Thickness; GradRect.Width := IndicatorRect.Width; GradRect.Height := FActiveIndicator.Thickness;
+            if (GradRect.Width > 0) and (GradRect.Height > 0) and FGradient.Enabled then
+            begin
+              IndicatorBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(FGradient.StartColor), ColorToARGB(FGradient.EndColor), LinearGradientModeHorizontal);
+              try LG.FillRectangle(IndicatorBrush, GradRect); finally IndicatorBrush.Free; end;
+            end;
+          end;
+          tsDottedIndicator:
+          begin
+            var DotSize := Min(6, IndicatorRect.Height div 4);
+            if FItems.Count > FActiveIndex then
+            begin
+              var TextWidth := Self.Canvas.TextWidth(FItems[FActiveIndex].Caption);
+              var DotX := IndicatorRect.Left + (IndicatorRect.Width - TextWidth) div 2 - DotSize - 4;
+              var DotY := IndicatorRect.Top + (IndicatorRect.Height - DotSize) div 2;
+              IndicatorBrush := TGPSolidBrush.Create(ColorToARGB(FActiveFontColor));
+              try LG.FillEllipse(IndicatorBrush, DotX, DotY, DotSize, DotSize); finally IndicatorBrush.Free; end;
+            end;
+          end;
+          tsBordered: DrawEditBox(LG, IndicatorRect, clNone, FActiveFontColor, FActiveIndicator.Thickness, psSolid, FActiveIndicator.CornerRadius, FActiveIndicator.RoundCornerType, 255);
+          tsDualLine:
+          begin
+            IndicatorPen := TGPPen.Create(ColorToARGB(FActiveIndicator.BackgroundColor), FActiveIndicator.Thickness);
+            try LG.DrawLine(IndicatorPen, IndicatorRect.Left, IndicatorRect.Top + 1, IndicatorRect.Right, IndicatorRect.Top + 1); LG.DrawLine(IndicatorPen, IndicatorRect.Left, IndicatorRect.Bottom - 1, IndicatorRect.Right, IndicatorRect.Bottom - 1); finally IndicatorPen.Free; end;
+          end;
+          tsSideLines:
+          begin
+            IndicatorPen := TGPPen.Create(ColorToARGB(FActiveIndicator.BackgroundColor), FActiveIndicator.Thickness);
+            try LG.DrawLine(IndicatorPen, IndicatorRect.Left + 1, IndicatorRect.Top, IndicatorRect.Left + 1, IndicatorRect.Bottom); LG.DrawLine(IndicatorPen, IndicatorRect.Right - 1, IndicatorRect.Top, IndicatorRect.Right - 1, IndicatorRect.Bottom); finally IndicatorPen.Free; end;
+          end;
+        end;
+      end;
+
+      for i := 0 to FItems.Count - 1 do
+      begin
+        Item := FItems[i];
+        if not Item.Visible then Continue;
+        ItemRect := GetItemRect(Item);
+        if IsRectEmpty(ItemRect) then continue;
+        if i = FActiveIndex then ItemFontColor := FActiveFontColor
+        else if (Item = FHoveredItem) and Item.Enabled then ItemFontColor := FHoverFontColor
+        else ItemFontColor := FInactiveFontColor;
+        if not Item.Enabled then ItemFontColor := clGrayText;
+        DrawComponentCaption(Self.Canvas, ItemRect, Item.Caption, Self.Font, ItemFontColor, taCenter, cvaCenter, false, 255);
+      end;
+    end;
+  finally
+    LG.Free;
+  end;
+end;
+
+end.

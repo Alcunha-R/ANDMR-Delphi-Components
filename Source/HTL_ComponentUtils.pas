@@ -10,6 +10,9 @@ uses
 // TYPE DECLARATIONS
 type
   THoverEffect = (heNone, heFade, heScale);
+  THoverTarget = (htBackground, htBorder, htFont, htIndicator);
+  THoverTargets = set of THoverTarget;
+
   TCaptionVerticalAlignment = (cvaTop, cvaCenter, cvaBottom);
   TSeparatorHeightMode = (shmFull, shmAsText, shmAsImage, shmCustom);
   TGradientType = (gtLinearVertical, gtLinearHorizontal, gtRadial, gtDiagonalDown, gtDiagonalUp, gtCenterBurst);
@@ -165,6 +168,7 @@ type
     FAnimationDirection: Integer;
     FOwnerControl: TWinControl;
     FOnAnimationProgress: TNotifyEvent;
+    FTargets: THoverTargets;
     procedure SetBackgroundColor(const Value: TColor);
     procedure SetBorderColor(const Value: TColor);
     procedure SetFontColor(const Value: TColor);
@@ -174,6 +178,7 @@ type
     procedure SetAnimationTimerInterval(const Value: Integer);
     procedure SetAnimationStep(const Value: Integer);
     procedure DoAnimate(Sender: TObject);
+    procedure SetTargets(const Value: THoverTargets);
   protected
     procedure Changed; virtual;
   public
@@ -193,6 +198,7 @@ type
     property AnimationStep: Integer read FAnimationStep write SetAnimationStep default 20;
     property CurrentAnimationValue: Integer read FCurrentAnimationValue;
     property OnAnimationProgress: TNotifyEvent read FOnAnimationProgress write FOnAnimationProgress;
+    property Targets: THoverTargets read FTargets write SetTargets;
   end;
 
   TImageSettings = class(TPersistent)
@@ -443,6 +449,7 @@ function CalculateProportionalRect(const DestRect: TRect; ImgWidth, ImgHeight: I
 
 procedure DrawPNGImageWithGDI(AGraphics: TGPGraphics; APNG: TPNGImage; ADestRect: TRect; ADrawMode: TImageDrawMode);
 procedure DrawNonPNGImageWithCanvas(ACanvas: TCanvas; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
 
 const
   ColorMatrixIdentity: TColorMatrix =
@@ -1151,6 +1158,7 @@ begin
   FAnimationTimer.Interval := FAnimationTimerInterval;
   FAnimationTimer.OnTimer := DoAnimate;
   FAnimationTimer.Enabled := False;
+  FTargets := [htBackground, htBorder, htFont, htIndicator];
 end;
 
 destructor THoverSettings.Destroy;
@@ -1167,17 +1175,28 @@ begin
   if Source is THoverSettings then
   begin
     LSource := THoverSettings(Source);
-    SetEnabled(LSource.Enabled);
-    SetBackgroundColor(LSource.BackgroundColor);
-    SetBorderColor(LSource.BorderColor);
-    SetFontColor(LSource.FontColor);
-    SetCaptionFontColor(LSource.CaptionFontColor);
-    SetHoverEffect(LSource.HoverEffect);
-    SetAnimationTimerInterval(LSource.AnimationTimerInterval);
-    SetAnimationStep(LSource.AnimationStep);
+    Self.Enabled := LSource.Enabled;
+    Self.BackgroundColor := LSource.BackgroundColor;
+    Self.BorderColor := LSource.BorderColor;
+    Self.FontColor := LSource.FontColor;
+    Self.CaptionFontColor := LSource.CaptionFontColor;
+    Self.HoverEffect := LSource.HoverEffect;
+    Self.AnimationTimerInterval := LSource.AnimationTimerInterval;
+    Self.AnimationStep := LSource.AnimationStep;
+    Self.Targets := LSource.Targets;
+    Changed;
   end
   else
     inherited Assign(Source);
+end;
+
+procedure THoverSettings.SetTargets(const Value: THoverTargets);
+begin
+  if FTargets <> Value then
+  begin
+    FTargets := Value;
+    Changed;
+  end;
 end;
 
 procedure THoverSettings.Changed;
@@ -1914,6 +1933,77 @@ begin
     begin
       // Optional: Log or handle
     end;
+  end;
+end;
+
+procedure DrawGraphicWithGDI(AGraphics: TGPGraphics; AGraphic: TGraphic; ADestRect: TRect; ADrawMode: TImageDrawMode);
+var
+  DrawImageRect: TRect;
+  SourceBitmap: TGPBitmap;
+  PngStream: TMemoryStream;
+  Adapter: IStream;
+  TempBitmap: Vcl.Graphics.TBitmap;
+begin
+  if (AGraphics = nil) or (AGraphic = nil) or AGraphic.Empty or (ADestRect.Width <= 0) or (ADestRect.Height <= 0) then
+    Exit;
+
+  // 1. Calcula o retângulo de destino
+  case ADrawMode of
+    idmStretch: DrawImageRect := ADestRect;
+    idmProportional: DrawImageRect := CalculateProportionalRect(ADestRect, AGraphic.Width, AGraphic.Height);
+    idmNormal:
+    begin
+      DrawImageRect.Width  := AGraphic.Width;
+      DrawImageRect.Height := AGraphic.Height;
+      DrawImageRect.Left   := ADestRect.Left + (ADestRect.Width - AGraphic.Width) div 2;
+      DrawImageRect.Top    := ADestRect.Top + (ADestRect.Height - AGraphic.Height) div 2;
+    end;
+  else
+    DrawImageRect := ADestRect;
+  end;
+
+  if (DrawImageRect.Width <= 0) or (DrawImageRect.Height <= 0) then
+    Exit;
+
+  SourceBitmap := nil;
+  try
+    // 2. Converte o TGraphic para um TGPBitmap
+    if AGraphic is TPNGImage then
+    begin
+      PngStream := TMemoryStream.Create;
+      try
+        TPNGImage(AGraphic).SaveToStream(PngStream);
+        PngStream.Position := 0;
+        Adapter := TStreamAdapter.Create(PngStream, soReference);
+        SourceBitmap := TGPBitmap.Create(Adapter);
+      finally
+        PngStream.Free;
+      end;
+    end
+    else if AGraphic is Vcl.Graphics.TBitmap then
+    begin
+      SourceBitmap := TGPBitmap.Create(Vcl.Graphics.TBitmap(AGraphic).Handle, Vcl.Graphics.TBitmap(AGraphic).Palette);
+    end
+    else // Para outros formatos (JPEG, GIF), converte para um TBitmap primeiro
+    begin
+      TempBitmap := Vcl.Graphics.TBitmap.Create;
+      try
+        TempBitmap.Assign(AGraphic);
+        SourceBitmap := TGPBitmap.Create(TempBitmap.Handle, TempBitmap.Palette);
+      finally
+        TempBitmap.Free;
+      end;
+    end;
+
+    // 3. Desenha o TGPBitmap na tela
+    if (SourceBitmap <> nil) and (SourceBitmap.GetLastStatus = Ok) then
+    begin
+      AGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+      AGraphics.DrawImage(SourceBitmap, DrawImageRect.Left, DrawImageRect.Top, DrawImageRect.Width, DrawImageRect.Height);
+    end;
+  finally
+    if SourceBitmap <> nil then
+      SourceBitmap.Free;
   end;
 end;
 

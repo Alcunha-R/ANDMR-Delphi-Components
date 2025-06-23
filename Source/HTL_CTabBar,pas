@@ -196,7 +196,8 @@ begin
   FHoverSettings := THoverSettings.Create(Self);
   FHoverSettings.OnChange := SettingsChanged;
   FHoverSettings.OnAnimationProgress := SettingsChanged;
-  FHoverSettings.BackgroundColor := TColor($1F000000);
+  // CORREÇÃO: Usar uma cor padrão visível para o fundo do hover
+  FHoverSettings.BackgroundColor := TColor($FFE0E8F0); // Um azul-acinzentado claro
   FHoverSettings.BorderColor := clHighlight;
   FHoverSettings.FontColor := clHighlight;
   FHoverSettings.HoverEffect := heFade;
@@ -225,7 +226,7 @@ procedure THTL_CTabBar.UpdateLayout; begin Invalidate; end;
 procedure THTL_CTabBar.Animate(Sender: TObject); var NeedsAnimation: Boolean; AnimationStep: Single; begin NeedsAnimation := False; if FActiveIndicatorAnimProgress < 1.0 then begin FActiveIndicatorAnimProgress := Min(1.0, FActiveIndicatorAnimProgress + 0.15); NeedsAnimation := True; end; if FHoverAnimProgress < 1.0 then begin AnimationStep := FAnimationTimer.Interval / Max(1, FHoverSettings.AnimationTimerInterval * 5); FHoverAnimProgress := Min(1.0, FHoverAnimProgress + AnimationStep); NeedsAnimation := True; end; FAnimationTimer.Enabled := NeedsAnimation; Invalidate; end;
 function THTL_CTabBar.GetItemAt(X, Y: Integer): Integer; var i: Integer; begin for i := 0 to FItems.Count - 1 do if FItems[i].Visible and PtInRect(GetItemRect(i), Point(X, Y)) then Exit(i); Result := -1; end;
 procedure THTL_CTabBar.CMMouseLeave(var Message: TMessage); begin inherited; Self.Cursor := crDefault; if FHoveredTabIndex <> -1 then begin FPreviousHoveredTabIndex := FHoveredTabIndex; FHoveredTabIndex := -1; FHoverAnimProgress := 0.0; FAnimationTimer.Enabled := True; end; end;
-procedure THTL_CTabBar.MouseMove(Shift: TShiftState; X, Y: Integer); var NewHoverIndex: Integer; begin inherited; if not Enabled then begin Self.Cursor := crDefault; Exit; end; NewHoverIndex := GetItemAt(X, Y); if NewHoverIndex <> -1 then Self.Cursor := crHandPoint else Self.Cursor := crDefault; if NewHoverIndex <> FHoveredTabIndex then begin FPreviousHoveredTabIndex := FHoveredTabIndex; FHoveredTabIndex := NewHoverIndex; FHoverAnimProgress := 0.0; FAnimationTimer.Enabled := True; end; end;
+procedure THTL_CTabBar.MouseMove(Shift: TShiftState; X, Y: Integer); var NewHoverIndex: Integer; begin inherited; if not Enabled then begin Self.Cursor := crDefault; Exit; end; NewHoverIndex := GetItemAt(X, Y); if (NewHoverIndex <> -1) and FItems[NewHoverIndex].Enabled then Self.Cursor := crHandPoint else Self.Cursor := crDefault; if NewHoverIndex <> FHoveredTabIndex then begin FPreviousHoveredTabIndex := FHoveredTabIndex; FHoveredTabIndex := NewHoverIndex; FHoverAnimProgress := 0.0; FAnimationTimer.Enabled := True; end; end;
 procedure THTL_CTabBar.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); var ItemIndex: Integer; begin inherited; if Button = mbLeft then begin ItemIndex := GetItemAt(X, Y); if (ItemIndex <> -1) and FItems[ItemIndex].Enabled then Self.ActiveIndex := ItemIndex; end; end;
 procedure THTL_CTabBar.SetActiveIndex(const Value: Integer); var PrevIndex: Integer; begin PrevIndex := FActiveIndex; if (Value >= -1) and (Value < FItems.Count) and (FActiveIndex <> Value) then begin FActiveIndex := Value; if (PrevIndex > -1) and (PrevIndex < FItems.Count) then FFromRect := GetItemRect(PrevIndex) else if FItems.Count > 0 then FFromRect := GetItemRect(IfThen(Value > -1, Value, 0)); if (FActiveIndex > -1) then FToRect := GetItemRect(FActiveIndex) else FToRect := FFromRect; FActiveIndicatorAnimProgress := 0.0; FAnimationTimer.Enabled := True; if Assigned(FOnChange) then FOnChange(Self); Invalidate; end; end;
 procedure THTL_CTabBar.SetItems(const Value: THTL_CTabItems); begin FItems.Assign(Value); UpdateLayout; Invalidate; end;
@@ -318,14 +319,12 @@ begin
       IndicatorRect.Bottom := Round(FFromRect.Bottom + (FToRect.Bottom - FFromRect.Bottom) * FActiveIndicatorAnimProgress);
       InflateRect(IndicatorRect, -FSpacing, -FSpacing);
 
-      // CORREÇÃO: A cor do indicador só muda no hover se o alvo for 'htIndicator'
       FinalIndicatorColor := FActiveIndicator.Color;
-      if (FActiveIndex = FHoveredTabIndex) and (htIndicator in FHoverSettings.Targets) then
-        FinalIndicatorColor := BlendColors(FActiveIndicator.Color, FHoverSettings.BorderColor, FHoverAnimProgress)
-      else if (FActiveIndex = FPreviousHoveredTabIndex) and (htIndicator in FHoverSettings.Targets) then
-        FinalIndicatorColor := BlendColors(FHoverSettings.BorderColor, FActiveIndicator.Color, FHoverAnimProgress);
+      if (FActiveIndex = FPreviousHoveredTabIndex) and (htIndicator in FHoverSettings.Targets) then
+        FinalIndicatorColor := BlendColors(FHoverSettings.BorderColor, FActiveIndicator.Color, FHoverAnimProgress)
+      else if (FActiveIndex = FHoveredTabIndex) and (htIndicator in FHoverSettings.Targets) then
+        FinalIndicatorColor := BlendColors(FActiveIndicator.Color, FHoverSettings.BorderColor, FHoverAnimProgress);
 
-      // Desenha o indicador da tab ATIVA
       case FStyle of
         tsContained: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, FActiveIndicator.RoundCornerType, 255);
         tsPill: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, IndicatorRect.Height div 2, rctAll, 255);
@@ -338,7 +337,6 @@ begin
       end;
     end;
 
-    // Etapa 3: Desenhar cada tab
     for i := 0 to FItems.Count - 1 do
     begin
       Item := FItems[i];
@@ -375,7 +373,14 @@ begin
           if HoverOpacity > 0 then
           begin
             var HoverRadius := IfThen(FStyle = tsPill, ItemRect.Height div 2, FActiveIndicator.CornerRadius);
-            DrawEditBox(LG, ItemRect, FHoverSettings.BackgroundColor, clNone, 0, psClear, HoverRadius, rctAll, HoverOpacity);
+            // CORREÇÃO: Usa a cor da borda do HoverSettings
+            var HoverBorderColor := BlendColors(clNone, FHoverSettings.BorderColor, FHoverAnimProgress);
+            var HoverBorderThickness: Integer;
+            if (HoverBorderColor <> clNone) and (htBorder in FHoverSettings.Targets) then
+              HoverBorderThickness := 1
+            else
+              HoverBorderThickness := 0;
+            DrawEditBox(LG, ItemRect, FHoverSettings.BackgroundColor, HoverBorderColor, HoverBorderThickness, psSolid, HoverRadius, rctAll, HoverOpacity);
           end;
         end;
       end;
@@ -389,7 +394,6 @@ begin
       DrawComponentCaption(Self.Canvas, ItemRect, Item.Caption, Self.Font, FinalFontColor, taCenter, cvaCenter, false, 255);
     end;
 
-    // Etapa 4: Desenha os separadores para o estilo segmentado
     if FStyle = tsSegmented then
     begin
        LastVisibleIndex := -1;

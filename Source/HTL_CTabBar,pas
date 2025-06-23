@@ -291,128 +291,124 @@ procedure THTL_CTabBar.Paint;
 var
   LG: TGPGraphics;
   i, LastVisibleIndex: Integer;
-  Item: THTL_CTabItem;
-  ItemRect: TRect;
-  FinalFontColor, FinalBackgroundColor, FinalIndicatorColor: TColor;
-  IndicatorRect: TRect;
-  IndicatorPen: TGPPen;
-  IndicatorBrush: TGPBrush;
-  SeparatorPen: TGPPen;
-  IsItemActive, IsItemDisabled: Boolean;
-  HoverOpacity: Byte;
+  Item: THTL_CTabItem;
+  ItemRect: TRect;
+  FinalFontColor, FinalBackgroundColor, FinalIndicatorColor: TColor;
+  IndicatorRect: TRect;
+  IndicatorPen: TGPPen;
+  IndicatorBrush: TGPBrush;
+  SeparatorPen: TGPPen;
+  IsItemActive, IsItemDisabled: Boolean;
+  // Removido HoverOpacity, pois usaremos BlendColors
 begin
-  inherited;
-  LG := TGPGraphics.Create(Self.Canvas.Handle);
-  try
-    LG.SetSmoothingMode(SmoothingModeHighQuality);
-    LG.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-    LG.SetPixelOffsetMode(PixelOffsetModeHalf);
+  inherited;
+  LG := TGPGraphics.Create(Self.Canvas.Handle);
+  try
+    LG.SetSmoothingMode(SmoothingModeHighQuality);
+    LG.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-    if FContainer.Visible then
-      DrawEditBox(LG, ClientRect, FContainer.BackgroundColor, FContainer.Color, FContainer.Thickness, FContainer.Style, FContainer.CornerRadius, FContainer.RoundCornerType, 255);
+    if FContainer.Visible then
+      DrawEditBox(LG, ClientRect, FContainer.BackgroundColor, FContainer.Color, FContainer.Thickness, FContainer.Style, FContainer.CornerRadius, FContainer.RoundCornerType, 255);
 
-    if (FActiveIndex >= 0) and (FActiveIndex < FItems.Count) and FItems[FActiveIndex].Visible then
-    begin
-      IndicatorRect.Left   := Round(FFromRect.Left + (FToRect.Left - FFromRect.Left) * FActiveIndicatorAnimProgress);
-      IndicatorRect.Top    := Round(FFromRect.Top + (FToRect.Top - FFromRect.Top) * FActiveIndicatorAnimProgress);
-      IndicatorRect.Right  := Round(FFromRect.Right + (FToRect.Right - FFromRect.Right) * FActiveIndicatorAnimProgress);
-      IndicatorRect.Bottom := Round(FFromRect.Bottom + (FToRect.Bottom - FFromRect.Bottom) * FActiveIndicatorAnimProgress);
-      InflateRect(IndicatorRect, -FSpacing, -FSpacing);
+    if (FActiveIndex >= 0) and (FActiveIndex < FItems.Count) and FItems[FActiveIndex].Visible then
+    begin
+      IndicatorRect.Left   := Round(FFromRect.Left + (FToRect.Left - FFromRect.Left) * FActiveIndicatorAnimProgress);
+      IndicatorRect.Top    := Round(FFromRect.Top + (FToRect.Top - FFromRect.Top) * FActiveIndicatorAnimProgress);
+      IndicatorRect.Right  := Round(FFromRect.Right + (FToRect.Right - FFromRect.Right) * FActiveIndicatorAnimProgress);
+      IndicatorRect.Bottom := Round(FFromRect.Bottom + (FToRect.Bottom - FFromRect.Bottom) * FActiveIndicatorAnimProgress);
+      InflateRect(IndicatorRect, -FSpacing, -FSpacing);
 
-      FinalIndicatorColor := FActiveIndicator.Color;
-      if (FActiveIndex = FPreviousHoveredTabIndex) and (htIndicator in FHoverSettings.Targets) then
-        FinalIndicatorColor := BlendColors(FHoverSettings.BorderColor, FActiveIndicator.Color, FHoverAnimProgress)
-      else if (FActiveIndex = FHoveredTabIndex) and (htIndicator in FHoverSettings.Targets) then
-        FinalIndicatorColor := BlendColors(FActiveIndicator.Color, FHoverSettings.BorderColor, FHoverAnimProgress);
+      FinalIndicatorColor := FActiveIndicator.Color;
+      if (FActiveIndex = FPreviousHoveredTabIndex) and (htIndicator in FHoverSettings.Targets) then
+        FinalIndicatorColor := BlendColors(FHoverSettings.BorderColor, FActiveIndicator.Color, FHoverAnimProgress)
+      else if (FActiveIndex = FHoveredTabIndex) and (htIndicator in FHoverSettings.Targets) then
+        FinalIndicatorColor := BlendColors(FActiveIndicator.Color, FHoverSettings.BorderColor, FHoverAnimProgress);
 
-      case FStyle of
-        tsContained: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, FActiveIndicator.RoundCornerType, 255);
-        tsPill: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, IndicatorRect.Height div 2, rctAll, 255);
-        tsUnderlined: begin IndicatorPen := TGPPen.Create(ColorToARGB(FinalIndicatorColor), FActiveIndicator.Thickness); try IndicatorPen.SetStartCap(LineCapRound); IndicatorPen.SetEndCap(LineCapRound); LG.DrawLine(IndicatorPen, IndicatorRect.Left + FActiveIndicator.CornerRadius, IndicatorRect.Bottom - (FActiveIndicator.Thickness/2), IndicatorRect.Right - FActiveIndicator.CornerRadius, IndicatorRect.Bottom - (FActiveIndicator.Thickness/2)); finally IndicatorPen.Free; end; end;
-        tsGradientUnderlined: begin var GradRect: TGPRectF; GradRect.X := IndicatorRect.Left; GradRect.Y := IndicatorRect.Bottom - FActiveIndicator.Thickness; GradRect.Width := IndicatorRect.Width; GradRect.Height := FActiveIndicator.Thickness; if (GradRect.Width > 0) and (GradRect.Height > 0) and FGradient.Enabled then begin IndicatorBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(FGradient.StartColor), ColorToARGB(FGradient.EndColor), LinearGradientModeHorizontal); try LG.FillRectangle(IndicatorBrush, GradRect); finally IndicatorBrush.Free; end; end; end;
-        tsDottedIndicator: begin var DotSize := Min(6, IndicatorRect.Height div 4); if FItems.Count > FActiveIndex then begin var TextWidth := Self.Canvas.TextWidth(FItems[FActiveIndex].Caption); var DotX := IndicatorRect.Left + (IndicatorRect.Width - TextWidth) div 2 - DotSize - 4; var DotY := IndicatorRect.Top + (IndicatorRect.Height - DotSize) div 2; IndicatorBrush := TGPSolidBrush.Create(ColorToARGB(FActiveFontColor)); try LG.FillEllipse(IndicatorBrush, DotX, DotY, DotSize, DotSize); finally IndicatorBrush.Free; end; end; end;
-        tsBordered: DrawEditBox(LG, IndicatorRect, clNone, FinalIndicatorColor, FActiveIndicator.Thickness, psSolid, FActiveIndicator.CornerRadius, FActiveIndicator.RoundCornerType, 255);
-        tsDualLine: begin IndicatorPen := TGPPen.Create(ColorToARGB(FinalIndicatorColor), FActiveIndicator.Thickness); try LG.DrawLine(IndicatorPen, IndicatorRect.Left, IndicatorRect.Top + 1, IndicatorRect.Right, IndicatorRect.Top + 1); LG.DrawLine(IndicatorPen, IndicatorRect.Left, IndicatorRect.Bottom - 1, IndicatorRect.Right, IndicatorRect.Bottom - 1); finally IndicatorPen.Free; end; end;
-        tsSideLines: begin IndicatorPen := TGPPen.Create(ColorToARGB(FinalIndicatorColor), FActiveIndicator.Thickness); try LG.DrawLine(IndicatorPen, IndicatorRect.Left + 1, IndicatorRect.Top, IndicatorRect.Left + 1, IndicatorRect.Bottom); LG.DrawLine(IndicatorPen, IndicatorRect.Right - 1, IndicatorRect.Top, IndicatorRect.Right - 1, IndicatorRect.Bottom); finally IndicatorPen.Free; end; end;
-      end;
-    end;
+      case FStyle of
+        tsContained: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, FActiveIndicator.RoundCornerType, 255);
+        tsPill: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, IndicatorRect.Height div 2, rctAll, 255);
+        tsUnderlined: begin IndicatorPen := TGPPen.Create(ColorToARGB(FinalIndicatorColor), FActiveIndicator.Thickness); try IndicatorPen.SetStartCap(LineCapRound); IndicatorPen.SetEndCap(LineCapRound); LG.DrawLine(IndicatorPen, IndicatorRect.Left + FActiveIndicator.CornerRadius, IndicatorRect.Bottom - (FActiveIndicator.Thickness/2), IndicatorRect.Right - FActiveIndicator.CornerRadius, IndicatorRect.Bottom - (FActiveIndicator.Thickness/2)); finally IndicatorPen.Free; end; end;
+        tsGradientUnderlined: begin var GradRect: TGPRectF; GradRect.X := IndicatorRect.Left; GradRect.Y := IndicatorRect.Bottom - FActiveIndicator.Thickness; GradRect.Width := IndicatorRect.Width; GradRect.Height := FActiveIndicator.Thickness; if (GradRect.Width > 0) and (GradRect.Height > 0) and FGradient.Enabled then begin IndicatorBrush := TGPLinearGradientBrush.Create(GradRect, ColorToARGB(FGradient.StartColor), ColorToARGB(FGradient.EndColor), LinearGradientModeHorizontal); try LG.FillRectangle(IndicatorBrush, GradRect); finally IndicatorBrush.Free; end; end; end;
+        tsDottedIndicator: begin var DotSize := Min(6, IndicatorRect.Height div 4); if FItems.Count > FActiveIndex then begin var TextWidth := Self.Canvas.TextWidth(FItems[FActiveIndex].Caption); var DotX := IndicatorRect.Left + (IndicatorRect.Width - TextWidth) div 2 - DotSize - 4; var DotY := IndicatorRect.Top + (IndicatorRect.Height - DotSize) div 2; IndicatorBrush := TGPSolidBrush.Create(ColorToARGB(FActiveFontColor)); try LG.FillEllipse(IndicatorBrush, DotX, DotY, DotSize, DotSize); finally IndicatorBrush.Free; end; end; end;
+        tsBordered: DrawEditBox(LG, IndicatorRect, clNone, FinalIndicatorColor, FActiveIndicator.Thickness, psSolid, FActiveIndicator.CornerRadius, FActiveIndicator.RoundCornerType, 255);
+        tsDualLine: begin IndicatorPen := TGPPen.Create(ColorToARGB(FinalIndicatorColor), FActiveIndicator.Thickness); try LG.DrawLine(IndicatorPen, IndicatorRect.Left, IndicatorRect.Top + 1, IndicatorRect.Right, IndicatorRect.Top + 1); LG.DrawLine(IndicatorPen, IndicatorRect.Left, IndicatorRect.Bottom - 1, IndicatorRect.Right, IndicatorRect.Bottom - 1); finally IndicatorPen.Free; end; end;
+        tsSideLines: begin IndicatorPen := TGPPen.Create(ColorToARGB(FinalIndicatorColor), FActiveIndicator.Thickness); try LG.DrawLine(IndicatorPen, IndicatorRect.Left + 1, IndicatorRect.Top, IndicatorRect.Left + 1, IndicatorRect.Bottom); LG.DrawLine(IndicatorPen, IndicatorRect.Right - 1, IndicatorRect.Top, IndicatorRect.Right - 1, IndicatorRect.Bottom); finally IndicatorPen.Free; end; end;
+      end;
+    end;
 
-    for i := 0 to FItems.Count - 1 do
-    begin
-      Item := FItems[i];
-      if not Item.Visible then Continue;
-      ItemRect := GetItemRect(i);
-      if IsRectEmpty(ItemRect) then continue;
+    for i := 0 to FItems.Count - 1 do
+    begin
+      Item := FItems[i];
+      if not Item.Visible then Continue;
+      ItemRect := GetItemRect(i);
+      if IsRectEmpty(ItemRect) then continue;
 
-      IsItemActive := (i = FActiveIndex);
-      IsItemDisabled := not Item.Enabled;
-      FinalFontColor := FInactiveFontColor;
+      IsItemActive := (i = FActiveIndex);
+      IsItemDisabled := not Item.Enabled;
+      FinalFontColor := FInactiveFontColor;
 
-      // Animação de FADE OUT para a tab anterior
-      if (i = FPreviousHoveredTabIndex) and (i <> FHoveredTabIndex) and not IsItemActive then
-      begin
-        if (htFont in FHoverSettings.Targets) then FinalFontColor := BlendColors(FHoverSettings.FontColor, FInactiveFontColor, FHoverAnimProgress);
-        if (htBackground in FHoverSettings.Targets) and (FHoverSettings.BackgroundColor <> clNone) then
-        begin
-          HoverOpacity := Round(255 * (1 - FHoverAnimProgress));
-          if HoverOpacity > 0 then
-          begin
-            var HoverRadius := IfThen(FStyle = tsPill, ItemRect.Height div 2, FActiveIndicator.CornerRadius);
-            DrawEditBox(LG, ItemRect, FHoverSettings.BackgroundColor, clNone, 0, psClear, HoverRadius, rctAll, HoverOpacity);
-          end;
-        end;
-      end;
+      // Animação de FADE OUT para a tab anterior
+      if (i = FPreviousHoveredTabIndex) and (i <> FHoveredTabIndex) and not IsItemActive then
+      begin
+        if (htFont in FHoverSettings.Targets) then FinalFontColor := BlendColors(FHoverSettings.FontColor, FInactiveFontColor, FHoverAnimProgress);
+        if (htBackground in FHoverSettings.Targets) and (FHoverSettings.BackgroundColor <> clNone) then
+        begin
+          // CORREÇÃO: Usar BlendColors para a transição de cor, em vez de opacidade
+          FinalBackgroundColor := BlendColors(FHoverSettings.BackgroundColor, FContainer.BackgroundColor, FHoverAnimProgress);
+          var HoverRadius := IfThen(FStyle = tsPill, ItemRect.Height div 2, FActiveIndicator.CornerRadius);
+          DrawEditBox(LG, ItemRect, FinalBackgroundColor, clNone, 0, psClear, HoverRadius, rctAll, 255);
+        end;
+      end;
 
-      // Animação de FADE IN para a nova tab com hover
-      if (i = FHoveredTabIndex) and not IsItemActive then
-      begin
-        if (htFont in FHoverSettings.Targets) then FinalFontColor := BlendColors(FInactiveFontColor, FHoverSettings.FontColor, FHoverAnimProgress);
-        if (htBackground in FHoverSettings.Targets) and (FHoverSettings.BackgroundColor <> clNone) then
-        begin
-          HoverOpacity := Round(255 * FHoverAnimProgress);
-          if HoverOpacity > 0 then
-          begin
-            var HoverRadius := IfThen(FStyle = tsPill, ItemRect.Height div 2, FActiveIndicator.CornerRadius);
-            // CORREÇÃO: Usa a cor da borda do HoverSettings
-            var HoverBorderColor := BlendColors(clNone, FHoverSettings.BorderColor, FHoverAnimProgress);
-            var HoverBorderThickness: Integer;
-            if (HoverBorderColor <> clNone) and (htBorder in FHoverSettings.Targets) then
-              HoverBorderThickness := 1
-            else
-              HoverBorderThickness := 0;
-            DrawEditBox(LG, ItemRect, FHoverSettings.BackgroundColor, HoverBorderColor, HoverBorderThickness, psSolid, HoverRadius, rctAll, HoverOpacity);
-          end;
-        end;
-      end;
+      // Animação de FADE IN para a nova tab com hover
+      if (i = FHoveredTabIndex) and not IsItemActive then
+      begin
+        if (htFont in FHoverSettings.Targets) then FinalFontColor := BlendColors(FInactiveFontColor, FHoverSettings.FontColor, FHoverAnimProgress);
+        if (htBackground in FHoverSettings.Targets) and (FHoverSettings.BackgroundColor <> clNone) then
+        begin
+          // CORREÇÃO: Usar BlendColors para a transição de cor, em vez de opacidade
+          FinalBackgroundColor := BlendColors(FContainer.BackgroundColor, FHoverSettings.BackgroundColor, FHoverAnimProgress);
+          var HoverRadius := IfThen(FStyle = tsPill, ItemRect.Height div 2, FActiveIndicator.CornerRadius);
+          var HoverBorderColor := BlendColors(clNone, FHoverSettings.BorderColor, FHoverAnimProgress);
+          var HoverBorderThickness: Integer;
+          if (HoverBorderColor <> clNone) and (htBorder in FHoverSettings.Targets) then
+            HoverBorderThickness := 1
+          else
+            HoverBorderThickness := 0;
+          // CORREÇÃO: Usar a cor calculada com opacidade total
+          DrawEditBox(LG, ItemRect, FinalBackgroundColor, HoverBorderColor, HoverBorderThickness, psSolid, HoverRadius, rctAll, 255);
+        end;
+      end;
 
-      if IsItemActive then FinalFontColor := FActiveFontColor;
-      if IsItemDisabled then FinalFontColor := clGrayText;
+      if IsItemActive then FinalFontColor := FActiveFontColor;
+      if IsItemDisabled then FinalFontColor := clGrayText;
 
-      if (FStyle = tsSegmented) and IsItemActive then
-         DrawEditBox(LG, ItemRect, FActiveIndicator.BackgroundColor, FActiveIndicator.Color, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, rctAll, 255);
+      if (FStyle = tsSegmented) and IsItemActive then
+         DrawEditBox(LG, ItemRect, FActiveIndicator.BackgroundColor, FActiveIndicator.Color, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, rctAll, 255);
 
-      DrawComponentCaption(Self.Canvas, ItemRect, Item.Caption, Self.Font, FinalFontColor, taCenter, cvaCenter, false, 255);
-    end;
+      DrawComponentCaption(Self.Canvas, ItemRect, Item.Caption, Self.Font, FinalFontColor, taCenter, cvaCenter, false, 255);
+    end;
 
-    if FStyle = tsSegmented then
-    begin
-       LastVisibleIndex := -1;
-       for i := FItems.Count - 1 downto 0 do if FItems[i].Visible then begin LastVisibleIndex := i; break; end;
-       if LastVisibleIndex > 0 then
-       begin
-         SeparatorPen := TGPPen.Create(ColorToARGB(FContainer.Color), FContainer.Thickness);
-         try
-           for i := 0 to LastVisibleIndex - 1 do
-             if FItems[i].Visible and (i <> FActiveIndex) and ((i + 1) <> FActiveIndex) then
-               begin ItemRect := GetItemRect(i); LG.DrawLine(SeparatorPen, ItemRect.Right, ItemRect.Top + 4, ItemRect.Right, ItemRect.Bottom - 4); end;
-         finally
-           SeparatorPen.Free;
-         end;
-       end;
-    end;
-  finally
-    LG.Free;
-  end;
+    if FStyle = tsSegmented then
+    begin
+       LastVisibleIndex := -1;
+       for i := FItems.Count - 1 downto 0 do if FItems[i].Visible then begin LastVisibleIndex := i; break; end;
+       if LastVisibleIndex > 0 then
+       begin
+         SeparatorPen := TGPPen.Create(ColorToARGB(FContainer.Color), FContainer.Thickness);
+         try
+           for i := 0 to LastVisibleIndex - 1 do
+             if FItems[i].Visible and (i <> FActiveIndex) and ((i + 1) <> FActiveIndex) then
+               begin ItemRect := GetItemRect(i); LG.DrawLine(SeparatorPen, ItemRect.Right, ItemRect.Top + 4, ItemRect.Right, ItemRect.Bottom - 4); end;
+         finally
+           SeparatorPen.Free;
+         end;
+       end;
+    end;
+  finally
+    LG.Free;
+  end;
 end;
 
 end.

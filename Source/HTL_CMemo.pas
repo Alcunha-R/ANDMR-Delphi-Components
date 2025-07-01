@@ -5,33 +5,70 @@ interface
 uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.StdCtrls, System.UITypes, Winapi.Messages, Vcl.Forms, Vcl.Themes,
-  HTL_ComponentUtils,
-  Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, Vcl.Imaging.pngimage,
-  System.Math;
+  Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL, System.Math, Winapi.ActiveX,
+  Vcl.ExtCtrls, Vcl.Imaging.pngimage, System.Types, System.Character,
+  HTL_ComponentUtils;
+
+type
+  // Este tipo foi copiado do CEdit. O ideal seria movê-lo para a unit HTL_ComponentUtils
+  // para ser compartilhado entre os componentes.
+  TButtonStyle = (bsSolid, bsFaded, bsBordered, bsLight, bsFlat, bsGhost, bsShadow, bsGradient, bsDark, bsMaterial, bsModern, bsWindows, bsMacOS);
+
+  // --- Estrutura para centralizar o cálculo do layout ---
+  TMemoLayout = record
+    FullControlRect: TRect;     // O ClientRect completo
+    OutsideCaptionRect: TRect;  // Retângulo para a legenda (se externa)
+    OutsideImageRect: TRect;    // Retângulo para a imagem (se externa)
+    EditBoxRect: TRect;         // A caixa principal (borda, fundo)
+    ContentRect: TRect;         // Área dentro da borda
+    InsideImageRect: TRect;     // Retângulo para a imagem (se interna)
+    InsideCaptionRect: TRect;   // Retângulo para a legenda (se interna)
+    SeparatorRect: TRect;       // Retângulo para o separador
+    FinalImageDestRect: TRect;  // Retângulo final de desenho da imagem (com alinhamento)
+    MemoRect: TRect;            // O retângulo final para o TMemo
+  end;
 
 type
   THTL_CMemo = class(TCustomControl)
   private
+    // --- Fields from CEdit ---
     FBorderSettings: TBorderSettings;
     FFocusSettings: TFocusSettings;
-    FSeparatorSettings: TSeparatorSettings;
-    FImageSettings: TImageSettings;
     FCaptionSettings: TCaptionSettings;
     FHoverSettings: THoverSettings;
     FTextMargins: THTL_Margins;
+    FGradientSettings: TGradientSettings;
+    FClickSettings: TClickSettings;
+    FProgressSettings: TProgressSettings;
+    FImageSettings: TImageSettings;
+    FSeparatorSettings: TSeparatorSettings;
+    FStyle: TButtonStyle;
+    FStatus: TCEditStatus;
 
-    FCaptionRect: TRect;
+    // --- Fields for effects from CEdit ---
+    FClickEffectTimer: TTimer;
+    FClickEffectProgress: Integer;
+    FClickEffectActive: Boolean;
+    FProcessing: Boolean;
+    FProgressTimer: TTimer;
+    FProgressStep: Integer;
+    FOriginalEnabledState: Boolean;
+
+    // --- Original CMemo fields ---
     FHovered: Boolean;
     FOpacity: Byte;
     FInternalMemo: TMemo;
 
+    // --- Events ---
     FOnChange: TNotifyEvent;
     FOnEnter: TNotifyEvent;
     FOnExit: TNotifyEvent;
     FOnKeyDown: TKeyEvent;
     FOnKeyPress: TKeyPressEvent;
     FOnKeyUp: TKeyEvent;
+    FTabStop: Boolean;
 
+    // --- Accessors for Memo properties ---
     function GetLines: TStrings;
     procedure SetLines(const Value: TStrings);
     function GetReadOnly: Boolean;
@@ -42,21 +79,33 @@ type
     procedure SetScrollBars(const Value: TScrollStyle);
     function GetMaxLength: Integer;
     procedure SetMaxLength(const Value: Integer);
+    procedure SetTabStop(Value: Boolean);
 
+    // --- Setters for new/updated properties ---
     procedure SetBorderSettings(const Value: TBorderSettings);
     procedure SetFocusSettings(const Value: TFocusSettings);
-    procedure SetSeparatorSettings(const Value: TSeparatorSettings);
-    procedure SetImageSettings(const Value: TImageSettings);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure SetTextMargins(const Value: THTL_Margins);
+    procedure SetGradientSettings(const Value: TGradientSettings);
+    procedure SetClickSettings(const Value: TClickSettings);
+    procedure SetProgressSettings(const Value: TProgressSettings);
+    procedure SetImageSettings(const Value: TImageSettings);
+    procedure SetSeparatorSettings(const Value: TSeparatorSettings);
+    procedure SetStyle(const Value: TButtonStyle);
+    procedure SetStatus(const Value: TCEditStatus);
     procedure SetOpacity(const Value: Byte);
 
-    procedure SettingsChanged(Sender: TObject);
-    procedure CaptionSettingsChanged(Sender: TObject);
-    procedure HoverSettingsChanged(Sender: TObject);
-    procedure TextMarginsChanged(Sender: TObject);
+    // --- Effect handlers from CEdit ---
+    procedure ClickEffectTimerHandler(Sender: TObject);
+    procedure StartClickEffect;
+    procedure UpdateClickEffectTimerInterval;
+    procedure ProgressTimerHandler(Sender: TObject);
 
+    // --- Change handlers ---
+    procedure SettingsChanged(Sender: TObject);
+
+    // --- Internal Memo event handlers ---
     procedure InternalMemoChange(Sender: TObject);
     procedure InternalMemoEnter(Sender: TObject);
     procedure InternalMemoExit(Sender: TObject);
@@ -64,41 +113,53 @@ type
     procedure InternalMemoKeyPress(Sender: TObject; var Key: Char);
     procedure InternalMemoKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
 
-  protected
-    procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
-    procedure CMExit(var Message: TCMExit); message CM_EXIT;
+    // --- Message handlers from CEdit ---
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
+    procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
+    procedure CMExit(var Message: TCMExit); message CM_EXIT;
+    procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
     procedure CMFontChanged(var Message: TMessage); message CM_FONTCHANGED;
-    procedure SetTabStop(Value: Boolean);
 
-    procedure CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect); virtual;
-    procedure UpdateInternalMemoBounds; virtual;
+  protected
+    function CalculateLayout: TMemoLayout;
+    procedure Paint; override;
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure Resize; override;
+    procedure UpdateInternalMemoBounds;
     procedure Loaded; override;
 
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure Paint; override;
-    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure StartProcessing;
+    procedure StopProcessing;
+    procedure SetFocus; override;
+
   published
+    // --- Standard Memo properties ---
     property Lines: TStrings read GetLines write SetLines;
     property ReadOnly: Boolean read GetReadOnly write SetReadOnly default False;
     property WordWrap: Boolean read GetWordWrap write SetWordWrap default True;
     property ScrollBars: TScrollStyle read GetScrollBars write SetScrollBars default ssVertical;
     property MaxLength: Integer read GetMaxLength write SetMaxLength default 0;
 
+    // --- Settings properties from CEdit ---
     property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
     property FocusSettings: TFocusSettings read FFocusSettings write SetFocusSettings;
-    property SeparatorSettings: TSeparatorSettings read FSeparatorSettings write SetSeparatorSettings;
-    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
     property TextMargins: THTL_Margins read FTextMargins write SetTextMargins;
-
+    property Status: TCEditStatus read FStatus write SetStatus default cepsNormal;
+    property Style: TButtonStyle read FStyle write SetStyle default bsSolid;
+    property ClickSettings: TClickSettings read FClickSettings write SetClickSettings;
+    property GradientSettings: TGradientSettings read FGradientSettings write SetGradientSettings;
+    property ProgressSettings: TProgressSettings read FProgressSettings write SetProgressSettings;
+    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
+    property SeparatorSettings: TSeparatorSettings read FSeparatorSettings write SetSeparatorSettings;
     property Opacity: Byte read FOpacity write SetOpacity default 255;
 
+    // --- Standard control properties ---
     property Align;
     property Anchors;
     property Constraints;
@@ -108,12 +169,18 @@ type
     property PopupMenu;
     property ShowHint;
     property TabOrder;
-    property TabStop default True;
+    property TabStop: Boolean read FTabStop write SetTabStop default True;
     property Visible;
 
+    // --- Events ---
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
     property OnEnter: TNotifyEvent read FOnEnter write FOnEnter;
     property OnExit: TNotifyEvent read FOnExit write FOnExit;
+    property OnClick;
+    property OnDblClick;
+    property OnMouseDown;
+    property OnMouseMove;
+    property OnMouseUp;
     property OnKeyDown: TKeyEvent read FOnKeyDown write FOnKeyDown;
     property OnKeyPress: TKeyPressEvent read FOnKeyPress write FOnKeyPress;
     property OnKeyUp: TKeyEvent read FOnKeyUp write FOnKeyUp;
@@ -133,73 +200,80 @@ end;
 constructor THTL_CMemo.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csSetCaption, csAcceptsControls];
+  // --- Estilo e tamanho padrão ---
+  ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csAcceptsControls];
   DoubleBuffered := True;
   Width := 185;
   Height := 80;
   TabStop := True;
+  Font.Name := 'Segoe UI';
+  Font.Size := 9;
+  Font.Color := clWindowText;
 
+  // --- Inicialização das classes de settings (padrão CEdit) ---
   FBorderSettings := TBorderSettings.Create;
   FBorderSettings.OnChange := SettingsChanged;
-  FBorderSettings.CornerRadius := 4; // Modernized
+  FBorderSettings.CornerRadius := 4;
   FBorderSettings.RoundCornerType := rctAll;
-  FBorderSettings.Color := clSilver; // Modernized
+  FBorderSettings.Color := clSilver;
   FBorderSettings.Thickness := 1;
-  FBorderSettings.Style := psSolid;
-  FBorderSettings.BackgroundColor := clWindow; // Modernized
+  FBorderSettings.BackgroundColor := clWindow;
 
   FFocusSettings := TFocusSettings.Create;
   FFocusSettings.OnChange := SettingsChanged;
-  FFocusSettings.BorderColorVisible := True;
-  FFocusSettings.BorderColor := clHighlight;
-  FFocusSettings.BackgroundColorVisible := False;
-  FFocusSettings.BackgroundColor := clWindow;
-  FFocusSettings.UnderlineVisible := False;
-  FFocusSettings.UnderlineColor := clHighlight; // Modernized
-  FFocusSettings.UnderlineThickness := 1;
-  FFocusSettings.UnderlineStyle := psSolid;
-
+  FCaptionSettings := TCaptionSettings.Create(Self);
+  FCaptionSettings.OnChange := SettingsChanged;
+  FCaptionSettings.Font.Style := [fsBold];
+  FCaptionSettings.Font.Color := clGrayText;
+  FHoverSettings := THoverSettings.Create(Self);
+  FHoverSettings.OnChange := SettingsChanged;
+  FTextMargins := THTL_Margins.Create;
+  FTextMargins.OnChange := SettingsChanged;
+  FTextMargins.Left := 8;
+  FTextMargins.Right := 8;
+  FGradientSettings := TGradientSettings.Create;
+  FGradientSettings.OnChange := SettingsChanged;
+  FClickSettings := TClickSettings.Create;
+  FClickSettings.OnChange := SettingsChanged;
+  FClickSettings.Duration := 200;
+  FProgressSettings := TProgressSettings.Create(Self);
+  FProgressSettings.OnChange := SettingsChanged;
+  FImageSettings := TImageSettings.Create(Self);
+  FImageSettings.OnChange := SettingsChanged;
   FSeparatorSettings := TSeparatorSettings.Create;
   FSeparatorSettings.OnChange := SettingsChanged;
   FSeparatorSettings.Visible := False;
-  FSeparatorSettings.Color := clGrayText;
-  FSeparatorSettings.Thickness := 1;
-  FSeparatorSettings.Padding := 2;
-  FSeparatorSettings.HeightMode := shmFull;
-  FSeparatorSettings.CustomHeight := 0;
 
-  FImageSettings := TImageSettings.Create(Self);
-  FImageSettings.OnChange := SettingsChanged;
-  FImageSettings.Visible := True;
-//  FImageSettings.Position := ipLeft;
-  FImageSettings.Placement := iplInsideBounds;
+  // --- Inicialização dos Timers e Efeitos (padrão CEdit) ---
+  FClickEffectTimer := TTimer.Create(Self);
+  FClickEffectTimer.Enabled := False;
+  FClickEffectTimer.OnTimer := ClickEffectTimerHandler;
+  UpdateClickEffectTimerInterval;
+  FClickEffectProgress := 0;
+  FClickEffectActive := False;
+  FProgressTimer := TTimer.Create(Self);
+  FProgressTimer.Enabled := False;
+  FProgressTimer.Interval := FProgressSettings.AnimationTimerInterval;
+  FProgressTimer.OnTimer := ProgressTimerHandler;
+  FProcessing := False;
+  FOriginalEnabledState := True;
 
-  FCaptionSettings := TCaptionSettings.Create(Self);
-  FCaptionSettings.OnChange := CaptionSettingsChanged;
-  FCaptionSettings.Font.Style := [fsBold]; // Modernized
-  FCaptionSettings.Font.Color := clGrayText; // Modernized
-  FHoverSettings := THoverSettings.Create(Self);
-  FHoverSettings.OnChange := HoverSettingsChanged;
-  FTextMargins := THTL_Margins.Create;
-  FTextMargins.OnChange := TextMarginsChanged;
-
-  FCaptionRect := Rect(0,0,0,0);
-  FHovered := False;
+  // --- Inicialização de variáveis de estado ---
+  FStyle := bsSolid;
+  FStatus := cepsNormal;
   FOpacity := 255;
-  Self.Font.Name := 'Segoe UI';
-  Self.Font.Size := 9;
-  Self.Font.Color := clWindowText;
+  FHovered := False;
 
+  // --- Criação do TMemo interno ---
   FInternalMemo := TMemo.Create(Self);
   FInternalMemo.Parent := Self;
   FInternalMemo.Align := alNone;
   FInternalMemo.BorderStyle := bsNone;
-  FInternalMemo.TabStop := True;
+  FInternalMemo.Font.Assign(Self.Font);
+  FInternalMemo.Color := FBorderSettings.BackgroundColor;
   FInternalMemo.WordWrap := True;
   FInternalMemo.ScrollBars := ssVertical;
-  FInternalMemo.Font.Assign(Self.Font);
-  FInternalMemo.Color := FBorderSettings.BackgroundColor; // Will now correctly be clWindow
-
+  FInternalMemo.TabStop := Self.TabStop;
   FInternalMemo.OnChange := InternalMemoChange;
   FInternalMemo.OnEnter := InternalMemoEnter;
   FInternalMemo.OnExit := InternalMemoExit;
@@ -210,224 +284,182 @@ end;
 
 destructor THTL_CMemo.Destroy;
 begin
-  if Assigned(FBorderSettings) then FBorderSettings.OnChange := nil;
+  // --- Liberar todos os objetos ---
   FreeAndNil(FBorderSettings);
-  if Assigned(FFocusSettings) then FFocusSettings.OnChange := nil;
   FreeAndNil(FFocusSettings);
-  if Assigned(FSeparatorSettings) then FSeparatorSettings.OnChange := nil;
-  FreeAndNil(FSeparatorSettings);
-  if Assigned(FImageSettings) then FImageSettings.OnChange := nil;
-  FreeAndNil(FImageSettings);
-  if Assigned(FCaptionSettings) then FCaptionSettings.OnChange := nil;
   FreeAndNil(FCaptionSettings);
-  if Assigned(FHoverSettings) then FHoverSettings.OnChange := nil;
   FreeAndNil(FHoverSettings);
-  if Assigned(FTextMargins) then FTextMargins.OnChange := nil;
   FreeAndNil(FTextMargins);
-
+  FreeAndNil(FGradientSettings);
+  FreeAndNil(FClickSettings);
+  FreeAndNil(FClickEffectTimer);
+  FreeAndNil(FProgressSettings);
+  FreeAndNil(FProgressTimer);
+  FreeAndNil(FImageSettings);
+  FreeAndNil(FSeparatorSettings);
   FreeAndNil(FInternalMemo);
   inherited Destroy;
 end;
 
-procedure THTL_CMemo.Loaded;
+// --- Métodos de Processamento (Loading) ---
+
+procedure THTL_CMemo.StartProcessing;
 begin
-  inherited Loaded;
-  UpdateInternalMemoBounds;
-  if Assigned(FInternalMemo) then
+  if FProgressSettings.ShowProgress and not FProcessing then
   begin
-    FInternalMemo.Visible := Self.Visible;
-    FInternalMemo.TabStop := Self.TabStop;
+    FProcessing := True;
+    FOriginalEnabledState := Self.Enabled;
+    if Self.Enabled then
+      Self.Enabled := False;
+    FInternalMemo.Visible := False; // Esconde o memo
+    FProgressStep := 0;
+    FProgressTimer.Interval := FProgressSettings.AnimationTimerInterval;
+    FProgressTimer.Enabled := True;
+    Invalidate;
   end;
 end;
+
+procedure THTL_CMemo.StopProcessing;
+begin
+  if FProcessing then
+  begin
+    FProcessing := False;
+    FProgressTimer.Enabled := False;
+    if Self.Enabled <> FOriginalEnabledState then
+      Self.Enabled := FOriginalEnabledState;
+    FInternalMemo.Visible := True; // Mostra o memo novamente
+    Invalidate;
+  end;
+end;
+
+procedure THTL_CMemo.ProgressTimerHandler(Sender: TObject);
+begin
+  if FProcessing then
+  begin
+    Inc(FProgressStep, FProgressSettings.AnimationProgressStep);
+    Invalidate;
+  end
+  else
+    FProgressTimer.Enabled := False;
+end;
+
+// --- Métodos de Efeito de Clique ---
+
+procedure THTL_CMemo.StartClickEffect;
+begin
+  if not Enabled or not FClickSettings.Enabled or (FClickSettings.Duration <= 0) then Exit;
+  FClickEffectActive := True;
+  FClickEffectProgress := 255;
+  UpdateClickEffectTimerInterval;
+  FClickEffectTimer.Enabled := True;
+  Invalidate;
+end;
+
+procedure THTL_CMemo.UpdateClickEffectTimerInterval;
+const
+  MIN_INTERVAL = 10;
+  FADE_STEP_VALUE = 20;
+var
+  NumTicks: Single;
+  NewInterval: Integer;
+begin
+  if FClickSettings.Duration <= 0 then
+  begin
+    FClickEffectTimer.Interval := MIN_INTERVAL;
+    Exit;
+  end;
+  NumTicks := 255 / FADE_STEP_VALUE;
+  if NumTicks <= 0 then NumTicks := 1;
+  NewInterval := Round(FClickSettings.Duration / NumTicks);
+  FClickEffectTimer.Interval := Max(MIN_INTERVAL, NewInterval);
+end;
+
+procedure THTL_CMemo.ClickEffectTimerHandler(Sender: TObject);
+const
+  FADE_STEP_VALUE = 20;
+begin
+  if FClickEffectActive then
+  begin
+    if FClickEffectProgress > 0 then
+      Dec(FClickEffectProgress, FADE_STEP_VALUE);
+
+    FClickEffectProgress := Max(0, FClickEffectProgress);
+
+    if FClickEffectProgress <= 0 then
+    begin
+      FClickEffectProgress := 0;
+      FClickEffectActive := False;
+      FClickEffectTimer.Enabled := False;
+    end;
+    Invalidate;
+  end else
+  begin
+    FClickEffectProgress := 0;
+    FClickEffectTimer.Enabled := False;
+    Invalidate;
+  end;
+end;
+
+// --- Handlers de Eventos e Mensagens ---
 
 procedure THTL_CMemo.SettingsChanged(Sender: TObject);
 begin
-  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
+  UpdateInternalMemoBounds;
+  Invalidate;
+end;
+
+procedure THTL_CMemo.CMEnabledChanged(var Message: TMessage);
+begin
+  inherited;
+  if not Enabled and not FProcessing then
   begin
-    Invalidate;
-    Exit;
-  end;
-  if HandleAllocated and not (csDestroying in ComponentState) then
-  begin
-    UpdateInternalMemoBounds;
+    FClickEffectActive := False;
+    FClickEffectProgress := 0;
+    FClickEffectTimer.Enabled := False;
+    if FHoverSettings.Enabled then
+      FHoverSettings.StartAnimation(False);
   end;
   Invalidate;
 end;
 
-procedure THTL_CMemo.CaptionSettingsChanged(Sender: TObject);
+procedure THTL_CMemo.CMEnter(var Message: TCMEnter);
 begin
-  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
-  begin
-    Invalidate;
-    Exit;
-  end;
-  if HandleAllocated and not (csDestroying in ComponentState) then
-  begin
-    UpdateInternalMemoBounds;
-  end;
+  inherited;
+  if Assigned(FOnEnter) then FOnEnter(Self);
   Invalidate;
 end;
 
-procedure THTL_CMemo.HoverSettingsChanged(Sender: TObject);
+procedure THTL_CMemo.CMExit(var Message: TCMExit);
 begin
+  inherited;
+  if Assigned(FOnExit) then FOnExit(Self);
   Invalidate;
 end;
 
-procedure THTL_CMemo.TextMarginsChanged(Sender: TObject);
+procedure THTL_CMemo.CMMouseEnter(var Message: TMessage);
 begin
-  if (ComponentState * [csLoading, csReading, csDesigning]) <> [] then
+  inherited;
+  if not FHovered then
   begin
-    Invalidate;
-    Exit;
-  end;
-  if HandleAllocated and not (csDestroying in ComponentState) then
-  begin
-    UpdateInternalMemoBounds;
-  end;
-  Invalidate;
-end;
-
-procedure THTL_CMemo.InternalMemoChange(Sender: TObject);
-begin
-  if Assigned(FOnChange) then FOnChange(Self);
-end;
-
-procedure THTL_CMemo.InternalMemoEnter(Sender: TObject);
-begin
-  if not Self.Focused then
-  begin
-     Invalidate;
-  end;
-end;
-
-procedure THTL_CMemo.InternalMemoExit(Sender: TObject);
-begin
-  Invalidate;
-end;
-
-procedure THTL_CMemo.InternalMemoKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
-begin
-  if Assigned(FOnKeyDown) then FOnKeyDown(Self, Key, Shift);
-end;
-
-procedure THTL_CMemo.InternalMemoKeyPress(Sender: TObject; var Key: Char);
-begin
-  if Assigned(FOnKeyPress) then FOnKeyPress(Self, Key);
-end;
-
-procedure THTL_CMemo.InternalMemoKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
-begin
-  if Assigned(FOnKeyUp) then FOnKeyUp(Self, Key, Shift);
-end;
-
-procedure THTL_CMemo.SetBorderSettings(const Value: TBorderSettings);
-begin
-  FBorderSettings.Assign(Value);
-  SettingsChanged(Self);
-end;
-
-procedure THTL_CMemo.SetImageSettings(const Value: TImageSettings);
-begin
-  FImageSettings.Assign(Value);
-  SettingsChanged(Self);
-end;
-
-procedure THTL_CMemo.SetSeparatorSettings(const Value: TSeparatorSettings);
-begin
-  FSeparatorSettings.Assign(Value);
-  SettingsChanged(Self);
-end;
-
-procedure THTL_CMemo.SetCaptionSettings(const Value: TCaptionSettings);
-begin
-  FCaptionSettings.Assign(Value);
-  CaptionSettingsChanged(Self);
-end;
-
-procedure THTL_CMemo.SetHoverSettings(const Value: THoverSettings);
-begin
-  FHoverSettings.Assign(Value);
-  HoverSettingsChanged(Self); // Call HoverSettingsChanged
-end;
-
-procedure THTL_CMemo.SetTextMargins(const Value: THTL_Margins);
-begin
-  FTextMargins.Assign(Value);
-  TextMarginsChanged(Self);
-end;
-
-procedure THTL_CMemo.SetFocusSettings(const Value: TFocusSettings);
-begin
-  FFocusSettings.Assign(Value);
-  SettingsChanged(Self);
-end;
-
-procedure THTL_CMemo.SetOpacity(const Value: Byte);
-begin
-  if FOpacity <> Value then
-  begin
-    FOpacity := Value;
-    if FOpacity < 255 then
-    begin
-      ControlStyle := ControlStyle - [csOpaque];
-      if Parent <> nil then Parent.Invalidate;
-    end
+    FHovered := True;
+    if FHoverSettings.Enabled then
+      FHoverSettings.StartAnimation(True)
     else
-    begin
-      ControlStyle := ControlStyle + [csOpaque];
-    end;
-    Invalidate;
+      Invalidate;
   end;
 end;
 
-function THTL_CMemo.GetLines: TStrings;
+procedure THTL_CMemo.CMMouseLeave(var Message: TMessage);
 begin
-  Result := FInternalMemo.Lines;
-end;
-
-procedure THTL_CMemo.SetLines(const Value: TStrings);
-begin
-  FInternalMemo.Lines.Assign(Value);
-end;
-
-function THTL_CMemo.GetReadOnly: Boolean;
-begin
-  Result := FInternalMemo.ReadOnly;
-end;
-
-procedure THTL_CMemo.SetReadOnly(const Value: Boolean);
-begin
-  FInternalMemo.ReadOnly := Value;
-end;
-
-function THTL_CMemo.GetWordWrap: Boolean;
-begin
-  Result := FInternalMemo.WordWrap;
-end;
-
-procedure THTL_CMemo.SetWordWrap(const Value: Boolean);
-begin
-  FInternalMemo.WordWrap := Value;
-end;
-
-function THTL_CMemo.GetScrollBars: TScrollStyle;
-begin
-  Result := FInternalMemo.ScrollBars;
-end;
-
-procedure THTL_CMemo.SetScrollBars(const Value: TScrollStyle);
-begin
-  FInternalMemo.ScrollBars := Value;
-end;
-
-function THTL_CMemo.GetMaxLength: Integer;
-begin
-  Result := FInternalMemo.MaxLength;
-end;
-
-procedure THTL_CMemo.SetMaxLength(const Value: Integer);
-begin
-  FInternalMemo.MaxLength := Value;
+  inherited;
+  if FHovered then
+  begin
+    FHovered := False;
+    if FHoverSettings.Enabled then
+      FHoverSettings.StartAnimation(False)
+    else
+      Invalidate;
+  end;
 end;
 
 procedure THTL_CMemo.CMFontChanged(var Message: TMessage);
@@ -441,459 +473,15 @@ begin
   Invalidate;
 end;
 
-procedure THTL_CMemo.CalculateLayout(out outImgRect: TRect; out outTxtRect: TRect; out outSepRect: TRect);
-const
-  DefaultCaptionOffset = 2;
-var
-  WorkArea: TRect;
-  ImgW, ImgH, SepW: Integer;
-  FullClientRect: TRect;
-  CaptionHeight, CaptionWidth: Integer;
-  OriginalFont: TFont;
-  OriginalImgW, OriginalImgH: Integer;
-  availWForImg, availHForImg: Integer;
-  rImageRatio, rAvailBoxRatio: Double; // Kept for AutoSize = True branch
-  tempW, tempH: Double; // Kept for AutoSize = True branch
-  EffectiveCaptionOffsetX, EffectiveCaptionOffsetY: Integer;
-  // New variables for AutoSize = False branch
-  targetW, targetH: Integer;
-  imgAspectRatio, targetAspectRatio: Single; // Using Single for aspect ratios
-  MemoContentArea: TRect; // For iplOutsideBounds
-  availHForImgLayoutAdjusted: Integer; // For vertical alignment helper
+// --- Métodos de Controle ---
+procedure THTL_CMemo.Loaded;
 begin
-  if not HandleAllocated then
-  begin
-    outImgRect := Rect(0,0,0,0);
-    outTxtRect := Rect(0, 0, Width, Height);
-    outSepRect := Rect(0,0,0,0);
-    Exit;
-  end;
-
-  FullClientRect := Self.ClientRect;
-  FCaptionRect := Rect(0,0,0,0);
-
-  if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') then
-  begin
-    OriginalFont := TFont.Create;
-    try
-      OriginalFont.Assign(Self.Canvas.Font);
-      Self.Canvas.Font.Assign(FCaptionSettings.Font);
-
-      CaptionHeight := Self.Canvas.TextHeight(FCaptionSettings.Text);
-      CaptionWidth := Self.Canvas.TextWidth(FCaptionSettings.Text);
-      if FCaptionSettings.WordWrap and (FCaptionSettings.Position in [cpAbove, cpBelow]) then
-      begin
-          var TempRectCap := Rect(0,0, FullClientRect.Width, 30000);
-          DrawText(Self.Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRectCap, DT_CALCRECT or DT_WORDBREAK);
-          CaptionHeight := TempRectCap.Bottom - TempRectCap.Top;
-          CaptionWidth := FullClientRect.Width;
-      end else if FCaptionSettings.WordWrap and (FCaptionSettings.Position in [cpLeft, cpRight]) then
-      begin
-          var TempRectCap := Rect(0,0, CaptionWidth, FullClientRect.Height);
-          DrawText(Self.Canvas.Handle, PChar(FCaptionSettings.Text), Length(FCaptionSettings.Text), TempRectCap, DT_CALCRECT or DT_WORDBREAK);
-          CaptionWidth := TempRectCap.Right - TempRectCap.Left;
-          CaptionHeight := FullClientRect.Height;
-      end;
-    finally
-      Self.Canvas.Font.Assign(OriginalFont);
-      OriginalFont.Free;
-    end;
-
-    WorkArea := FullClientRect;
-    EffectiveCaptionOffsetX := FCaptionSettings.Offset.X;
-    EffectiveCaptionOffsetY := FCaptionSettings.Offset.Y;
-    if (EffectiveCaptionOffsetX = 0) and (EffectiveCaptionOffsetY = 0) then
-    begin
-        EffectiveCaptionOffsetX := DefaultCaptionOffset;
-        EffectiveCaptionOffsetY := DefaultCaptionOffset;
-    end;
-
-    case FCaptionSettings.Position of
-      cpAbove: begin FCaptionRect := Rect(FullClientRect.Left, FullClientRect.Top, FullClientRect.Right, FullClientRect.Top + CaptionHeight); WorkArea.Top := FCaptionRect.Bottom + EffectiveCaptionOffsetY; end;
-      cpBelow: begin FCaptionRect := Rect(FullClientRect.Left, FullClientRect.Bottom - CaptionHeight, FullClientRect.Right, FullClientRect.Bottom); WorkArea.Bottom := FCaptionRect.Top - EffectiveCaptionOffsetY; end;
-      cpLeft:  begin FCaptionRect := Rect(FullClientRect.Left, FullClientRect.Top, FullClientRect.Left + CaptionWidth, FullClientRect.Bottom); WorkArea.Left := FCaptionRect.Right + EffectiveCaptionOffsetX; end;
-      cpRight: begin FCaptionRect := Rect(FullClientRect.Right - CaptionWidth, FullClientRect.Top, FullClientRect.Right, FullClientRect.Bottom); WorkArea.Right := FCaptionRect.Left - EffectiveCaptionOffsetX; end;
-    end;
-    if WorkArea.Bottom < WorkArea.Top then WorkArea.Bottom := WorkArea.Top;
-    if WorkArea.Right < WorkArea.Left then WorkArea.Right := WorkArea.Left;
-  end
-  else
-    WorkArea := FullClientRect; // This is now BaseWorkArea conceptually
-
-  // Define BaseWorkArea, MemoDrawingArea, ImagePlacementArea
-  var BaseWorkArea: TRect;
-  var MemoDrawingArea: TRect; // Area for text and internal elements, border-deflated
-  var ImagePlacementArea: TRect; // Area for image placement
-
-  BaseWorkArea := WorkArea; // WorkArea from caption adjustments is our BaseWorkArea
-
-  MemoDrawingArea := BaseWorkArea;
-  if FBorderSettings.Thickness > 0 then
-    InflateRect(MemoDrawingArea, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
-
-  ImagePlacementArea := BaseWorkArea; // Default for iplOutsideBounds
-  if FImageSettings.Placement = iplInsideBounds then
-    ImagePlacementArea := MemoDrawingArea; // For iplInsideBounds, image uses MemoDrawingArea
-
-  // Initialize output rects
-  outTxtRect := MemoDrawingArea; // Text rect starts as the full memo drawing area
-  outImgRect := Rect(0,0,0,0);
-  outSepRect := Rect(0,0,0,0);
-  // MemoContentArea is effectively replaced by MemoDrawingArea or ImagePlacementArea depending on context
-
-  ImgW := 0; ImgH := 0;
-  if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
-  begin
-    OriginalImgW := FImageSettings.Picture.Graphic.Width;
-    OriginalImgH := FImageSettings.Picture.Graphic.Height;
-
-    if (OriginalImgW > 0) and (OriginalImgH > 0) then
-    begin
-      // Calculate available space for image within ImagePlacementArea
-      availWForImg := ImagePlacementArea.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right;
-      availHForImg := ImagePlacementArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
-      availWForImg := Max(0, availWForImg);
-      availHForImg := Max(0, availHForImg);
-
-      if (availWForImg > 0) and (availHForImg > 0) then
-      begin
-        if FImageSettings.AutoSize then
-        begin
-          // AutoSize = True: Existing logic using available space
-          case FImageSettings.DrawMode of
-            idmProportional:
-            begin
-              rImageRatio := OriginalImgW / OriginalImgH; // Using Double as per original var
-              rAvailBoxRatio := availWForImg / availHForImg; // Using Double
-              if rAvailBoxRatio > rImageRatio then // Fit to height
-              begin
-                ImgH := availHForImg;
-                tempW := availHForImg * rImageRatio; // Using Double
-                ImgW := Round(tempW);
-                if (ImgW = 0) and (tempW > 0) then ImgW := 1;
-              end
-              else // Fit to width
-              begin
-                ImgW := availWForImg;
-                if rImageRatio > 0 then
-                begin
-                  tempH := availWForImg / rImageRatio; // Using Double
-                  ImgH := Round(tempH);
-                  if (ImgH = 0) and (tempH > 0) then ImgH := 1;
-                end else ImgH := 0;
-              end;
-            end;
-            idmStretch:
-            begin
-              ImgW := availWForImg;
-              ImgH := availHForImg;
-            end;
-          else // Default, similar to proportional or normal based on context
-            ImgW := OriginalImgW; ImgH := OriginalImgH;
-          end;
-        end
-        else // AutoSize = False: Use TargetWidth and TargetHeight
-        begin
-          targetW := FImageSettings.TargetWidth;
-          targetH := FImageSettings.TargetHeight;
-
-          case FImageSettings.DrawMode of
-            idmProportional:
-            begin
-              if (OriginalImgW = 0) or (OriginalImgH = 0) or (targetW <= 0) or (targetH <= 0) then
-              begin
-                ImgW := 0; ImgH := 0;
-              end
-              else
-              begin
-                imgAspectRatio := OriginalImgW / OriginalImgH; // Using Single
-                targetAspectRatio := targetW / targetH;     // Using Single
-                if targetAspectRatio > imgAspectRatio then // Fit to target height
-                begin
-                  ImgH := targetH;
-                  ImgW := Round(ImgH * imgAspectRatio);
-                end
-                else // Fit to target width
-                begin
-                  ImgW := targetW;
-                  ImgH := Round(ImgW / imgAspectRatio);
-                end;
-              end;
-            end;
-            idmStretch:
-            begin
-              ImgW := targetW;
-              ImgH := targetH;
-            end;
-          else // Default, similar to normal
-            ImgW := OriginalImgW; ImgH := OriginalImgH;
-          end;
-        end;
-      end
-      else // Not (availWForImg > 0) and (availHForImg > 0)
-      begin
-        ImgW := 0; // No available space for image
-        ImgH := 0;
-      end;
-    end
-    else // Not (OriginalImgW > 0) and (OriginalImgH > 0)
-    begin
-      ImgW := 0; // Original image has no dimensions
-      ImgH := 0;
-    end;
-  end
-  else // Image not visible or no graphic
-  begin
-    ImgW := 0;
-    ImgH := 0;
-  end;
-
-  ImgW := Max(0, ImgW);
-  ImgH := Max(0, ImgH);
-
-  SepW := 0;
-  if FSeparatorSettings.Visible and (FSeparatorSettings.Thickness > 0) then
-    SepW := FSeparatorSettings.Thickness;
-
-  // --- Unified Image and Text Layout Logic ---
-  if FImageSettings.Visible and (ImgW > 0) then
-  begin
-    var slotStartX, slotAvailableWidth, slotEndX: Integer; // For Horizontal Alignment
-
-    // Horizontal positioning of image within ImagePlacementArea
-//    if FImageSettings.Position = ipLeft then
-//    begin
-//      slotStartX := ImagePlacementArea.Left + FImageSettings.Margins.Left;
-//      slotAvailableWidth := availWForImg;
-//      case FImageSettings.HorizontalAlign of
-//        ihaLeft:   outImgRect.Left := slotStartX;
-//        ihaCenter: outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2;
-//        ihaRight:  outImgRect.Left := slotStartX + slotAvailableWidth - ImgW;
-//      else         outImgRect.Left := slotStartX + (slotAvailableWidth - ImgW) div 2; // Default center
-//      end;
-//      outImgRect.Right := outImgRect.Left + ImgW;
-//    end
-//    else // ipsRight
-//    begin
-//      slotEndX := ImagePlacementArea.Right - FImageSettings.Margins.Right;
-//      slotAvailableWidth := availWForImg;
-//      case FImageSettings.HorizontalAlign of
-//        ihaLeft:   outImgRect.Left := slotEndX - slotAvailableWidth;
-//        ihaCenter: outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2;
-//        ihaRight:  outImgRect.Left := slotEndX - ImgW;
-//      else         outImgRect.Left := slotEndX - slotAvailableWidth + (slotAvailableWidth - ImgW) div 2; // Default center
-//      end;
-//      outImgRect.Right := outImgRect.Left + ImgW;
-//    end;
-
-    // Vertical positioning of image within ImagePlacementArea
-    availHForImgLayoutAdjusted := ImagePlacementArea.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom;
-    availHForImgLayoutAdjusted := Max(0, availHForImgLayoutAdjusted);
-    case FImageSettings.VerticalAlign of
-      ivaTop:    outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top;
-      ivaCenter: outImgRect.Top := ImagePlacementArea.Top + FImageSettings.Margins.Top + (availHForImgLayoutAdjusted - ImgH) div 2;
-      ivaBottom: outImgRect.Top := ImagePlacementArea.Bottom - FImageSettings.Margins.Bottom - ImgH;
-    end;
-    outImgRect.Bottom := outImgRect.Top + ImgH;
-
-    // Clip image rect to ImagePlacementArea
-    if outImgRect.Left < ImagePlacementArea.Left then outImgRect.Left := ImagePlacementArea.Left;
-    if outImgRect.Right > ImagePlacementArea.Right then outImgRect.Right := ImagePlacementArea.Right;
-    if outImgRect.Top < ImagePlacementArea.Top then outImgRect.Top := ImagePlacementArea.Top;
-    if outImgRect.Bottom > ImagePlacementArea.Bottom then outImgRect.Bottom := ImagePlacementArea.Bottom;
-    if outImgRect.Right < outImgRect.Left then outImgRect.Right := outImgRect.Left;
-    if outImgRect.Bottom < outImgRect.Top then outImgRect.Bottom := outImgRect.Top;
-    ImgW := outImgRect.Width; // Update ImgW/H after clipping
-    ImgH := outImgRect.Height;
-
-
-    // This block is removed as the logic is now integrated below.
-  end
-  else // No image visible
-  begin
-    outImgRect := Rect(0,0,0,0); // Ensure image rect is zeroed if not visible
-    ImgW := 0; ImgH := 0;
-    // outTxtRect remains MemoDrawingArea, potentially adjusted by separator if visible without image
-  end;
-
-  // --- Combined Image, Separator, and TextRect Horizontal Adjustment ---
-  if FImageSettings.Visible and (ImgW > 0) then
-  begin
-    if FImageSettings.Placement = iplInsideBounds then
-    begin // Image AND Separator (if visible) are INSIDE MemoDrawingArea, carving space from outTxtRect
-//      if FImageSettings.Position = ipLeft then
-//      begin
-//        if FSeparatorSettings.Visible and (SepW > 0) then
-//        begin
-//          outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding;
-//          outSepRect.Right := outSepRect.Left + SepW;
-//          outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
-//        end
-//        else // No separator
-//        begin
-//          outTxtRect.Left := outImgRect.Right + FImageSettings.Margins.Right;
-//          outSepRect := Rect(0,0,0,0);
-//        end;
-//      end
-//      else // Image position ipsRight
-//      begin
-//        if FSeparatorSettings.Visible and (SepW > 0) then
-//        begin
-//          outSepRect.Right := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding;
-//          outSepRect.Left := outSepRect.Right - SepW;
-//          outTxtRect.Right := outSepRect.Left - FSeparatorSettings.Padding;
-//        end
-//        else // No separator
-//        begin
-//          outTxtRect.Right := outImgRect.Left - FImageSettings.Margins.Left;
-//          outSepRect := Rect(0,0,0,0);
-//        end;
-//      end;
-    end
-    else // iplOutsideBounds: Image is OUTSIDE MemoDrawingArea. outTxtRect is not changed by image.
-         // Separator is between image and MemoDrawingArea.
-    begin
-      if FSeparatorSettings.Visible and (SepW > 0) then
-      begin
-//        if FImageSettings.Position = ipLeft then
-//        begin
-//          outSepRect.Left := outImgRect.Right + FImageSettings.Margins.Right + FSeparatorSettings.Padding;
-//          outSepRect.Right := outSepRect.Left + SepW;
-//          // Note: outTxtRect.Left (MemoDrawingArea.Left) is not affected by image/sep outside
-//        end
-//        else // ipsRight
-//        begin
-//          outSepRect.Right := outImgRect.Left - FImageSettings.Margins.Left - FSeparatorSettings.Padding;
-//          outSepRect.Left := outSepRect.Right - SepW;
-//          // Note: outTxtRect.Right (MemoDrawingArea.Right) is not affected by image/sep outside
-//        end;
-      end
-      else // No separator
-      begin
-        outSepRect := Rect(0,0,0,0);
-      end;
-      // outTxtRect remains MemoDrawingArea as image is outside.
-    end;
-  end
-  else // No image is visible
-  begin
-    // Separator might still be visible, e.g., at an edge of MemoDrawingArea
-    if FSeparatorSettings.Visible and (SepW > 0) then
-    begin
-      // Default: place separator on left of MemoDrawingArea if no image
-      // This could be made configurable if needed (e.g. separator position without image)
-      outSepRect.Left := MemoDrawingArea.Left + FSeparatorSettings.Padding;
-      outSepRect.Right := outSepRect.Left + SepW;
-      outTxtRect.Left := outSepRect.Right + FSeparatorSettings.Padding;
-    end
-    else // No image and no separator
-    begin
-      outSepRect := Rect(0,0,0,0);
-      // outTxtRect remains MemoDrawingArea
-    end;
-  end;
-
-  // --- Common Vertical Separator positioning and final clipping ---
-  if FSeparatorSettings.Visible and (SepW > 0) and not IsRectEmpty(outSepRect) then
-  begin
-    var SepH: Integer;
-    var SepRefRect: TRect; // Reference for separator's vertical extent
-    if FImageSettings.Placement = iplInsideBounds then
-        SepRefRect := MemoDrawingArea // Separator is relative to the memo's drawing area
-    else if FImageSettings.Visible and (ImgW > 0) then // Outside, and image exists
-        SepRefRect := outImgRect // Align with the image vertically
-    else
-        SepRefRect := MemoDrawingArea; // Fallback if image outside but not visible
-
-    case FSeparatorSettings.HeightMode of
-      shmFull:    SepH := SepRefRect.Height;
-      shmAsText:  SepH := outTxtRect.Height;
-      shmAsImage: if FImageSettings.Visible and (ImgH > 0) then SepH := ImgH else SepH := SepRefRect.Height;
-      shmCustom:  if FSeparatorSettings.CustomHeight > 0 then SepH := FSeparatorSettings.CustomHeight else SepH := SepRefRect.Height;
-    else SepH := SepRefRect.Height;
-    end;
-    SepH := Max(0, SepH);
-
-    outSepRect.Top := SepRefRect.Top + (SepRefRect.Height - SepH) div 2;
-    outSepRect.Bottom := outSepRect.Top + SepH;
-
-    // Clip separator to its relevant context (MemoDrawingArea if inside, or FullClientRect if related to outside image)
-    var ClipRectForSep: TRect;
-    if FImageSettings.Placement = iplInsideBounds then ClipRectForSep := MemoDrawingArea
-    else ClipRectForSep := FullClientRect; // Allow separator to be outside MemoDrawingArea if image is
-
-    if outSepRect.Left < ClipRectForSep.Left then outSepRect.Left := ClipRectForSep.Left;
-    if outSepRect.Right > ClipRectForSep.Right then outSepRect.Right := ClipRectForSep.Right;
-    if outSepRect.Top < ClipRectForSep.Top then outSepRect.Top := ClipRectForSep.Top;
-    if outSepRect.Bottom > ClipRectForSep.Bottom then outSepRect.Bottom := ClipRectForSep.Bottom;
-    if outSepRect.Right < outSepRect.Left then outSepRect.Right := outSepRect.Left;
-    if outSepRect.Bottom < outSepRect.Top then outSepRect.Bottom := outSepRect.Top;
-    SepW := outSepRect.Width;
-  end else outSepRect := Rect(0,0,0,0);
-
-
-  // Final clipping and validation of outTxtRect to MemoDrawingArea
-  if outTxtRect.Left < MemoDrawingArea.Left then outTxtRect.Left := MemoDrawingArea.Left;
-  if outTxtRect.Right > MemoDrawingArea.Right then outTxtRect.Right := MemoDrawingArea.Right;
-  if outTxtRect.Top < MemoDrawingArea.Top then outTxtRect.Top := MemoDrawingArea.Top;
-  if outTxtRect.Bottom > MemoDrawingArea.Bottom then outTxtRect.Bottom := MemoDrawingArea.Bottom;
-  if outTxtRect.Right < outTxtRect.Left then outTxtRect.Right := outTxtRect.Left;
-  if outTxtRect.Bottom < outTxtRect.Top then outTxtRect.Bottom := outTxtRect.Top;
-end;
-
-procedure THTL_CMemo.UpdateInternalMemoBounds;
-var
-  LImgRect, LTxtRect, LSepRect: TRect;
-  MemoRect: TRect;
-begin
-  CalculateLayout(LImgRect, LTxtRect, LSepRect);
-
-  MemoRect.Left   := LTxtRect.Left + FTextMargins.Left;
-  MemoRect.Top    := LTxtRect.Top + FTextMargins.Top;
-  MemoRect.Right  := LTxtRect.Right - FTextMargins.Right;
-  MemoRect.Bottom := LTxtRect.Bottom - FTextMargins.Bottom;
-
-  if (Self.FBorderSettings.CornerRadius > 0) and (Self.FBorderSettings.RoundCornerType <> TRoundCornerType.rctNone) then
-  begin
-    var CornerPadding: Integer;
-    CornerPadding := Round(Self.FBorderSettings.CornerRadius * 0.5);
-
-    var IsTopLeftRounded, IsTopRightRounded, IsBottomLeftRounded, IsBottomRightRounded: Boolean;
-
-    IsTopLeftRounded := Self.FBorderSettings.RoundCornerType in
-      [TRoundCornerType.rctAll, TRoundCornerType.rctTopLeft, TRoundCornerType.rctTop, TRoundCornerType.rctLeft, TRoundCornerType.rctTopLeftBottomRight];
-    IsTopRightRounded := Self.FBorderSettings.RoundCornerType in
-      [TRoundCornerType.rctAll, TRoundCornerType.rctTopRight, TRoundCornerType.rctTop, TRoundCornerType.rctRight, TRoundCornerType.rctTopRightBottomLeft];
-    IsBottomLeftRounded := Self.FBorderSettings.RoundCornerType in
-      [TRoundCornerType.rctAll, TRoundCornerType.rctBottomLeft, TRoundCornerType.rctBottom, TRoundCornerType.rctLeft, TRoundCornerType.rctTopRightBottomLeft];
-    IsBottomRightRounded := Self.FBorderSettings.RoundCornerType in
-      [TRoundCornerType.rctAll, TRoundCornerType.rctBottomRight, TRoundCornerType.rctBottom, TRoundCornerType.rctRight, TRoundCornerType.rctTopLeftBottomRight];
-
-    if IsTopLeftRounded or IsBottomLeftRounded then
-      MemoRect.Left := MemoRect.Left + CornerPadding;
-
-    if IsTopRightRounded or IsBottomRightRounded then
-      MemoRect.Right := MemoRect.Right - CornerPadding;
-
-    if IsTopLeftRounded or IsTopRightRounded then
-      MemoRect.Top := MemoRect.Top + CornerPadding;
-
-    if IsBottomLeftRounded or IsBottomRightRounded then
-      MemoRect.Bottom := MemoRect.Bottom - CornerPadding;
-  end;
-
-  if MemoRect.Right < MemoRect.Left then MemoRect.Right := MemoRect.Left;
-  if MemoRect.Bottom < MemoRect.Top then MemoRect.Bottom := MemoRect.Top;
-
+  inherited;
+  UpdateInternalMemoBounds;
   if Assigned(FInternalMemo) then
   begin
-    if (FInternalMemo.BoundsRect.Left <> MemoRect.Left) or
-       (FInternalMemo.BoundsRect.Top <> MemoRect.Top) or
-       (FInternalMemo.BoundsRect.Right <> MemoRect.Right) or
-       (FInternalMemo.BoundsRect.Bottom <> MemoRect.Bottom) then
-    begin
-      FInternalMemo.BoundsRect := MemoRect;
-    end;
+    FInternalMemo.Visible := Self.Visible;
+    FInternalMemo.TabStop := Self.TabStop;
   end;
 end;
 
@@ -904,277 +492,444 @@ begin
   Invalidate;
 end;
 
-procedure THTL_CMemo.CMEnter(var Message: TCMEnter);
+procedure THTL_CMemo.SetFocus;
 begin
-  inherited;
-  if FFocusSettings.BorderColorVisible or FFocusSettings.BackgroundColorVisible or FFocusSettings.UnderlineVisible then
-    Invalidate;
-  if Assigned(FInternalMemo) and FInternalMemo.CanFocus then
+  if TabStop and CanFocus and Assigned(FInternalMemo) then
     FInternalMemo.SetFocus;
-  if Assigned(FOnEnter) then
-    FOnEnter(Self);
-end;
-
-procedure THTL_CMemo.CMExit(var Message: TCMExit);
-begin
-  if FFocusSettings.BorderColorVisible or FFocusSettings.BackgroundColorVisible or FFocusSettings.UnderlineVisible then
-    Invalidate;
-  inherited;
-  if Assigned(FOnExit) then
-    FOnExit(Self);
-end;
-
-procedure THTL_CMemo.CMMouseEnter(var Message: TMessage);
-begin
-  inherited;
-  if not FHovered then
-  begin
-    FHovered := True;
-  end;
-  FHoverSettings.StartAnimation(True);
-end;
-
-procedure THTL_CMemo.CMMouseLeave(var Message: TMessage);
-begin
-  inherited;
-  if FHovered then
-  begin
-    FHovered := False;
-  end;
-  FHoverSettings.StartAnimation(False);
 end;
 
 procedure THTL_CMemo.SetTabStop(Value: Boolean);
 begin
-  inherited TabStop := Value;
-  if Assigned(FInternalMemo) then
-    FInternalMemo.TabStop := Self.TabStop;
+  if FTabStop <> Value then
+  begin
+    FTabStop := Value;
+    UpdateControlState;
+    if Assigned(FInternalMemo) then
+      FInternalMemo.TabStop := Value;
+  end;
 end;
 
 procedure THTL_CMemo.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
   inherited MouseDown(Button, Shift, X, Y);
+  if FProcessing then Exit;
+
   if Button = mbLeft then
   begin
-    if CanFocus and (not Focused) and Assigned(FInternalMemo) then
-    begin
+    StartClickEffect;
+    if CanFocus and not Focused then
        Self.SetFocus;
-    end
-    else if Focused and Assigned(FInternalMemo) and (FInternalMemo.Handle <> GetFocus) then
-    begin
-       FInternalMemo.SetFocus;
+  end;
+end;
+
+// --- Lógica de Posicionamento e Desenho ---
+
+function THTL_CMemo.CalculateLayout: TMemoLayout;
+var
+  TempCanvas: TCanvas;
+  CapHeight, CapWidth: Integer;
+  ImageSlotW, ImageSlotH, SeparatorSpace, CornerPadding: Integer;
+  RemainingContent: TRect;
+begin
+  // --- 1. Inicialização ---
+  FillChar(Result, SizeOf(TMemoLayout), 0);
+  Result.FullControlRect := Self.ClientRect;
+  Result.EditBoxRect := Result.FullControlRect;
+
+  // --- 2. Calcular espaço para Legenda Externa (Outside) ---
+  if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') and (FCaptionSettings.Placement = cplOutside) then
+  begin
+    TempCanvas := TCanvas.Create;
+    try
+      TempCanvas.Handle := GetDC(0);
+      TempCanvas.Font.Assign(FCaptionSettings.Font);
+      CapHeight := TempCanvas.TextHeight('Wg') + FCaptionSettings.Margins.Top + FCaptionSettings.Margins.Bottom;
+      CapWidth := TempCanvas.TextWidth(FCaptionSettings.Text) + FCaptionSettings.Margins.Left + FCaptionSettings.Margins.Right;
+    finally
+      ReleaseDC(0, TempCanvas.Handle);
+      TempCanvas.Free;
     end;
+
+    case FCaptionSettings.Position of
+      cpAbove:
+      begin
+        Result.OutsideCaptionRect := Rect(Result.EditBoxRect.Left, Result.EditBoxRect.Top, Result.EditBoxRect.Right, Result.EditBoxRect.Top + CapHeight);
+        Result.EditBoxRect.Top := Result.OutsideCaptionRect.Bottom + FCaptionSettings.Offset.Y;
+      end;
+      cpBelow:
+      begin
+        Result.OutsideCaptionRect := Rect(Result.EditBoxRect.Left, Result.EditBoxRect.Bottom - CapHeight, Result.EditBoxRect.Right, Result.EditBoxRect.Bottom);
+        Result.EditBoxRect.Bottom := Result.OutsideCaptionRect.Top - FCaptionSettings.Offset.Y;
+      end;
+      cpLeft:
+      begin
+        Result.OutsideCaptionRect := Rect(Result.EditBoxRect.Left, Result.EditBoxRect.Top, Result.EditBoxRect.Left + CapWidth, Result.EditBoxRect.Bottom);
+        Result.EditBoxRect.Left := Result.OutsideCaptionRect.Right + FCaptionSettings.Offset.X;
+      end;
+      cpRight:
+      begin
+        Result.OutsideCaptionRect := Rect(Result.EditBoxRect.Right - CapWidth, Result.EditBoxRect.Top, Result.EditBoxRect.Right, Result.EditBoxRect.Bottom);
+        Result.EditBoxRect.Right := Result.OutsideCaptionRect.Left - FCaptionSettings.Offset.X;
+      end;
+    end;
+  end;
+
+  // --- 3. Calcular espaço para Imagem Externa (Outside) ---
+  if FImageSettings.Visible and (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and (FImageSettings.Placement = iplOutsideBounds) then
+  begin
+    if not FImageSettings.AutoSize and (FImageSettings.TargetWidth > 0) then ImageSlotW := FImageSettings.TargetWidth else ImageSlotW := FImageSettings.Picture.Width;
+    if not FImageSettings.AutoSize and (FImageSettings.TargetHeight > 0) then ImageSlotH := FImageSettings.TargetHeight else ImageSlotH := FImageSettings.Picture.Height;
+    ImageSlotW := ImageSlotW + FImageSettings.Margins.Left + FImageSettings.Margins.Right;
+    ImageSlotH := ImageSlotH + FImageSettings.Margins.Top + FImageSettings.Margins.Bottom;
+    if FSeparatorSettings.Visible then SeparatorSpace := (FSeparatorSettings.Padding * 2) + FSeparatorSettings.Thickness else SeparatorSpace := 0;
+
+    case FImageSettings.ImagePosition of
+      ipLeft:
+      begin
+        Result.OutsideImageRect := Rect(Result.EditBoxRect.Left, Result.EditBoxRect.Top, Result.EditBoxRect.Left + ImageSlotW, Result.EditBoxRect.Bottom);
+        Result.EditBoxRect.Left := Result.OutsideImageRect.Right + SeparatorSpace;
+      end;
+      ipRight:
+      begin
+        Result.OutsideImageRect := Rect(Result.EditBoxRect.Right - ImageSlotW, Result.EditBoxRect.Top, Result.EditBoxRect.Right, Result.EditBoxRect.Bottom);
+        Result.EditBoxRect.Right := Result.OutsideImageRect.Left - SeparatorSpace;
+      end;
+      ipTop:
+      begin
+        Result.OutsideImageRect := Rect(Result.EditBoxRect.Left, Result.EditBoxRect.Top, Result.EditBoxRect.Right, Result.EditBoxRect.Top + ImageSlotH);
+        Result.EditBoxRect.Top := Result.OutsideImageRect.Bottom + SeparatorSpace;
+      end;
+      ipBottom:
+      begin
+        Result.OutsideImageRect := Rect(Result.EditBoxRect.Left, Result.EditBoxRect.Bottom - ImageSlotH, Result.EditBoxRect.Right, Result.EditBoxRect.Bottom);
+        Result.EditBoxRect.Bottom := Result.OutsideImageRect.Top - SeparatorSpace;
+      end;
+    end;
+  end;
+
+  // --- 4. Ajustar para Sombras ---
+  if (FStyle in [bsShadow, bsMaterial]) then
+     InflateRect(Result.EditBoxRect, -1, -2);
+
+  // --- 5. Calcular ContentRect (área dentro da borda) ---
+  Result.ContentRect := Result.EditBoxRect;
+  if FBorderSettings.Thickness > 0 then
+    InflateRect(Result.ContentRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
+  RemainingContent := Result.ContentRect;
+
+  // --- 6. Particionar ContentRect para elementos Internos ---
+  SeparatorSpace := 0;
+  if FSeparatorSettings.Visible then
+    SeparatorSpace := (FSeparatorSettings.Padding * 2) + FSeparatorSettings.Thickness;
+
+  // 6.1 Imagem Interna
+  if FImageSettings.Visible and (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and (FImageSettings.Placement = iplInsideBounds) then
+  begin
+    var AvailableW := Max(0, RemainingContent.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
+    var AvailableH := Max(0, RemainingContent.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+    if not FImageSettings.AutoSize and (FImageSettings.TargetWidth > 0) then ImageSlotW := FImageSettings.TargetWidth else ImageSlotW := Min(FImageSettings.Picture.Width, AvailableW);
+    if not FImageSettings.AutoSize and (FImageSettings.TargetHeight > 0) then ImageSlotH := FImageSettings.TargetHeight else ImageSlotH := Min(FImageSettings.Picture.Height, AvailableH);
+
+    case FImageSettings.ImagePosition of
+      ipLeft:
+      begin
+        Result.InsideImageRect := Rect(RemainingContent.Left, RemainingContent.Top, RemainingContent.Left + ImageSlotW + FImageSettings.Margins.Left + FImageSettings.Margins.Right, RemainingContent.Bottom);
+        RemainingContent.Left := Result.InsideImageRect.Right;
+        Result.SeparatorRect := Rect(RemainingContent.Left, RemainingContent.Top, RemainingContent.Left + SeparatorSpace, RemainingContent.Bottom);
+        RemainingContent.Left := Result.SeparatorRect.Right;
+      end;
+      ipRight:
+      begin
+        Result.InsideImageRect := Rect(RemainingContent.Right - (ImageSlotW + FImageSettings.Margins.Left + FImageSettings.Margins.Right), RemainingContent.Top, RemainingContent.Right, RemainingContent.Bottom);
+        RemainingContent.Right := Result.InsideImageRect.Left;
+        Result.SeparatorRect := Rect(RemainingContent.Right - SeparatorSpace, RemainingContent.Top, RemainingContent.Right, RemainingContent.Bottom);
+        RemainingContent.Right := Result.SeparatorRect.Left;
+      end;
+      ipTop:
+      begin
+        Result.InsideImageRect := Rect(RemainingContent.Left, RemainingContent.Top, RemainingContent.Right, RemainingContent.Top + ImageSlotH + FImageSettings.Margins.Top + FImageSettings.Margins.Bottom);
+        RemainingContent.Top := Result.InsideImageRect.Bottom;
+        Result.SeparatorRect := Rect(RemainingContent.Left, RemainingContent.Top, RemainingContent.Right, RemainingContent.Top + SeparatorSpace);
+        RemainingContent.Top := Result.SeparatorRect.Bottom;
+      end;
+      ipBottom:
+      begin
+        Result.InsideImageRect := Rect(RemainingContent.Left, RemainingContent.Bottom - (ImageSlotH + FImageSettings.Margins.Top + FImageSettings.Margins.Bottom), RemainingContent.Right, RemainingContent.Bottom);
+        RemainingContent.Bottom := Result.InsideImageRect.Top;
+        Result.SeparatorRect := Rect(RemainingContent.Left, RemainingContent.Bottom - SeparatorSpace, RemainingContent.Right, RemainingContent.Bottom);
+        RemainingContent.Bottom := Result.SeparatorRect.Top;
+      end;
+    end;
+  end;
+
+  // 6.2 Legenda Interna
+  if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') and (FCaptionSettings.Placement = cplInside) then
+  begin
+    TempCanvas := TCanvas.Create;
+    try
+      TempCanvas.Handle := GetDC(0);
+      TempCanvas.Font.Assign(FCaptionSettings.Font);
+      CapHeight := TempCanvas.TextHeight('Wg') + FCaptionSettings.Margins.Top + FCaptionSettings.Margins.Bottom;
+      CapWidth := TempCanvas.TextWidth(FCaptionSettings.Text) + FCaptionSettings.Margins.Left + FCaptionSettings.Margins.Right;
+    finally
+      ReleaseDC(0, TempCanvas.Handle);
+      TempCanvas.Free;
+    end;
+
+    case FCaptionSettings.Position of
+      cpAbove:
+      begin
+        Result.InsideCaptionRect := Rect(RemainingContent.Left, RemainingContent.Top, RemainingContent.Right, RemainingContent.Top + CapHeight + FCaptionSettings.Offset.Y);
+        RemainingContent.Top := Result.InsideCaptionRect.Bottom;
+      end;
+      cpBelow:
+      begin
+        Result.InsideCaptionRect := Rect(RemainingContent.Left, RemainingContent.Bottom - CapHeight - FCaptionSettings.Offset.Y, RemainingContent.Right, RemainingContent.Bottom);
+        RemainingContent.Bottom := Result.InsideCaptionRect.Top;
+      end;
+      cpLeft:
+      begin
+        Result.InsideCaptionRect := Rect(RemainingContent.Left, RemainingContent.Top, RemainingContent.Left + CapWidth + FCaptionSettings.Offset.X, RemainingContent.Bottom);
+        RemainingContent.Left := Result.InsideCaptionRect.Right;
+      end;
+      cpRight:
+      begin
+        Result.InsideCaptionRect := Rect(RemainingContent.Right - CapWidth - FCaptionSettings.Offset.X, RemainingContent.Top, RemainingContent.Right, RemainingContent.Bottom);
+        RemainingContent.Right := Result.InsideCaptionRect.Left;
+      end;
+    end;
+  end;
+
+  // --- 7. Calcular retângulo final do TMemo ---
+  Result.MemoRect := RemainingContent;
+  InflateRect(Result.MemoRect, -FTextMargins.Left, -FTextMargins.Top);
+  Result.MemoRect.Right := Result.MemoRect.Right - FTextMargins.Right;
+  Result.MemoRect.Bottom := Result.MemoRect.Bottom - FTextMargins.Bottom;
+
+  if (Self.FBorderSettings.CornerRadius > 0) and (Self.FBorderSettings.RoundCornerType <> rctNone) then
+  begin
+    CornerPadding := Round(Self.FBorderSettings.CornerRadius * 0.4);
+    InflateRect(Result.MemoRect, -CornerPadding, -CornerPadding);
+  end;
+
+  // Garantir que o retângulo é válido
+  if Result.MemoRect.Right < Result.MemoRect.Left then Result.MemoRect.Right := Result.MemoRect.Left;
+  if Result.MemoRect.Bottom < Result.MemoRect.Top then Result.MemoRect.Bottom := Result.MemoRect.Top;
+
+  // --- 8. Calcular o retângulo de destino final da Imagem (com alinhamento) ---
+  var ImageSlotRect: TRect;
+  if FImageSettings.Placement = iplInsideBounds then
+    ImageSlotRect := Result.InsideImageRect
+  else
+    ImageSlotRect := Result.OutsideImageRect;
+
+  if not IsRectEmpty(ImageSlotRect) and (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then
+  begin
+      var LDrawW, LDrawH, AvailableWidth, AvailableHeight, LImgX, LImgY: Integer;
+      AvailableWidth := Max(0, ImageSlotRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
+      AvailableHeight := Max(0, ImageSlotRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
+
+      if FImageSettings.AutoSize then
+      begin
+         var TempRect := CalculateProportionalRect(Rect(0,0,AvailableWidth, AvailableHeight), FImageSettings.Picture.Width, FImageSettings.Picture.Height);
+         LDrawW := TempRect.Width;
+         LDrawH := TempRect.Height;
+      end
+      else
+      begin
+          LDrawW := FImageSettings.TargetWidth;
+          LDrawH := FImageSettings.TargetHeight;
+      end;
+
+      LImgX := ImageSlotRect.Left + FImageSettings.Margins.Left;
+      case FImageSettings.HorizontalAlign of
+          ihaCenter: LImgX := LImgX + (AvailableWidth - LDrawW) div 2;
+          ihaRight:  LImgX := LImgX + AvailableWidth - LDrawW;
+      end;
+
+      LImgY := ImageSlotRect.Top + FImageSettings.Margins.Top;
+      case FImageSettings.VerticalAlign of
+          ivaCenter: LImgY := LImgY + (AvailableHeight - LDrawH) div 2;
+          ivaBottom: LImgY := LImgY + AvailableHeight - LDrawH;
+      end;
+      Result.FinalImageDestRect := Rect(LImgX, LImgY, LImgX + LDrawW, LImgY + LDrawH);
+  end;
+end;
+
+
+procedure THTL_CMemo.UpdateInternalMemoBounds;
+var
+  Layout: TMemoLayout;
+begin
+  if not HandleAllocated then Exit;
+
+  Layout := CalculateLayout;
+
+  if Assigned(FInternalMemo) and (FInternalMemo.BoundsRect <> Layout.MemoRect) then
+  begin
+    FInternalMemo.BoundsRect := Layout.MemoRect;
   end;
 end;
 
 procedure THTL_CMemo.Paint;
 var
   LG: TGPGraphics;
-  imgR, txtR, sepR: TRect;
-  FullClientRect: TRect;
-  ActualFrameBG, ActualBorderColor, ActualMemoBG, ActualMemoFontColor, ActualCaptionTextColor: TColor;
-  EditBoxDrawingRect: TRect;
-  IsComponentFocused: Boolean;
+  Layout: TMemoLayout;
+  LPathRect, LShadowPathDrawRect: TGPRectF;
+  LRadiusValue, LPathInset: Single;
+  ActualBGColor, ActualBorderColor, ActualCaptionColor: TColor;
+  LHoverProgress, LClickProgress: Single;
+  IsFocusedOnCtrl: Boolean;
+  LGPBrush: TGPBrush;
+  LGPPath: TGPGraphicsPath;
+  LGPPen: TGPPen;
+  LDrawFill, LDrawBorder, LCurrentGradientEnabled: Boolean;
+  LActualBorderThickness: Integer;
 begin
-  UpdateInternalMemoBounds;
-  CalculateLayout(imgR, txtR, sepR);
-  FullClientRect := Self.ClientRect;
+  inherited Paint;
 
-  Canvas.Lock;
+  if (ClientRect.Width <= 0) or (ClientRect.Height <= 0) then Exit;
+
+  // --- 1. Obter o layout calculado ---
+  Layout := CalculateLayout;
+  IsFocusedOnCtrl := Self.Focused or (Assigned(FInternalMemo) and FInternalMemo.Focused);
+
+  // --- 2. Atualizar o Memo Interno (necessário antes de desenhar a borda) ---
+  if Assigned(FInternalMemo) and (FInternalMemo.BoundsRect <> Layout.MemoRect) then
+    FInternalMemo.BoundsRect := Layout.MemoRect;
+
+  LG := TGPGraphics.Create(Canvas.Handle);
   try
-    LG := TGPGraphics.Create(Canvas.Handle);
-    try
-      LG.SetSmoothingMode(SmoothingModeAntiAlias);
-      LG.SetPixelOffsetMode(PixelOffsetModeHalf);
+    LG.SetSmoothingMode(SmoothingModeAntiAlias);
+    LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-      var LHoverProgress: Single := FHoverSettings.CurrentAnimationValue / 255.0;
-      IsComponentFocused := Self.Focused or (Assigned(FInternalMemo) and FInternalMemo.Focused);
-
-      var BaseFrameBG, BaseBorderColor, BaseMemoBG, BaseMemoFontColor, BaseCaptionColor: TColor;
-      BaseFrameBG := FBorderSettings.BackgroundColor;
-      BaseBorderColor := FBorderSettings.Color;
-      BaseMemoBG := FBorderSettings.BackgroundColor;
-      BaseMemoFontColor := Self.Font.Color;
-      BaseCaptionColor := IfThen(FCaptionSettings.Color = clDefault, Self.Font.Color, FCaptionSettings.Color);
-
-      var HoverFrameBG, HoverBorderColor, HoverMemoBG, HoverMemoFontColor, HoverCaptionColor: TColor;
-      HoverFrameBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
-      HoverBorderColor := IfThen(FHoverSettings.Enabled, FHoverSettings.BorderColor, clNone);
-      HoverMemoBG := IfThen(FHoverSettings.Enabled, FHoverSettings.BackgroundColor, clNone);
-      HoverMemoFontColor := IfThen(FHoverSettings.Enabled, FHoverSettings.FontColor, clNone);
-      HoverCaptionColor := IfThen(FHoverSettings.Enabled, FHoverSettings.CaptionFontColor, clNone);
-
-      var FocusFrameBG, FocusBorderColor, FocusMemoBG, FocusMemoFontColor, FocusCaptionColor: TColor;
-      FocusFrameBG := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone);
-      FocusBorderColor := FFocusSettings.BorderColor;
-      FocusMemoBG := IfThen(FFocusSettings.BackgroundColorVisible, FFocusSettings.BackgroundColor, clNone);
-      FocusMemoFontColor := BaseMemoFontColor;
-      FocusCaptionColor := BaseCaptionColor;
-
-      var DisabledFrameBG, DisabledBorderColor, DisabledMemoBG, DisabledMemoFontColor, DisabledCaptionColor: TColor;
-      DisabledFrameBG := BaseFrameBG;
-      DisabledBorderColor := BaseBorderColor;
-      DisabledMemoBG := BlendColors(BaseMemoBG, clGray, 0.1);
-      DisabledMemoFontColor := clGrayText;
-      DisabledCaptionColor := clGrayText;
-
-      var NonHoveredFrameBG, NonHoveredBorderColor, NonHoveredMemoBG, NonHoveredMemoFontColor, NonHoveredCaptionColor: TColor;
-      NonHoveredFrameBG     := ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseFrameBG,         clNone,            FocusFrameBG,      DisabledFrameBG,      FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
-      NonHoveredBorderColor := ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseBorderColor,     clNone,            FocusBorderColor,  DisabledBorderColor,  FHoverSettings.Enabled, FFocusSettings.BorderColorVisible);
-      NonHoveredMemoFontColor:= ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseMemoFontColor,   clNone,            FocusMemoFontColor,DisabledMemoFontColor,False,                  False);
-      NonHoveredCaptionColor:= ResolveStateColor(Self.Enabled, False, IsComponentFocused, BaseCaptionColor,    clNone,            FocusCaptionColor, DisabledCaptionColor, False,                  False);
-
-      var TargetStateFrameBG, TargetStateBorderColor, TargetStateMemoBG, TargetStateMemoFontColor, TargetStateCaptionColor: TColor;
-      TargetStateFrameBG      := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseFrameBG,         HoverFrameBG,      FocusFrameBG,      DisabledFrameBG,      FHoverSettings.Enabled, FFocusSettings.BackgroundColorVisible, True);
-      TargetStateBorderColor  := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseBorderColor,     HoverBorderColor,  FocusBorderColor,  DisabledBorderColor,  FHoverSettings.Enabled, FFocusSettings.BorderColorVisible);
-      TargetStateMemoFontColor:= ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseMemoFontColor,   HoverMemoFontColor,FocusMemoFontColor,DisabledMemoFontColor,FHoverSettings.Enabled, False);
-      TargetStateCaptionColor := ResolveStateColor(Self.Enabled, FHovered, IsComponentFocused, BaseCaptionColor,    HoverCaptionColor, FocusCaptionColor, DisabledCaptionColor, FHoverSettings.Enabled, False);
-
-// New calculation for TargetStateMemoBG:
-if Self.Enabled then
-begin
-  if FHovered and FHoverSettings.Enabled and (FHoverSettings.BackgroundColor <> clNone) then
-  begin
-    TargetStateMemoBG := FHoverSettings.BackgroundColor;
-  end
-  else if IsComponentFocused and FFocusSettings.BackgroundColorVisible and (FFocusSettings.BackgroundColor <> clNone) then
-  begin
-    TargetStateMemoBG := FFocusSettings.BackgroundColor;
-  end
-  else
-  begin
-    TargetStateMemoBG := BaseMemoBG;
-  end;
-end
-else
-begin
-  TargetStateMemoBG := DisabledMemoBG;
-end;
-
-// New calculation for NonHoveredMemoBG:
-if Self.Enabled then
-begin
-  if IsComponentFocused and FFocusSettings.BackgroundColorVisible and (FFocusSettings.BackgroundColor <> clNone) then
-  begin
-    NonHoveredMemoBG := FFocusSettings.BackgroundColor;
-  end
-  else
-  begin
-    NonHoveredMemoBG := BaseMemoBG;
-  end;
-end
-else
-begin
-  NonHoveredMemoBG := DisabledMemoBG;
-end;
-
-      if (LHoverProgress > 0) and FHoverSettings.Enabled and (FHoverSettings.HoverEffect <> heNone) and FHovered then
-      begin
-        ActualFrameBG         := BlendColors(NonHoveredFrameBG,      TargetStateFrameBG,      LHoverProgress);
-        ActualBorderColor     := BlendColors(NonHoveredBorderColor,  TargetStateBorderColor,  LHoverProgress);
-        ActualMemoBG          := BlendColors(NonHoveredMemoBG,       TargetStateMemoBG,       LHoverProgress);
-        ActualMemoFontColor   := BlendColors(NonHoveredMemoFontColor,TargetStateMemoFontColor,LHoverProgress);
-        ActualCaptionTextColor:= BlendColors(NonHoveredCaptionColor, TargetStateCaptionColor, LHoverProgress);
-      end
-      else
-      begin
-        ActualFrameBG         := TargetStateFrameBG;
-        ActualBorderColor     := TargetStateBorderColor;
-        ActualMemoBG          := TargetStateMemoBG;
-        ActualMemoFontColor   := TargetStateMemoFontColor;
-        ActualCaptionTextColor:= TargetStateCaptionColor;
-      end;
-
-      if Assigned(FInternalMemo) then
-      begin
-        if FInternalMemo.Color <> ActualMemoBG then FInternalMemo.Color := ActualMemoBG;
-        if FInternalMemo.Font.Color <> ActualMemoFontColor then FInternalMemo.Font.Color := ActualMemoFontColor;
-      end;
-
-      if FOpacity = 255 then
-      begin
-        Canvas.Brush.Color := Self.Color;
-        Canvas.FillRect(FullClientRect);
-      end;
-
-      EditBoxDrawingRect := txtR;
-
-      var BackgroundForEditBoxFrame: TColor;
-      if FImageSettings.Placement = iplInsideBounds then
-          BackgroundForEditBoxFrame := ActualFrameBG
-      else
-          BackgroundForEditBoxFrame := ActualMemoBG;
-
-      DrawEditBox(LG, EditBoxDrawingRect, BackgroundForEditBoxFrame, ActualBorderColor,
-                  FBorderSettings.Thickness, FBorderSettings.Style, FBorderSettings.CornerRadius,
-                  FBorderSettings.RoundCornerType, FOpacity);
-
-      if FImageSettings.Visible and Assigned(FImageSettings.Picture.Graphic) and not FImageSettings.Picture.Graphic.Empty then
-      begin
-//        if (FImageSettings.Picture.Graphic is TPNGImage) then
-//          DrawPNGImageWithGDI(LG, FImageSettings.Picture.Graphic as TPNGImage, imgR, idmStretch)
-//        else
-//          DrawNonPNGImageWithCanvas(Canvas, FImageSettings.Picture.Graphic, imgR, idmStretch);
-      end;
-
-      if FSeparatorSettings.Visible and (FSeparatorSettings.Thickness > 0) and (sepR.Width > 0) and (sepR.Height > 0) then
-        DrawSeparatorWithCanvas(Canvas, sepR, FSeparatorSettings.Color, FSeparatorSettings.Thickness);
-
-      if IsComponentFocused and FFocusSettings.UnderlineVisible and (FFocusSettings.UnderlineThickness > 0) then
-      begin
-        var UnderlineY: Integer;
-        var UnderlinePen: TGPPen;
-        if FBorderSettings.Thickness > 0 then
-          UnderlineY := EditBoxDrawingRect.Bottom - (FBorderSettings.Thickness div 2) - (FFocusSettings.UnderlineThickness div 2)
-        else
-          UnderlineY := EditBoxDrawingRect.Bottom - (FFocusSettings.UnderlineThickness div 2);
-        UnderlineY := Min(UnderlineY, EditBoxDrawingRect.Bottom - FFocusSettings.UnderlineThickness);
-
-        UnderlinePen := TGPPen.Create(ColorToARGB(FFocusSettings.UnderlineColor, Self.FOpacity), FFocusSettings.UnderlineThickness);
-        try
-          case FFocusSettings.UnderlineStyle of
-            psSolid: UnderlinePen.SetDashStyle(DashStyleSolid);
-            psDash: UnderlinePen.SetDashStyle(DashStyleDash);
-            psDot: UnderlinePen.SetDashStyle(DashStyleDot);
-            psDashDot: UnderlinePen.SetDashStyle(DashStyleDashDot);
-            psDashDotDot: UnderlinePen.SetDashStyle(DashStyleDashDotDot);
-            else UnderlinePen.SetDashStyle(DashStyleSolid);
-          end;
-          var UnderlineStartX, UnderlineEndX : Integer;
-          UnderlineStartX := EditBoxDrawingRect.Left + Max(1, FBorderSettings.Thickness div 2);
-          UnderlineEndX   := EditBoxDrawingRect.Right - Max(1, FBorderSettings.Thickness div 2);
-          if FBorderSettings.Thickness = 0 then
-          begin
-            UnderlineStartX := EditBoxDrawingRect.Left;
-            UnderlineEndX   := EditBoxDrawingRect.Right;
-          end;
-
-          LG.DrawLine(UnderlinePen, UnderlineStartX, UnderlineY, UnderlineEndX, UnderlineY);
-        finally
-          UnderlinePen.Free;
-        end;
-      end;
-    finally
-      LG.Free;
+    // --- 3. Desenhar Legenda Externa (se houver) ---
+    if not IsRectEmpty(Layout.OutsideCaptionRect) then
+    begin
+      ActualCaptionColor := ResolveStateColor(Enabled, FHovered, IsFocusedOnCtrl, FCaptionSettings.Color, FHoverSettings.CaptionFontColor, FCaptionSettings.Color, FCaptionSettings.DisabledColor, FHoverSettings.Enabled);
+      DrawComponentCaption(Self.Canvas, Layout.OutsideCaptionRect, FCaptionSettings.Text, FCaptionSettings.Font, ActualCaptionColor, FCaptionSettings.Alignment, FCaptionSettings.VerticalAlignment, FCaptionSettings.WordWrap, FOpacity);
     end;
 
-    if FCaptionSettings.Visible and (FCaptionSettings.Text <> '') and (FCaptionRect.Width > 0) and (FCaptionRect.Height > 0) then
-    begin
-      var VAlign: TCaptionVerticalAlignment;
-      if FCaptionSettings.Position in [cpLeft, cpRight] then
-        VAlign := cvaCenter
-      else
-        VAlign := cvaTop;
+    // --- 4. Calcular cores e efeitos ---
+    LHoverProgress := 0; if Enabled and FHoverSettings.Enabled and (FHoverSettings.CurrentAnimationValue > 0) and (FHoverSettings.HoverEffect <> heNone) and not FProcessing then LHoverProgress := FHoverSettings.CurrentAnimationValue / 255.0;
+    LClickProgress := 0; if Enabled and FClickEffectActive and (FClickEffectProgress <= 255) and FClickSettings.Enabled and (FClickSettings.Duration > 0) and not FProcessing then LClickProgress := FClickEffectProgress / 255.0;
+    var LInitialFillColor := ResolveStateColor(Enabled, False, False, FBorderSettings.BackgroundColor, clNone, clNone, clBtnFace, False, False, False, True);
+    var LInitialBorderColor := ResolveStateColor(Enabled, False, False, FBorderSettings.Color, clNone, clNone, clGray, False, False);
+    LActualBorderThickness := FBorderSettings.Thickness;
+    if IsFocusedOnCtrl and Enabled then begin case FFocusSettings.Style of fsBorder: LInitialBorderColor := FFocusSettings.BorderColor; fsBackgroundColor: if FFocusSettings.BackgroundColor <> clNone then LInitialFillColor := FFocusSettings.BackgroundColor; end; end;
+    if Enabled and not FProcessing and (FStatus <> cepsNormal) then begin var StatusColor: TColor; case FStatus of cepsError: StatusColor := TColor($005C5CFF); cepsWarning: StatusColor := TColor($002986E3); cepsSuccess: StatusColor := TColor($0064B434); else StatusColor := LInitialBorderColor; end; LInitialBorderColor := StatusColor; LActualBorderThickness := Max(LActualBorderThickness, 2); if LInitialFillColor <> clNone then LInitialFillColor := BlendColors(LInitialFillColor, StatusColor, 0.10); end;
+    var LFinalHoverColor := IfThen(FHoverSettings.BackgroundColor <> clNone, FHoverSettings.BackgroundColor, LighterColor(LInitialFillColor, 15));
+    var LFinalHoverBorderColor := IfThen(FHoverSettings.BorderColor <> clNone, FHoverSettings.BorderColor, LInitialBorderColor);
+    var LFinalClickColor := IfThen(FClickSettings.Color = clNone, DarkerColor(LInitialFillColor, 15), FClickSettings.Color);
+    var LFinalClickBorderColor := IfThen(FClickSettings.BorderColor = clNone, DarkerColor(LInitialBorderColor, 15), FClickSettings.BorderColor);
+    ActualBGColor := LInitialFillColor; ActualBorderColor := LInitialBorderColor;
+    if (LHoverProgress > 0) and Enabled and FHoverSettings.Enabled then begin ActualBGColor := BlendColors(LInitialFillColor, LFinalHoverColor, LHoverProgress); ActualBorderColor := BlendColors(LInitialBorderColor, LFinalHoverBorderColor, LHoverProgress); end;
+    if (LClickProgress > 0) and Enabled and FClickSettings.Enabled and (FClickSettings.Duration > 0) then begin ActualBGColor := BlendColors(ActualBGColor, LFinalClickColor, LClickProgress); ActualBorderColor := BlendColors(ActualBorderColor, LFinalClickBorderColor, LClickProgress); end;
+    LCurrentGradientEnabled := FGradientSettings.Enabled; LDrawFill := True; LDrawBorder := LActualBorderThickness > 0;
+    case FStyle of bsSolid: LCurrentGradientEnabled := False; bsBordered: begin LDrawFill := False; LCurrentGradientEnabled := False; LActualBorderThickness := Max(1, LActualBorderThickness); LDrawBorder := True; end; bsFlat: begin LCurrentGradientEnabled := False; LActualBorderThickness := 0; LDrawBorder := False; end; bsGhost: begin LDrawFill := False; LCurrentGradientEnabled := False; LActualBorderThickness := Max(1, LActualBorderThickness); ActualBorderColor := LInitialFillColor; LDrawBorder := True; end; bsGradient: begin LCurrentGradientEnabled := True; LDrawFill := True; LDrawBorder := LActualBorderThickness > 0; end; end;
 
-      DrawComponentCaption(
-        Self.Canvas, FCaptionRect, FCaptionSettings.Text, FCaptionSettings.Font,
-        ActualCaptionTextColor, FCaptionSettings.Alignment, VAlign,
-        FCaptionSettings.WordWrap, FOpacity
-      );
+    // --- Sincroniza a cor de fundo do TMemo interno ---
+    if Assigned(FInternalMemo) and (FInternalMemo.Color <> ActualBGColor) and not (csDesigning in ComponentState) then
+       FInternalMemo.Color := ActualBGColor;
+
+    // --- 5. Desenho da Moldura (EditBox) ---
+    var EditBoxRectEffectiveF: TGPRectF; EditBoxRectEffectiveF.X := Layout.EditBoxRect.Left; EditBoxRectEffectiveF.Y := Layout.EditBoxRect.Top; EditBoxRectEffectiveF.Width := Layout.EditBoxRect.Width; EditBoxRectEffectiveF.Height := Layout.EditBoxRect.Height;
+    if (FStyle in [bsShadow, bsMaterial]) then begin var LShadowOffsetXToUse := 1; var LShadowOffsetYToUse := 2; var LShadowAlphaToUse := 60; var TempW := EditBoxRectEffectiveF.Width - Abs(LShadowOffsetXToUse); var TempH := EditBoxRectEffectiveF.Height - Abs(LShadowOffsetYToUse); EditBoxRectEffectiveF := MakeRect(EditBoxRectEffectiveF.X, EditBoxRectEffectiveF.Y, Max(0, TempW), Max(0, TempH)); LPathInset := IfThen(LActualBorderThickness > 0, LActualBorderThickness / 2.0, 0.0); LShadowPathDrawRect := MakeRect(EditBoxRectEffectiveF.X + LPathInset + LShadowOffsetXToUse, EditBoxRectEffectiveF.Y + LPathInset + LShadowOffsetYToUse, Max(0, EditBoxRectEffectiveF.Width - 2 * LPathInset), Max(0, EditBoxRectEffectiveF.Height - 2 * LPathInset)); LRadiusValue := Min(FBorderSettings.CornerRadius, Min(LShadowPathDrawRect.Width, LShadowPathDrawRect.Height) / 2.0); LGPPath := TGPGraphicsPath.Create;
+    try CreateGPRoundedPath(LGPPath, LShadowPathDrawRect, Max(0, LRadiusValue), FBorderSettings.RoundCornerType); if LGPPath.GetPointCount > 0 then begin LGPBrush := TGPSolidBrush.Create(ColorToARGB(clBlack, LShadowAlphaToUse)); try LG.FillPath(LGPBrush, LGPPath); finally LGPBrush.Free; end; end; finally LGPPath.Free; end; end;
+    if IsFocusedOnCtrl and Enabled and (FFocusSettings.Style = fsGlow) and (FFocusSettings.GlowSize > 0) then begin var LGlowPath: TGPGraphicsPath; var LGlowBrush: TGPBrush; var LGlowRect: TGPRectF; var LGlowRadius: Single; var LGlowInset: Single := IfThen(LDrawBorder, LActualBorderThickness / 2.0, 0) - FFocusSettings.GlowSize; LGlowRect := MakeRect(EditBoxRectEffectiveF.X + LGlowInset, EditBoxRectEffectiveF.Y + LGlowInset, EditBoxRectEffectiveF.Width - 2 * LGlowInset, EditBoxRectEffectiveF.Height - 2 * LGlowInset); LGlowRadius := Min(FBorderSettings.CornerRadius + FFocusSettings.GlowSize, Min(LGlowRect.Width, LGlowRect.Height) / 2.0); LGlowPath := TGPGraphicsPath.Create; try CreateGPRoundedPath(LGlowPath, LGlowRect, Max(0, LGlowRadius), FBorderSettings.RoundCornerType); if LGlowPath.GetPointCount > 0 then begin LGlowBrush := TGPSolidBrush.Create(ColorToARGB(FFocusSettings.GlowColor, FFocusSettings.GlowIntensity)); try LG.FillPath(LGlowBrush, LGlowPath); finally LGlowBrush.Free; end; end; finally LGlowPath.Free; end; end;
+    LPathInset := IfThen(LDrawBorder and (LActualBorderThickness > 0), LActualBorderThickness / 2.0, 0.0); LPathRect := MakeRect(EditBoxRectEffectiveF.X + LPathInset, EditBoxRectEffectiveF.Y + LPathInset, EditBoxRectEffectiveF.Width - 2 * LPathInset, EditBoxRectEffectiveF.Height - 2 * LPathInset); LRadiusValue := Min(FBorderSettings.CornerRadius, Min(LPathRect.Width, LPathRect.Height) / 2.0); LGPPath := TGPGraphicsPath.Create; try CreateGPRoundedPath(LGPPath, LPathRect, Max(0, LRadiusValue), FBorderSettings.RoundCornerType); if LGPPath.GetPointCount > 0 then begin if LDrawFill then begin if LCurrentGradientEnabled and (FGradientSettings.StartColor <> clNone) and (FGradientSettings.EndColor <> clNone) then LGPBrush := TGPLinearGradientBrush.Create(LPathRect, ColorToARGB(FGradientSettings.StartColor, FOpacity), ColorToARGB(FGradientSettings.EndColor, FOpacity), LinearGradientModeVertical) else LGPBrush := TGPSolidBrush.Create(ColorToARGB(ActualBGColor, FOpacity)); try LG.FillPath(LGPBrush, LGPPath); finally LGPBrush.Free; end; end; if LDrawBorder and (FBorderSettings.Style <> psClear) then begin LGPPen := TGPPen.Create(ColorToARGB(ActualBorderColor, FOpacity), LActualBorderThickness); try case FBorderSettings.Style of psDash: LGPPen.SetDashStyle(DashStyleDash); else LGPPen.SetDashStyle(DashStyleSolid); end; LG.DrawPath(LGPPen, LGPPath); finally LGPPen.Free; end; end; end; finally LGPPath.Free; end;
+
+    // --- 6. Desenhar estado de Processamento (se ativo) OU o conteúdo normal ---
+    if FProcessing and FProgressSettings.ShowProgress then
+    begin
+      var LProgressRect := Layout.ContentRect;
+      case FProgressSettings.AnimationStyle of
+         pasRotatingSemiCircle: begin InflateRect(LProgressRect, -4, -4); if (LProgressRect.Width > 0) and (LProgressRect.Height > 0) then begin var LArcThickness := Max(2, Min(LProgressRect.Width, LProgressRect.Height) div 8); var LStartAngle := (FProgressStep * 10) mod 360; var ArcRectF := MakeRect(LProgressRect.Left + LArcThickness / 2, LProgressRect.Top + LArcThickness / 2, LProgressRect.Width - LArcThickness, LProgressRect.Height - LArcThickness); LGPPath := TGPGraphicsPath.Create; try LGPPath.AddArc(ArcRectF, LStartAngle, 270); LGPPen := TGPPen.Create(ColorToARGB(FProgressSettings.ProgressColor, 255), LArcThickness); try LG.DrawPath(LGPPen, LGPPath); finally LGPPen.Free; end; finally LGPPath.Free; end; end; end;
+         pasBouncingDots: begin const NUM_DOTS = 3; InflateRect(LProgressRect, -4, -4); var DotSize := Min(LProgressRect.Width / (NUM_DOTS * 2), LProgressRect.Height / 2); if DotSize > 1 then begin var TotalWidth := NUM_DOTS * DotSize + (NUM_DOTS - 1) * (DotSize/2); var StartX := LProgressRect.Left + (LProgressRect.Width - TotalWidth) / 2; var YPosCenter := LProgressRect.Top + LProgressRect.Height / 2; var MaxOffset := (LProgressRect.Height / 2) - (DotSize / 2); LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 255)); try for var I := 0 to NUM_DOTS - 1 do begin var phase := (FProgressStep * 5) + (I * 45); var yOffset := -Abs(Sin(phase * PI / 180) * MaxOffset); var DotX := StartX + I * (DotSize * 1.5); var DotY := YPosCenter + yOffset; LG.FillEllipse(LGPBrush, DotX, DotY, DotSize, DotSize); end; finally LGPBrush.Free; end; end; end;
+      end;
+    end
+    else
+    begin
+        // --- 7. Desenhar conteúdo normal (Imagem, Separador, Legenda Interna) ---
+
+        // Desenhar Separador
+        if FSeparatorSettings.Visible and not IsRectEmpty(Layout.SeparatorRect) then
+        begin
+          Self.Canvas.Brush.Color := FSeparatorSettings.Color;
+          Self.Canvas.Brush.Style := TBrushStyle.bsSolid;
+          Self.Canvas.FillRect(Layout.SeparatorRect);
+        end;
+
+        // --- CORREÇÃO: Usar DrawGraphicWithGDI para todos os tipos de imagem ---
+        if FImageSettings.Visible and not IsRectEmpty(Layout.FinalImageDestRect) and (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty then
+        begin
+            // A função DrawGraphicWithGDI converte qualquer TGraphic para um TGPBitmap e desenha com GDI+.
+            // O modo de desenho idmStretch é usado porque FinalImageDestRect já foi calculado com o tamanho correto.
+            DrawGraphicWithGDI(LG, FImageSettings.Picture.Graphic, Layout.FinalImageDestRect, idmStretch);
+        end;
+
+        // Desenhar Legenda Interna
+        if not IsRectEmpty(Layout.InsideCaptionRect) then
+        begin
+          ActualCaptionColor := ResolveStateColor(Enabled, FHovered, IsFocusedOnCtrl, FCaptionSettings.Color, FHoverSettings.CaptionFontColor, FCaptionSettings.Color, FCaptionSettings.DisabledColor, FHoverSettings.Enabled);
+          DrawComponentCaption(Self.Canvas, Layout.InsideCaptionRect, FCaptionSettings.Text, FCaptionSettings.Font, ActualCaptionColor, FCaptionSettings.Alignment, FCaptionSettings.VerticalAlignment, FCaptionSettings.WordWrap, FOpacity);
+        end;
+    end;
+
+    // --- 8. Desenhar Efeito de Foco (Underline) ---
+    if IsFocusedOnCtrl and Enabled and (FFocusSettings.Style = fsUnderline) and (FFocusSettings.UnderlineThickness > 0) then
+    begin
+        var LUnderlinePen: TGPPen;
+        var yPos := EditBoxRectEffectiveF.Y + EditBoxRectEffectiveF.Height - (FFocusSettings.UnderlineThickness / 2);
+        var x1 := EditBoxRectEffectiveF.X;
+        var x2 := EditBoxRectEffectiveF.X + EditBoxRectEffectiveF.Width;
+        LUnderlinePen := TGPPen.Create(ColorToARGB(FFocusSettings.UnderlineColor, 255), FFocusSettings.UnderlineThickness);
+        try
+          LG.DrawLine(LUnderlinePen, x1, yPos, x2, yPos);
+        finally
+          LUnderlinePen.Free;
+        end;
     end;
   finally
-    Canvas.Unlock;
+    LG.Free;
   end;
 end;
 
+
+// --- Setters e Getters ---
+
+procedure THTL_CMemo.SetBorderSettings(const Value: TBorderSettings); begin FBorderSettings.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetFocusSettings(const Value: TFocusSettings); begin FFocusSettings.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetCaptionSettings(const Value: TCaptionSettings); begin FCaptionSettings.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetHoverSettings(const Value: THoverSettings); begin FHoverSettings.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetTextMargins(const Value: THTL_Margins); begin FTextMargins.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetGradientSettings(const Value: TGradientSettings); begin FGradientSettings.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetClickSettings(const Value: TClickSettings); begin FClickSettings.Assign(Value); UpdateClickEffectTimerInterval; SettingsChanged(Self); end;
+procedure THTL_CMemo.SetProgressSettings(const Value: TProgressSettings); begin FProgressSettings.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetImageSettings(const Value: TImageSettings); begin FImageSettings.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetSeparatorSettings(const Value: TSeparatorSettings); begin FSeparatorSettings.Assign(Value); SettingsChanged(Self); end;
+procedure THTL_CMemo.SetStyle(const Value: TButtonStyle); begin if FStyle <> Value then begin FStyle := Value; Invalidate; end; end;
+procedure THTL_CMemo.SetStatus(const Value: TCEditStatus); begin if FStatus <> Value then begin FStatus := Value; Invalidate; end; end;
+procedure THTL_CMemo.SetOpacity(const Value: Byte); begin if FOpacity <> Value then begin FOpacity := Value; Invalidate; end; end;
+
+function THTL_CMemo.GetLines: TStrings; begin Result := FInternalMemo.Lines; end;
+procedure THTL_CMemo.SetLines(const Value: TStrings); begin FInternalMemo.Lines.Assign(Value); end;
+function THTL_CMemo.GetReadOnly: Boolean; begin Result := FInternalMemo.ReadOnly; end;
+procedure THTL_CMemo.SetReadOnly(const Value: Boolean); begin FInternalMemo.ReadOnly := Value; end;
+function THTL_CMemo.GetWordWrap: Boolean; begin Result := FInternalMemo.WordWrap; end;
+procedure THTL_CMemo.SetWordWrap(const Value: Boolean); begin FInternalMemo.WordWrap := Value; end;
+function THTL_CMemo.GetScrollBars: TScrollStyle; begin Result := FInternalMemo.ScrollBars; end;
+procedure THTL_CMemo.SetScrollBars(const Value: TScrollStyle); begin FInternalMemo.ScrollBars := Value; end;
+function THTL_CMemo.GetMaxLength: Integer; begin Result := FInternalMemo.MaxLength; end;
+procedure THTL_CMemo.SetMaxLength(const Value: Integer); begin FInternalMemo.MaxLength := Value; end;
+
+// --- Eventos do Memo Interno ---
+procedure THTL_CMemo.InternalMemoChange(Sender: TObject); begin if Assigned(FOnChange) then FOnChange(Self); end;
+procedure THTL_CMemo.InternalMemoEnter(Sender: TObject); begin if not Self.Focused then Invalidate; if Assigned(FOnEnter) then FOnEnter(Self); end;
+procedure THTL_CMemo.InternalMemoExit(Sender: TObject); begin Invalidate; if Assigned(FOnExit) then FOnExit(Self); end;
+procedure THTL_CMemo.InternalMemoKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState); begin if Assigned(FOnKeyDown) then FOnKeyDown(Self, Key, Shift); end;
+procedure THTL_CMemo.InternalMemoKeyPress(Sender: TObject; var Key: Char); begin if Assigned(FOnKeyPress) then FOnKeyPress(Self, Key); end;
+procedure THTL_CMemo.InternalMemoKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState); begin if Assigned(FOnKeyUp) then FOnKeyUp(Self, Key, Shift); end;
+
 end.
+

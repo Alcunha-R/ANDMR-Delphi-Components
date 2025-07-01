@@ -143,7 +143,7 @@ begin
 
   FChecked := False;
   FStyle := tsCustom; // Inicia como custom para o setter de estilo funcionar
-  SetStyle(tsStyle1); // Aplica o estilo padr√£o tsStyle1 com suas cores
+  SetStyle(tsStyle1); // Aplica o estilo padr„o tsStyle1 com suas cores
 
   FAnimationTimer := TTimer.Create(Self);
   FAnimationTimer.Enabled := False;
@@ -450,13 +450,13 @@ begin
             textLayoutRect := LTrackRectF;
             textLayoutRect.Width := textLayoutRect.Width - LRadius - LPadding;
             textLayoutRect.X := LTrackRectF.X + LRadius;
-            if FAnimationPosition < 0.8 then // S√≥ desenha se houver espa√ßo
+            if FAnimationPosition < 0.8 then // SÛ desenha se houver espaÁo
               LG.DrawString(FOffText, Length(FOffText), font, textLayoutRect, sf, textBrush);
 
             // Desenha "ON"
             textLayoutRect := LTrackRectF;
             textLayoutRect.Width := textLayoutRect.Width - LRadius - LPadding;
-            if FAnimationPosition > 0.2 then // S√≥ desenha se houver espa√ßo
+            if FAnimationPosition > 0.2 then // SÛ desenha se houver espaÁo
               LG.DrawString(FOnText, Length(FOnText), font, textLayoutRect, sf, textBrush);
           finally
             textBrush.Free;
@@ -467,7 +467,7 @@ begin
         end;
     end;
 
-    // --- Calcula e desenha o bot√£o (thumb) ---
+    // --- Calcula e desenha o bot„o (thumb) ---
     LThumbX := LPadding + ((Width - (LPadding * 2) - LThumbSize) * FAnimationPosition);
     LThumbRectF.X := LThumbX;
     LThumbRectF.Y := LPadding;
@@ -480,7 +480,7 @@ begin
     LBrush := TGPSolidBrush.Create(ColorToARGB(ThumbBrushColor));
     try LG.FillEllipse(LBrush, LThumbRectF); finally LBrush.Free; end;
 
-    // --- Desenha √çcone no Thumb ---
+    // --- Desenha Õcone no Thumb ---
     if FShowIconInThumb then
     begin
         // **** LINHA CORRIGIDA ABAIXO ****

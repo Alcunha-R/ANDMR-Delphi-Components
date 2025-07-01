@@ -6,7 +6,7 @@ uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.Graphics, Winapi.Windows,
   Vcl.ExtCtrls, Winapi.Messages, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
   System.Types, System.Math, Vcl.Imaging.jpeg, Vcl.Imaging.pngimage,
-  Vcl.GraphUtil, System.UITypes, ANDMR_ComponentUtils,
+  Vcl.GraphUtil, System.UITypes, HTL_ComponentUtils, // Alterado de ANDMR_ComponentUtils
   Winapi.GDIPOBJ, Winapi.GDIPAPI, Winapi.GDIPUTIL,
   Winapi.ActiveX;
 
@@ -33,10 +33,11 @@ type
     FImageSettings: TImageSettings;
     FGradientSettings: TGradientSettings;
     FClickSettings: TClickSettings;
-    FHoverSettings: THoverSettings; // FInternalHoverSettings renomeado para FHoverSettings
+    FHoverSettings: THoverSettings;
     FProgressSettings: TProgressSettings;
+    FSeparatorSettings: TSeparatorSettings;
+    FTags: THTL_MultiTag; // Adicionado para o novo sistema de Tags
 
-    FTag: Integer;
     FDisabledCursor: TCursor;
     FTransparent: Boolean;
 
@@ -60,8 +61,9 @@ type
     function GetImage: TPicture;
     procedure SetImage(const Value: TPicture);
     procedure ProgressTimerHandler(Sender: TObject);
+    procedure SetSeparatorSettings(const Value: TSeparatorSettings);
 
-    // --- MÃ©todos de ConfiguraÃ§Ãµes ---
+    // --- Métodos de Configurações ---
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure SetBorderSettings(const Value: TBorderSettings);
     procedure SetCaptionSettings(const Value: TCaptionSettings);
@@ -69,6 +71,7 @@ type
     procedure SetGradientSettings(const Value: TGradientSettings);
     procedure SetStyle(const Value: TButtonStyle);
     procedure SetPresetType(const Value: TPresetType);
+    procedure SetTags(const Value: THTL_MultiTag); // Adicionado para o novo sistema de Tags
 
     // --- Handlers de Eventos Internos ---
     procedure HoverSettingsChanged(Sender: TObject);
@@ -79,7 +82,7 @@ type
     procedure StartClickEffect;
     procedure UpdateClickEffectTimerInterval;
 
-    // --- Getters & Setters de Propriedades PadrÃ£o ---
+    // --- Getters & Setters de Propriedades Padrão ---
     function GetAlign: TAlign;
     procedure SetAlign(const Value: TAlign);
     function GetEnabled: Boolean;
@@ -89,6 +92,8 @@ type
     procedure SetDisabledCursor(const Value: TCursor);
     procedure SetTransparent(const Value: Boolean);
     function IsEnabledStored: Boolean;
+    function GetTag: NativeInt; // Adicionado para o novo sistema de Tags
+    procedure SetTag(const Value: NativeInt); // Adicionado para o novo sistema de Tags
 
     // --- Message Handlers ---
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
@@ -114,7 +119,7 @@ type
     property Enabled read GetEnabled write SetEnabled stored IsEnabledStored;
     property Caption: string read GetCaption write SetCaption;
 
-    // --- Propriedades de ConfiguraÃ§Ã£o ---
+    // --- Propriedades de Configuração ---
     property CaptionSettings: TCaptionSettings read FCaptionSettings write SetCaptionSettings;
     property BorderSettings: TBorderSettings read FBorderSettings write SetBorderSettings;
     property ClickSettings: TClickSettings read FClickSettings write SetClickSettings;
@@ -122,6 +127,8 @@ type
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
     property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
     property ProgressSettings: TProgressSettings read FProgressSettings write SetProgressSettings;
+    property SeparatorSettings: TSeparatorSettings read FSeparatorSettings write SetSeparatorSettings;
+    property Tags: THTL_MultiTag read FTags write SetTags; // Adicionado para o novo sistema de Tags
 
     // --- Propriedades de Estilo e Comportamento ---
     property Style: TButtonStyle read FStyle write SetStyle default bsSolid;
@@ -132,7 +139,7 @@ type
     // --- Eventos ---
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
 
-    // --- Propriedades PadrÃ£o ---
+    // --- Propriedades Padrão ---
     property Anchors;
     property Constraints;
     property DragCursor;
@@ -142,6 +149,7 @@ type
     property ParentShowHint;
     property PopupMenu;
     property ShowHint;
+    property Tag: NativeInt read GetTag write SetTag default 0; // Propriedade Tag agora usa o novo sistema
     property TabOrder;
     property TabStop default True;
     property Visible;
@@ -185,6 +193,11 @@ begin
   Height := 45;
   TabStop := True;
   FTransparent := False;
+
+  // --- Inicialização do novo sistema de Tags ---
+  FTags := THTL_MultiTag.Create;
+  FTags.OnChange := SettingsChanged;
+  // ---------------------------------------------
 
   FGradientSettings := TGradientSettings.Create;
   FGradientSettings.OnChange := SettingsChanged;
@@ -240,10 +253,22 @@ begin
   FProgressTimer.Interval := FProgressSettings.AnimationTimerInterval;
   FProgressTimer.OnTimer := ProgressTimerHandler;
   FOriginalEnabledState := True;
+
+  FSeparatorSettings := TSeparatorSettings.Create;
+  FSeparatorSettings.OnChange := SettingsChanged;
 end;
 
 destructor THTL_CButton.Destroy;
 begin
+  // --- Liberação do novo sistema de Tags ---
+  if Assigned(FTags) then
+  begin
+    FTags.OnChange := nil;
+    FTags.Free;
+    FTags := nil;
+  end;
+  // ---------------------------------------
+
   FBorderSettings.OnChange := nil;
   FBorderSettings.Free;
 
@@ -272,7 +297,36 @@ begin
   FGradientSettings.OnChange := nil;
   FGradientSettings.Free;
 
+  if Assigned(FSeparatorSettings) then
+  begin
+    FSeparatorSettings.OnChange := nil;
+    FSeparatorSettings.Free;
+    FSeparatorSettings := nil;
+  end;
+
   inherited;
+end;
+
+// --- Implementação dos métodos para o novo sistema de Tags ---
+procedure THTL_CButton.SetTags(const Value: THTL_MultiTag);
+begin
+  FTags.Assign(Value);
+end;
+
+function THTL_CButton.GetTag: NativeInt;
+begin
+  Result := FTags.AsTag;
+end;
+
+procedure THTL_CButton.SetTag(const Value: NativeInt);
+begin
+  FTags.AsTag := Value;
+end;
+// -----------------------------------------------------------
+
+procedure THTL_CButton.SetSeparatorSettings(const Value: TSeparatorSettings);
+begin
+  FSeparatorSettings.Assign(Value);
 end;
 
 procedure THTL_CButton.BreakPresetLink;
@@ -549,9 +603,9 @@ begin
       cptSave:     begin BaseColor := TColor($00F39621); PresetCaption := 'Salvar';    NewTitleColor := clWhite; end;
       cptEdit:     begin BaseColor := TColor($000098FF); PresetCaption := 'Editar';    NewTitleColor := clBlack; end;
       cptDelete:   begin BaseColor := TColor($003643F4); PresetCaption := 'Excluir';   NewTitleColor := clWhite; end;
-      cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'AvanÃ§ar';   NewTitleColor := clWhite; end;
+      cptNext:     begin BaseColor := TColor($00F4A903); PresetCaption := 'Avançar';   NewTitleColor := clWhite; end;
       cptPrevious: begin BaseColor := TColor($009E9E9E); PresetCaption := 'Voltar';    NewTitleColor := clBlack; end;
-      cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'InformaÃ§Ã£o';NewTitleColor := clBlack; end;
+      cptInfo:     begin BaseColor := TColor($00F7C34F); PresetCaption := 'Informação';NewTitleColor := clBlack; end;
       cptWarning:  begin BaseColor := TColor($003BEBFF); PresetCaption := 'Aviso';     NewTitleColor := clBlack; end;
       cptHelp:     begin BaseColor := TColor($008B7D60); PresetCaption := 'Ajuda';     NewTitleColor := clWhite; end;
     else
@@ -734,9 +788,9 @@ begin
       cptSave: LPresetDefaultCaption := 'Salvar';
       cptEdit: LPresetDefaultCaption := 'Editar';
       cptDelete: LPresetDefaultCaption := 'Excluir';
-      cptNext: LPresetDefaultCaption := 'AvanÃ§ar';
+      cptNext: LPresetDefaultCaption := 'Avançar';
       cptPrevious: LPresetDefaultCaption := 'Voltar';
-      cptInfo: LPresetDefaultCaption := 'InformaÃ§Ã£o';
+      cptInfo: LPresetDefaultCaption := 'Informação';
       cptWarning: LPresetDefaultCaption := 'Aviso';
       cptHelp: LPresetDefaultCaption := 'Ajuda';
     end;
@@ -959,9 +1013,12 @@ begin
     ButtonDrawingRect := ClientRect;
     ImageDrawingArea := System.Types.Rect(0,0,0,0);
 
+    // --- Alteração 1: Cálculo do espaço do separador para iplOutsideBounds ---
     if FImageSettings.Visible and (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and (FImageSettings.Placement = iplOutsideBounds) then
     begin
       var ImageSlotW, ImageSlotH: Integer;
+      var SeparatorSpace: Integer;
+
       if not FImageSettings.AutoSize and (FImageSettings.TargetWidth > 0) then
         ImageSlotW := FImageSettings.TargetWidth
       else
@@ -975,26 +1032,31 @@ begin
       ImageSlotW := ImageSlotW + FImageSettings.Margins.Left + FImageSettings.Margins.Right;
       ImageSlotH := ImageSlotH + FImageSettings.Margins.Top + FImageSettings.Margins.Bottom;
 
+      // Calcula o espaço total para o separador (Padding + Linha + Padding)
+      SeparatorSpace := 0;
+      if FSeparatorSettings.Visible then
+        SeparatorSpace := (FSeparatorSettings.Padding * 2) + FSeparatorSettings.Thickness;
+
       case FImageSettings.ImagePosition of
         ipLeft:
         begin
           ImageDrawingArea := System.Types.Rect(ClientRect.Left, ClientRect.Top, ClientRect.Left + ImageSlotW, ClientRect.Bottom);
-          ButtonDrawingRect.Left := ImageDrawingArea.Right;
+          ButtonDrawingRect.Left := ImageDrawingArea.Right + SeparatorSpace;
         end;
         ipRight:
         begin
           ImageDrawingArea := System.Types.Rect(ClientRect.Right - ImageSlotW, ClientRect.Top, ClientRect.Right, ClientRect.Bottom);
-          ButtonDrawingRect.Right := ImageDrawingArea.Left;
+          ButtonDrawingRect.Right := ImageDrawingArea.Left - SeparatorSpace;
         end;
         ipTop:
         begin
           ImageDrawingArea := System.Types.Rect(ClientRect.Left, ClientRect.Top, ClientRect.Right, ClientRect.Top + ImageSlotH);
-          ButtonDrawingRect.Top := ImageDrawingArea.Bottom;
+          ButtonDrawingRect.Top := ImageDrawingArea.Bottom + SeparatorSpace;
         end;
         ipBottom:
         begin
           ImageDrawingArea := System.Types.Rect(ClientRect.Left, ClientRect.Bottom - ImageSlotH, ClientRect.Right, ClientRect.Bottom);
-          ButtonDrawingRect.Bottom := ImageDrawingArea.Top;
+          ButtonDrawingRect.Bottom := ImageDrawingArea.Top - SeparatorSpace;
         end;
       end;
       if ButtonDrawingRect.Right < ButtonDrawingRect.Left then ButtonDrawingRect.Right := ButtonDrawingRect.Left;
@@ -1129,7 +1191,7 @@ begin
 
     if FProcessing and FProgressSettings.ShowProgress then
     begin
-        // *** INÃCIO DA CORREÃ‡ÃƒO DO PROGRESSO ***
+        // *** INÍCIO DA CORREÇÃO DO PROGRESSO ***
         var LProgressRect: TRect;
         var LArcThickness: Integer;
         var LStartAngle, LSweepAngle: Single;
@@ -1138,12 +1200,12 @@ begin
         var ArcRectF: TGPRectF;
         var OriginalProgressRect: TRect;
 
-        LProgressRect := ButtonDrawingRect; // <-- USA A ÃREA DE DESENHO DO BOTÃƒO
+        LProgressRect := ButtonDrawingRect; // <-- USA A ÁREA DE DESENHO DO BOTÃO
         if FBorderSettings.Thickness > 0 then
           InflateRect(LProgressRect, -FBorderSettings.Thickness, -FBorderSettings.Thickness);
 
         OriginalProgressRect := LProgressRect;
-        // *** FIM DA CORREÃ‡ÃƒO DO PROGRESSO ***
+        // *** FIM DA CORREÇÃO DO PROGRESSO ***
 
         if LShowProgressText and (LProgressText <> '') then
         begin
@@ -1239,13 +1301,13 @@ begin
             end;
 
             // Ajuste para posicionar a barra verticalmente e definir sua espessura
-            InflateRect(BarRect, 0, -BarRect.Height div 3); // MantÃ©m para centralizar verticalmente
+            InflateRect(BarRect, 0, -BarRect.Height div 3); // Mantém para centralizar verticalmente
             if BarRect.Height < 4 then
               BarRect.Height := Max(2, Min(LProgressRect.Height, 4));
 
             if BarRect.Width > 10 then
             begin
-              // Desenha o fundo da Ã¡rea de progresso (opcional, mas mantÃ©m a aparÃªncia)
+              // Desenha o fundo da área de progresso (opcional, mas mantém a aparência)
               LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 100));
               try
                 LG.FillRectangle(LGPBrush, BarRect.Left, BarRect.Top, BarRect.Width, BarRect.Height);
@@ -1254,7 +1316,7 @@ begin
               end;
 
               InnerBarWidth := BarRect.Width div 3;
-              // <-- INÃCIO DA ALTERAÃ‡ÃƒO: LÃ³gica da animaÃ§Ã£o
+              // <-- INÍCIO DA ALTERAÇÃO: Lógica da animação
               if (BarRect.Width + InnerBarWidth) > 0 then
                   InnerBarX := (FProgressStep * 5) mod (BarRect.Width + InnerBarWidth)
               else
@@ -1262,12 +1324,12 @@ begin
 
               LGPBrush := TGPSolidBrush.Create(ColorToARGB(FProgressSettings.ProgressColor, 255));
               try
-                // Desenha o indicador de progresso comeÃ§ando de fora do botÃ£o
+                // Desenha o indicador de progresso começando de fora do botão
                 LG.FillRectangle(LGPBrush, BarRect.Left + InnerBarX - InnerBarWidth, BarRect.Top, InnerBarWidth, BarRect.Height);
               finally
                 LGPBrush.Free;
               end;
-              // <-- FIM DA ALTERAÃ‡ÃƒO
+              // <-- FIM DA ALTERAÇÃO
             end;
           end;
           pasBouncingDots:
@@ -1355,11 +1417,11 @@ begin
     end
     else
     begin
-      // --- LÃ“GICA DE LAYOUT CORRIGIDA ---
+      // --- LÓGICA DE LAYOUT CORRIGIDA ---
       var imageSlotRect, textSlotRect: TRect;
       var imageAndMarginsW, imageAndMarginsH: Integer;
 
-      // Inicializa os retÃ¢ngulos de slot com a Ã¡rea de conteÃºdo disponÃ­vel
+      // Inicializa os retângulos de slot com a área de conteúdo disponível
       if FImageSettings.Placement = iplInsideBounds then
       begin
         textSlotRect := LTextPlacementRect;
@@ -1373,7 +1435,7 @@ begin
 
       LImgW := 0; LImgH := 0; LDrawW := 0; LDrawH := 0;
 
-      // Calcula o tamanho que a imagem ocuparÃ¡ (LDrawW, LDrawH)
+      // Calcula o tamanho que a imagem ocupará (LDrawW, LDrawH)
       if (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and FImageSettings.Visible then
       begin
           AvailableWidth  := Max(0, imageSlotRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
@@ -1381,7 +1443,6 @@ begin
           LImgW := FImageSettings.Picture.Width;
           LImgH := FImageSettings.Picture.Height;
 
-          // (O cÃ³digo para calcular LDrawW e LDrawH baseado no AutoSize e DrawMode continua o mesmo)
           if FImageSettings.AutoSize then
           begin
              case FImageSettings.DrawMode of
@@ -1422,41 +1483,110 @@ begin
           if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
       end;
 
-      // Particiona o espaÃ§o entre o slot da imagem e o slot do texto
+      // --- Alteração 2: Cálculo do espaço do separador para iplInsideBounds ---
+      // Particiona o espaço entre o slot da imagem e o slot do texto
       if (LDrawW > 0) and (FImageSettings.Placement = iplInsideBounds) then
       begin
           imageAndMarginsW := LDrawW + FImageSettings.Margins.Left + FImageSettings.Margins.Right;
           imageAndMarginsH := LDrawH + FImageSettings.Margins.Top + FImageSettings.Margins.Bottom;
 
+          // Calcula o espaço total para o separador (Padding + Linha + Padding)
+          var SeparatorSpace: Integer := 0;
+          if FSeparatorSettings.Visible then
+            SeparatorSpace := (FSeparatorSettings.Padding * 2) + FSeparatorSettings.Thickness;
+
           case FImageSettings.ImagePosition of
             ipLeft:
             begin
               imageSlotRect.Width := imageAndMarginsW;
-              textSlotRect.Left := imageSlotRect.Right;
+              textSlotRect.Left := imageSlotRect.Right + SeparatorSpace;
             end;
             ipRight:
             begin
               imageSlotRect.Left := imageSlotRect.Right - imageAndMarginsW;
-              textSlotRect.Right := imageSlotRect.Left;
+              textSlotRect.Right := imageSlotRect.Left - SeparatorSpace;
             end;
             ipTop:
             begin
               imageSlotRect.Height := imageAndMarginsH;
-              textSlotRect.Top := imageSlotRect.Bottom;
+              textSlotRect.Top := imageSlotRect.Bottom + SeparatorSpace;
             end;
             ipBottom:
             begin
               imageSlotRect.Top := imageSlotRect.Bottom - imageAndMarginsH;
-              textSlotRect.Bottom := imageSlotRect.Top;
+              textSlotRect.Bottom := imageSlotRect.Top - SeparatorSpace;
             end;
-            ipCenter, ipFill, ipBehind: ; // Nestes casos, os slots se sobrepÃµem
+            ipCenter, ipFill, ipBehind: ; // Nestes casos, os slots se sobrepõem
           end;
+      end;
+
+      // --- Desenho do Separador (lógica unificada) ---
+      if FSeparatorSettings.Visible and FImageSettings.Visible and
+         (FImageSettings.Picture.Graphic <> nil) and not FImageSettings.Picture.Graphic.Empty and
+         (FImageSettings.Placement in [iplInsideBounds, iplOutsideBounds]) and
+         (FImageSettings.ImagePosition in [ipLeft, ipRight, ipTop, ipBottom]) then
+      begin
+        var ASepRect: TRect;
+        var isVertical: Boolean;
+
+        isVertical := FImageSettings.ImagePosition in [ipLeft, ipRight];
+
+        // Usa 'imageDrawingArea' para iplOutsideBounds e 'imageSlotRect' para iplInsideBounds
+        var refRect: TRect;
+        if FImageSettings.Placement = iplOutsideBounds then
+          refRect := ImageDrawingArea
+        else
+          refRect := imageSlotRect;
+
+        // Calcula o retângulo base para o separador, posicionado a `Padding` do elemento de referência
+        case FImageSettings.ImagePosition of
+          ipLeft:
+            ASepRect := System.Types.Rect(refRect.Right + FSeparatorSettings.Padding, refRect.Top,
+                                           refRect.Right + FSeparatorSettings.Padding + FSeparatorSettings.Thickness, refRect.Bottom);
+          ipRight:
+            ASepRect := System.Types.Rect(refRect.Left - FSeparatorSettings.Padding - FSeparatorSettings.Thickness, refRect.Top,
+                                           refRect.Left - FSeparatorSettings.Padding, refRect.Bottom);
+          ipTop:
+            ASepRect := System.Types.Rect(refRect.Left, refRect.Bottom + FSeparatorSettings.Padding,
+                                           refRect.Right, refRect.Bottom + FSeparatorSettings.Padding + FSeparatorSettings.Thickness);
+          ipBottom:
+             ASepRect := System.Types.Rect(refRect.Left, refRect.Top - FSeparatorSettings.Padding - FSeparatorSettings.Thickness,
+                                            refRect.Right, refRect.Top - FSeparatorSettings.Padding);
+        end;
+
+        // Ajusta altura/largura baseado no HeightMode
+        case FSeparatorSettings.HeightMode of
+           shmFull: { O retângulo já está com a dimensão total };
+           shmCustom:
+             if isVertical then // Ajusta altura
+             begin
+               var currentHeight := ASepRect.Height;
+               var customH := Min(currentHeight, FSeparatorSettings.CustomHeight);
+               ASepRect.Top := ASepRect.Top + (currentHeight - customH) div 2;
+               ASepRect.Bottom := ASepRect.Top + customH;
+             end
+             else // Ajusta largura
+             begin
+               var currentWidth := ASepRect.Width;
+               var customW := Min(currentWidth, FSeparatorSettings.CustomHeight);
+               ASepRect.Left := ASepRect.Left + (currentWidth - customW) div 2;
+               ASepRect.Right := ASepRect.Left + customW;
+             end;
+        end;
+
+        // Desenha o separador usando um preenchimento simples
+        if (ASepRect.Width > 0) and (ASepRect.Height > 0) then
+        begin
+          Self.Canvas.Brush.Color := FSeparatorSettings.Color;
+          Self.Canvas.Brush.Style := TBrushStyle.bsSolid;
+          Self.Canvas.FillRect(ASepRect);
+        end;
       end;
 
       // Desenha a imagem dentro do seu slot
       if (LDrawW > 0) then
       begin
-          // Calcula a posiÃ§Ã£o final da imagem (LImgX, LImgY) DENTRO DO SEU SLOT
+          // Calcula a posição final da imagem (LImgX, LImgY) DENTRO DO SEU SLOT
           AvailableWidth  := Max(0, imageSlotRect.Width - FImageSettings.Margins.Left - FImageSettings.Margins.Right);
           AvailableHeight := Max(0, imageSlotRect.Height - FImageSettings.Margins.Top - FImageSettings.Margins.Bottom);
 
@@ -1509,7 +1639,6 @@ begin
         LCurrentTitleFont := TFont.Create;
         try
           LCurrentTitleFont.Assign(FCaptionSettings.Font);
-          // (cÃ³digo de ajuste de cor e tamanho da fonte baseado no estado, como estava antes)
           if Enabled then
           begin
             if FHoverSettings.Enabled and (LHoverProgress > 0) and not FProcessing then
@@ -1558,3 +1687,4 @@ begin
 end;
 
 end.
+

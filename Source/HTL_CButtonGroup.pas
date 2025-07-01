@@ -10,12 +10,34 @@ uses
   HTL_CButton, HTL_ComponentUtils;
 
 type
-  THTL_CButtonGroup = class; // Declara√ß√£o antecipada
+  THTL_CButtonGroup = class; // DeclaraÁ„o antecipada
   TButtonGroupOrientation = (bgoHorizontal, bgoVertical);
-  TCaptionPlacement = (plcOutside, plcInside); // Posi√ß√£o do caption em rela√ß√£o √† borda
+  TCaptionPlacement = (plcOutside, plcInside);
 
-  { THTL_CGroupButtonGlobalSettings }
-  // Classe para agrupar as propriedades globais que servem de modelo para os itens.
+  // NOVO: Classe para configurar a aparÍncia do bot„o selecionado.
+  THTL_CSelectionSettings = class(TPersistent)
+  private
+    FBackgroundColor: TColor;
+    FBorder: TBorderSettings;
+    FCaption: TCaptionSettings;
+    FOnChange: TNotifyEvent;
+    procedure SetBackgroundColor(const Value: TColor);
+    procedure SetBorder(const Value: TBorderSettings);
+    procedure SetCaption(const Value: TCaptionSettings);
+    procedure SettingsChanged(Sender: TObject);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create(AOwner: THTL_CButtonGroup);
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clHighlight;
+    property Border: TBorderSettings read FBorder write SetBorder;
+    property Caption: TCaptionSettings read FCaption write SetCaption;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
   THTL_CGroupButtonGlobalSettings = class(TPersistent)
   private
     FBorder: TBorderSettings;
@@ -23,7 +45,7 @@ type
     FImage: TImageSettings;
     FHover: THoverSettings;
     FOnChange: TNotifyEvent;
-    FOwner: THTL_CButtonGroup; // Refer√™ncia ao propriet√°rio para contexto
+    FOwner: THTL_CButtonGroup;
     procedure SetBorder(const Value: TBorderSettings);
     procedure SetCaption(const Value: TCaptionSettings);
     procedure SetImage(const Value: TImageSettings);
@@ -43,9 +65,6 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
-
-  { THTL_CGroupButtonItem }
-  // Representa um √∫nico bot√£o dentro do grupo.
   THTL_CGroupButtonItem = class(TCollectionItem)
   private
     FCaption: string;
@@ -59,7 +78,6 @@ type
     FHover: THoverSettings;
     FCaptionSettings: TCaptionSettings;
     FImageSettings: TImageSettings;
-
     procedure SetCaption(const Value: string);
     procedure SetImage(const Value: TPicture);
     procedure SetVisible(const Value: Boolean);
@@ -71,15 +89,12 @@ type
     procedure SetCaptionSettings(const Value: TCaptionSettings);
     procedure SetImageSettings(const Value: TImageSettings);
     procedure SettingsChanged(Sender: TObject);
-
   protected
     function GetDisplayName: string; override;
-
   public
     constructor Create(Collection: TCollection); override;
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
-
   published
     property Caption: string read FCaption write SetCaption;
     property Image: TPicture read FImage write SetImage;
@@ -94,8 +109,6 @@ type
     property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
   end;
 
-  { THTL_CGroupButtonItems }
-  // Cole√ß√£o para armazenar os itens de bot√£o.
   THTL_CGroupButtonItems = class(TCollection)
   private
     FOwner: THTL_CButtonGroup;
@@ -108,24 +121,27 @@ type
     constructor Create(AOwner: THTL_CButtonGroup);
     function Add: THTL_CGroupButtonItem;
     property Items[Index: Integer]: THTL_CGroupButtonItem read GetItem write SetItem; default;
+    // NOVO: Adiciona a funÁ„o IndexOf para facilitar a busca de itens.
+    function IndexOf(Item: THTL_CGroupButtonItem): Integer;
   end;
 
-  { THTL_CButtonGroup }
-  // O componente principal do Grupo de Bot√µes.
   THTL_CButtonGroup = class(TCustomControl)
   private
     FItems: THTL_CGroupButtonItems;
     FBorder: TBorderSettings;
     FCaption: TCaptionSettings;
     FGlobalSettings: THTL_CGroupButtonGlobalSettings;
-
     FOrientation: TButtonGroupOrientation;
     FSpacing: Integer;
     FAutoSize: Boolean;
-    FCaptionPlacement: TCaptionPlacement; // Nova propriedade
-
+    FCaptionPlacement: TCaptionPlacement;
     FHoveredItem: THTL_CGroupButtonItem;
     FClickedItem: THTL_CGroupButtonItem;
+
+    // NOVO: Campos para gerenciamento da seleÁ„o
+    FSelectedItemIndex: Integer;
+    FSelectionSettings: THTL_CSelectionSettings;
+    FOnChange: TNotifyEvent;
 
     procedure SetItems(const Value: THTL_CGroupButtonItems);
     procedure SetBorder(const Value: TBorderSettings);
@@ -134,13 +150,20 @@ type
     procedure SetOrientation(const Value: TButtonGroupOrientation);
     procedure SetSpacing(const Value: Integer);
     procedure SetAutoSize(const Value: Boolean);
-    procedure SetCaptionPlacement(const Value: TCaptionPlacement); // Novo setter
+    procedure SetCaptionPlacement(const Value: TCaptionPlacement);
+
+    // NOVO: Setters e Getters para as novas propriedades de seleÁ„o
+    procedure SetItemIndex(const Value: Integer);
+    function GetSelectedItem: THTL_CGroupButtonItem;
+    procedure SetSelectionSettings(const Value: THTL_CSelectionSettings);
 
     procedure SettingsChanged(Sender: TObject);
     procedure UpdateLayout;
     function GetItemAt(X, Y: Integer): THTL_CGroupButtonItem;
     function GetItemRect(Item: THTL_CGroupButtonItem): TRect;
     function GetContentRect: TRect;
+    // NOVO: MÈtodo para disparar o evento OnChange
+    procedure DoChange; virtual;
 
   protected
     procedure Paint; override;
@@ -148,7 +171,7 @@ type
     procedure Resize; override;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
-    procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override; // ALTERADO
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
 
   public
@@ -156,15 +179,19 @@ type
     destructor Destroy; override;
 
   published
+    // NOVO: Propriedades de seleÁ„o publicadas
+    property ItemIndex: Integer read FSelectedItemIndex write SetItemIndex default -1;
+    property SelectedItem: THTL_CGroupButtonItem read GetSelectedItem;
+    property SelectionSettings: THTL_CSelectionSettings read FSelectionSettings write SetSelectionSettings;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+
     property Items: THTL_CGroupButtonItems read FItems write SetItems;
     property Orientation: TButtonGroupOrientation read FOrientation write SetOrientation default bgoHorizontal;
     property Spacing: Integer read FSpacing write SetSpacing default 4;
     property AutoSize: Boolean read FAutoSize write SetAutoSize default True;
-
     property Border: TBorderSettings read FBorder write SetBorder;
     property Caption: TCaptionSettings read FCaption write SetCaption;
-    property CaptionPlacement: TCaptionPlacement read FCaptionPlacement write SetCaptionPlacement default plcOutside; // Nova propriedade publicada
-
+    property CaptionPlacement: TCaptionPlacement read FCaptionPlacement write SetCaptionPlacement default plcOutside;
     property Global: THTL_CGroupButtonGlobalSettings read FGlobalSettings write SetGlobalSettings;
 
     property Align;
@@ -195,11 +222,81 @@ uses
   System.Math;
 
 const
-  InternalPadding = 0; // Padding interno para evitar que os bot√µes toquem a borda
+  InternalPadding = 0;
 
 procedure Register;
 begin
   RegisterComponents('HOTLINE', [THTL_CButtonGroup]);
+end;
+
+//------------------------------------------------------------------------------
+// NOVO: THTL_CSelectionSettings
+//------------------------------------------------------------------------------
+constructor THTL_CSelectionSettings.Create(AOwner: THTL_CButtonGroup);
+begin
+  inherited Create;
+  FBackgroundColor := clHighlight;
+  FBorder := TBorderSettings.Create;
+  FBorder.OnChange := SettingsChanged;
+  FBorder.Color := clBlue;
+  FBorder.Thickness := 2;
+
+  FCaption := TCaptionSettings.Create(AOwner);
+  FCaption.OnChange := SettingsChanged;
+  FCaption.Font.Color := clHighlightText;
+  FCaption.Font.Style := [fsBold];
+end;
+
+destructor THTL_CSelectionSettings.Destroy;
+begin
+  FBorder.Free;
+  FCaption.Free;
+  inherited Destroy;
+end;
+
+procedure THTL_CSelectionSettings.Assign(Source: TPersistent);
+begin
+  if Source is THTL_CSelectionSettings then
+  begin
+    with THTL_CSelectionSettings(Source) do
+    begin
+      Self.FBackgroundColor := FBackgroundColor;
+      Self.FBorder.Assign(FBorder);
+      Self.FCaption.Assign(FCaption);
+    end;
+    Changed;
+  end else
+    inherited Assign(Source);
+end;
+
+procedure THTL_CSelectionSettings.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure THTL_CSelectionSettings.SettingsChanged(Sender: TObject);
+begin
+  Changed;
+end;
+
+procedure THTL_CSelectionSettings.SetBackgroundColor(const Value: TColor);
+begin
+  if FBackgroundColor <> Value then
+  begin
+    FBackgroundColor := Value;
+    Changed;
+  end;
+end;
+
+procedure THTL_CSelectionSettings.SetBorder(const Value: TBorderSettings);
+begin
+  FBorder.Assign(Value);
+end;
+
+procedure THTL_CSelectionSettings.SetCaption(const Value: TCaptionSettings);
+begin
+  FCaption.Assign(Value);
 end;
 
 //------------------------------------------------------------------------------
@@ -295,18 +392,13 @@ begin
   FEnabled := True;
   FWidth := 75;
   FHeight := 30;
-
   FImage := TPicture.Create;
-
   FBorder := TBorderSettings.Create;
   FBorder.OnChange := SettingsChanged;
-
   FHover := THoverSettings.Create(nil);
   FHover.OnChange := SettingsChanged;
-
   FCaptionSettings := TCaptionSettings.Create(nil);
   FCaptionSettings.OnChange := SettingsChanged;
-
   FImageSettings := TImageSettings.Create(nil);
   FImageSettings.OnChange := SettingsChanged;
 
@@ -396,6 +488,22 @@ function THTL_CGroupButtonItems.GetOwner: TPersistent; begin Result := FOwner; e
 procedure THTL_CGroupButtonItems.SetItem(Index: Integer; const Value: THTL_CGroupButtonItem); begin inherited SetItem(Index, Value); end;
 procedure THTL_CGroupButtonItems.Update(Item: TCollectionItem); begin inherited; if Assigned(FOwner) and not (csLoading in FOwner.ComponentState) then FOwner.UpdateLayout; end;
 
+// NOVO
+function THTL_CGroupButtonItems.IndexOf(Item: THTL_CGroupButtonItem): Integer;
+var
+  i: Integer;
+begin
+  Result := -1;
+  for i := 0 to Count - 1 do
+  begin
+    if Items[i] = Item then
+    begin
+      Result := i;
+      Exit;
+    end;
+  end;
+end;
+
 //------------------------------------------------------------------------------
 // THTL_CButtonGroup
 //------------------------------------------------------------------------------
@@ -410,7 +518,6 @@ begin
   TabStop := True;
 
   FItems := THTL_CGroupButtonItems.Create(Self);
-
   FBorder := TBorderSettings.Create;
   FBorder.OnChange := SettingsChanged;
   FBorder.Visible := True;
@@ -424,10 +531,15 @@ begin
   FGlobalSettings := THTL_CGroupButtonGlobalSettings.Create(Self);
   FGlobalSettings.OnChange := SettingsChanged;
 
+  // NOVO: Inicializa campos e objetos de seleÁ„o
+  FSelectedItemIndex := -1;
+  FSelectionSettings := THTL_CSelectionSettings.Create(Self);
+  FSelectionSettings.OnChange := SettingsChanged;
+
   FOrientation := bgoHorizontal;
   FSpacing := 4;
   FAutoSize := True;
-  FCaptionPlacement := plcOutside; // Padr√£o
+  FCaptionPlacement := plcOutside;
   FHoveredItem := nil;
   FClickedItem := nil;
 end;
@@ -438,6 +550,7 @@ begin
   FBorder.Free;
   FCaption.Free;
   FGlobalSettings.Free;
+  FSelectionSettings.Free; // NOVO
   inherited Destroy;
 end;
 
@@ -459,6 +572,7 @@ begin
     end;
   end;
   UpdateLayout;
+  Invalidate; // ALTERADO: Garante a repintura em qualquer mudanÁa
 end;
 
 function THTL_CButtonGroup.GetContentRect: TRect;
@@ -466,14 +580,13 @@ var
   LCaptionHeight, LCaptionWidth: Integer;
 begin
   Result := ClientRect;
-
   if (FCaptionPlacement = plcOutside) and FCaption.Visible and (FCaption.Text <> '') then
   begin
     Self.Canvas.Font.Assign(FCaption.Font);
     var TempRect := Rect(0, 0, 32767, 32767);
     DrawText(Self.Canvas.Handle, PChar(FCaption.Text), -1, TempRect, DT_CALCRECT or DT_SINGLELINE);
-    LCaptionHeight := TempRect.Height + FCaption.Margins.Top + FCaption.Margins.Bottom + FCaption.Offset.Y;
-    LCaptionWidth := TempRect.Width + FCaption.Margins.Left + FCaption.Margins.Right + FCaption.Offset.X;
+    LCaptionHeight := TempRect.Height + FCaption.Margins.Top + FCaption.Margins.Bottom + Abs(FCaption.Offset.Y);
+    LCaptionWidth := TempRect.Width + FCaption.Margins.Left + FCaption.Margins.Right + Abs(FCaption.Offset.X);
 
     case FCaption.Position of
       cpAbove: Result.Top := Result.Top + LCaptionHeight;
@@ -482,13 +595,11 @@ begin
       cpRight: Result.Right := Result.Right - LCaptionWidth;
     end;
   end;
-
   if FBorder.Visible then
   begin
     InflateRect(Result, -FBorder.Thickness, -FBorder.Thickness);
     InflateRect(Result, -InternalPadding, -InternalPadding);
   end;
-
   if (FCaptionPlacement = plcInside) and FCaption.Visible and (FCaption.Text <> '') then
   begin
     Self.Canvas.Font.Assign(FCaption.Font);
@@ -504,7 +615,6 @@ begin
       cpRight: Result.Right := Result.Right - LCaptionWidth - FCaption.Offset.X;
     end;
   end;
-
   if Result.Right < Result.Left then Result.Right := Result.Left;
   if Result.Bottom < Result.Top then Result.Bottom := Result.Top;
 end;
@@ -518,8 +628,6 @@ var
   ContentW, ContentH: Integer;
 begin
   if (csLoading in ComponentState) or not FAutoSize then Exit;
-
-  // 1. Calcula o tamanho necess√°rio para a √°rea dos bot√µes
   BtnContentW := 0; BtnContentH := 0; MaxItemW := 0; MaxItemH := 0;
   if FItems.Count > 0 then
   begin
@@ -541,8 +649,6 @@ begin
       end;
     if FOrientation = bgoHorizontal then BtnContentH := MaxItemH else BtnContentW := MaxItemW;
   end;
-
-  // 2. Calcula o tamanho necess√°rio para o caption
   CaptionW := 0; CaptionH := 0;
   if FCaption.Visible and (FCaption.Text <> '') then
   begin
@@ -552,8 +658,6 @@ begin
     CaptionH := TempRect.Height + FCaption.Margins.Top + FCaption.Margins.Bottom + Abs(FCaption.Offset.Y);
     CaptionW := TempRect.Width + FCaption.Margins.Left + FCaption.Margins.Right + Abs(FCaption.Offset.X);
   end;
-
-  // 3. Define o tamanho da √°rea de conte√∫do (bot√µes + caption se dentro)
   ContentW := BtnContentW;
   ContentH := BtnContentH;
   if (FCaptionPlacement = plcInside) and (CaptionW > 0) and (CaptionH > 0) then
@@ -563,8 +667,6 @@ begin
         cpLeft, cpRight:  ContentW := Max(ContentW, BtnContentW + CaptionW);
       end;
   end;
-
-  // 4. Calcula o tamanho do frame (borda + padding)
   FrameW := 0; FrameH := 0;
   if FBorder.Visible then
   begin
@@ -573,8 +675,6 @@ begin
   end;
   FrameW := FrameW + (InternalPadding * 2);
   FrameH := FrameH + (InternalPadding * 2);
-
-  // 5. Calcula o tamanho total do componente
   TotalW := ContentW + FrameW;
   TotalH := ContentH + FrameH;
   if (FCaptionPlacement = plcOutside) and (CaptionW > 0) and (CaptionH > 0) then
@@ -584,11 +684,8 @@ begin
       cpLeft, cpRight:  TotalW := TotalW + CaptionW;
     end;
   end;
-
-  // 6. Define os novos limites
   if (Self.Width <> TotalW) or (Self.Height <> TotalH) then
     Self.SetBounds(Self.Left, Self.Top, TotalW, TotalH);
-
   Invalidate;
 end;
 
@@ -598,12 +695,15 @@ var
   i: Integer;
   Item: THTL_CGroupButtonItem;
   ItemRect: TRect;
-  ItemColor, ItemBorderColor, ItemFontColor: TColor;
+  ItemBackgroundColor: TColor;
+  ItemBorderSettings: TBorderSettings;    // Usado para as configuraÁıes de borda
+  ItemCaptionSettings: TCaptionSettings;  // Usado para as configuraÁıes de texto
   LCaptionPaintRect, LBorderRect: TRect;
   MainPath: TGPGraphicsPath;
   MainClipRegion: TGPRegion;
   OriginalClip: TGPRegion;
   GPRect: TGPRectF;
+  LIsSelected: Boolean; // NOVO
 begin
   inherited;
   LG := TGPGraphics.Create(Self.Canvas.Handle);
@@ -612,7 +712,6 @@ begin
     LG.SetInterpolationMode(InterpolationModeHighQualityBicubic);
     LG.SetPixelOffsetMode(PixelOffsetModeHighQuality);
 
-    // Etapa 1: Definir a √°rea da borda principal que conter√° os bot√µes
     LBorderRect := ClientRect;
     if (FCaptionPlacement = plcOutside) and FCaption.Visible and (FCaption.Text <> '') then
     begin
@@ -631,25 +730,21 @@ begin
 
     MainPath := TGPGraphicsPath.Create;
     try
-      // Etapa 2: Criar o caminho para a borda principal, que servir√° de m√°scara de corte
       var DrawRect := LBorderRect;
-      // Ajuste para o desenho da borda, se houver
       if FBorder.Visible and (FBorder.Thickness > 0) then
       begin
-        // Um pequeno ajuste para garantir que o preenchimento n√£o vaze por baixo da borda anti-aliased
         InflateRect(DrawRect, -1, -1);
       end;
       GPRect.X := DrawRect.Left; GPRect.Y := DrawRect.Top;
       GPRect.Width := DrawRect.Width; GPRect.Height := DrawRect.Height;
       CreateGPRoundedPath(MainPath, GPRect, FBorder.CornerRadius, FBorder.RoundCornerType);
 
-      // Etapa 3: Configurar a regi√£o de corte (clipping)
       MainClipRegion := TGPRegion.Create(MainPath);
       OriginalClip := TGPRegion.Create;
       LG.GetClip(OriginalClip);
-      LG.SetClip(MainClipRegion, CombineModeReplace); // <-- A M√ÅGICA ACONTECE AQUI
+      LG.SetClip(MainClipRegion, CombineModeReplace);
       try
-        // Etapa 4: Desenhar cada item (bot√£o) dentro da √°rea de corte
+        // L”GICA DE DESENHO ALTERADA
         for i := 0 to FItems.Count - 1 do
         begin
           Item := FItems[i];
@@ -658,35 +753,43 @@ begin
           ItemRect := GetItemRect(Item);
           if IsRectEmpty(ItemRect) then continue;
 
-          // Define as cores do bot√£o (base, hover, etc.)
-          ItemColor := Item.Border.BackgroundColor;
-          ItemBorderColor := Item.Border.Color;
-          ItemFontColor := Item.CaptionSettings.Font.Color;
+          LIsSelected := (i = FSelectedItemIndex);
 
-          if Item = FHoveredItem then
+          // Determina as configuraÁıes a serem usadas com base no estado (Selecionado, Hover, Normal)
+          if LIsSelected and Self.Enabled then
           begin
-             if Item.Hover.BackgroundColor <> clNone then ItemColor := Item.Hover.BackgroundColor;
-             if Item.Hover.BorderColor <> clNone then ItemBorderColor := Item.Hover.BorderColor;
-             if Item.Hover.FontColor <> clNone then ItemFontColor := Item.Hover.FontColor;
+            ItemBackgroundColor := FSelectionSettings.BackgroundColor;
+            ItemBorderSettings := FSelectionSettings.Border;
+            ItemCaptionSettings := FSelectionSettings.Caption;
+          end
+          else
+          begin
+            ItemBackgroundColor := Item.Border.BackgroundColor;
+            ItemBorderSettings := Item.Border;
+            ItemCaptionSettings := Item.CaptionSettings;
           end;
 
-          // Etapa 5: Desenhar o bot√£o como um ret√¢ngulo SIMPLES.
-          // O corte √© feito pela regi√£o de clip, ent√£o n√£o precisamos de cantos arredondados aqui.
-          DrawEditBox(LG, ItemRect, ItemColor, ItemBorderColor, Item.Border.Thickness,
-            Item.Border.Style, 0, rctNone, 255); // <-- RAIO E TIPO DE CANTO S√ÉO ZERADOS
-
-          // Desenha o conte√∫do do bot√£o (texto, imagem)
-          var ButtonContentRect := ItemRect;
-          InflateRect(ButtonContentRect, -Item.Border.Thickness, -Item.Border.Thickness);
-
-          if (Item.Caption <> '') and Assigned(Item.CaptionSettings) then
+          // Aplica o efeito de Hover sobre a cor j· definida (seja normal ou selecionada)
+          if (Item = FHoveredItem) and Self.Enabled then
           begin
-            DrawComponentCaption(Self.Canvas, ButtonContentRect, Item.Caption, Item.CaptionSettings.Font,
-              ItemFontColor, Item.CaptionSettings.Alignment, Item.CaptionSettings.VerticalAlignment, Item.CaptionSettings.WordWrap, 255);
+             if Item.Hover.BackgroundColor <> clNone then ItemBackgroundColor := Item.Hover.BackgroundColor;
+             if Item.Hover.BorderColor <> clNone then ItemBorderSettings.Color := Item.Hover.BorderColor;
+             if Item.Hover.FontColor <> clNone then ItemCaptionSettings.Font.Color := Item.Hover.FontColor;
+          end;
+
+          DrawEditBox(LG, ItemRect, ItemBackgroundColor, ItemBorderSettings.Color, ItemBorderSettings.Thickness,
+            ItemBorderSettings.Style, 0, rctNone, 255);
+
+          var ButtonContentRect := ItemRect;
+          InflateRect(ButtonContentRect, -ItemBorderSettings.Thickness, -ItemBorderSettings.Thickness);
+
+          if (Item.Caption <> '') and Assigned(ItemCaptionSettings) then
+          begin
+            DrawComponentCaption(Self.Canvas, ButtonContentRect, Item.Caption, ItemCaptionSettings.Font,
+              ItemCaptionSettings.Font.Color, ItemCaptionSettings.Alignment, ItemCaptionSettings.VerticalAlignment, ItemCaptionSettings.WordWrap, 255);
           end;
         end;
       finally
-        // Etapa 6: Restaurar a regi√£o de corte original
         LG.SetClip(OriginalClip, CombineModeReplace);
         OriginalClip.Free;
         MainClipRegion.Free;
@@ -695,22 +798,18 @@ begin
       MainPath.Free;
     end;
 
-    // Etapa 7: Desenhar a borda principal POR CIMA de tudo
     if FBorder.Visible then
     begin
-        // Usamos o LBorderRect original, que define o contorno completo
         DrawEditBox(LG, LBorderRect, clNone, FBorder.Color, FBorder.Thickness, FBorder.Style, FBorder.CornerRadius, FBorder.RoundCornerType, 255);
     end;
-
-    // Etapa 8: Desenhar o Caption do Grupo (fora da √°rea de clipping, se necess√°rio)
     if FCaption.Visible and (FCaption.Text <> '') then
     begin
-      LCaptionPaintRect := ClientRect; // Recalcula a √°rea do caption
+      LCaptionPaintRect := ClientRect;
       if FCaptionPlacement = plcInside then
       begin
         if FBorder.Visible then InflateRect(LCaptionPaintRect, -FBorder.Thickness, -FBorder.Thickness);
       end
-      else // plcOutside
+      else
       begin
         var TempBorderRect := ClientRect;
         Self.Canvas.Font.Assign(FCaption.Font);
@@ -718,7 +817,6 @@ begin
         DrawText(Self.Canvas.Handle, PChar(FCaption.Text), -1, TempTextRect, DT_CALCRECT or DT_SINGLELINE);
         var LCapHeight := TempTextRect.Height + FCaption.Margins.Top + FCaption.Margins.Bottom + Abs(FCaption.Offset.Y);
         var LCapWidth  := TempTextRect.Width + FCaption.Margins.Left + FCaption.Margins.Right + Abs(FCaption.Offset.X);
-
         case FCaption.Position of
           cpAbove: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Left, TempBorderRect.Top, TempBorderRect.Right, TempBorderRect.Top + LCapHeight);
           cpBelow: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Left, TempBorderRect.Bottom - LCapHeight, TempBorderRect.Right, TempBorderRect.Bottom);
@@ -726,7 +824,6 @@ begin
           cpRight: LCaptionPaintRect := System.Types.Rect(TempBorderRect.Right - LCapWidth, TempBorderRect.Top, TempBorderRect.Right, TempBorderRect.Bottom);
         end;
       end;
-
       DrawComponentCaption(Self.Canvas, LCaptionPaintRect, FCaption.Text,
         FCaption.Font, FCaption.Color, FCaption.Alignment, FCaption.VerticalAlignment,
         FCaption.WordWrap, 255);
@@ -745,31 +842,25 @@ var
 begin
   Result := Rect(0,0,0,0);
   LContentRect := GetContentRect;
-
   CurrentX := LContentRect.Left;
   CurrentY := LContentRect.Top;
-
   for i := 0 to FItems.Count - 1 do
   begin
     if not FItems[i].Visible then continue;
-
     if FItems[i] = Item then
     begin
       if FOrientation = bgoHorizontal then
       begin
-        // Vertically center the item within the content rectangle
         ItemY := LContentRect.Top + (LContentRect.Height - Item.Height) div 2;
         Result := Rect(CurrentX, ItemY, CurrentX + Item.Width, ItemY + Item.Height);
       end
-      else // bgoVertical
+      else
       begin
-        // Horizontally center the item within the content rectangle
         ItemX := LContentRect.Left + (LContentRect.Width - Item.Width) div 2;
         Result := Rect(ItemX, CurrentY, ItemX + Item.Width, CurrentY + Item.Height);
       end;
       Exit;
     end;
-
     if FOrientation = bgoHorizontal then
       CurrentX := CurrentX + FItems[i].Width + FSpacing
     else
@@ -799,7 +890,29 @@ end;
 
 procedure THTL_CButtonGroup.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); begin inherited; if Button = mbLeft then begin FClickedItem := GetItemAt(X, Y); Invalidate; end; end;
 procedure THTL_CButtonGroup.MouseMove(Shift: TShiftState; X, Y: Integer); var Item: THTL_CGroupButtonItem; begin inherited; Item := GetItemAt(X, Y); if Item <> FHoveredItem then begin FHoveredItem := Item; Invalidate; end; end;
-procedure THTL_CButtonGroup.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); var Item: THTL_CGroupButtonItem; begin inherited; if Button = mbLeft then begin Item := GetItemAt(X, Y); if (Item <> nil) and (Item = FClickedItem) then begin Click; end; FClickedItem := nil; Invalidate; end; end;
+
+// ALTERADO
+procedure THTL_CButtonGroup.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  Item: THTL_CGroupButtonItem;
+begin
+  inherited;
+  if Button = mbLeft then
+  begin
+    Item := GetItemAt(X, Y);
+    // Verifica se o clique foi liberado sobre o mesmo bot„o que foi pressionado
+    if (Item <> nil) and (Item = FClickedItem) then
+    begin
+      // Define o item clicado como o selecionado
+      Self.ItemIndex := FItems.IndexOf(Item);
+      // Dispara o evento OnClick do grupo, se houver
+      Click;
+    end;
+    FClickedItem := nil;
+    // A repintura j· È tratada pelo setter de ItemIndex
+  end;
+end;
+
 procedure THTL_CButtonGroup.CMMouseLeave(var Message: TMessage); begin inherited; if FHoveredItem <> nil then begin FHoveredItem := nil; Invalidate; end; end;
 
 // --- Setters ---
@@ -811,5 +924,40 @@ procedure THTL_CButtonGroup.SetOrientation(const Value: TButtonGroupOrientation)
 procedure THTL_CButtonGroup.SetSpacing(const Value: Integer); begin if FSpacing <> Value then begin FSpacing := Value; UpdateLayout; end; end;
 procedure THTL_CButtonGroup.SetAutoSize(const Value: Boolean); begin if FAutoSize <> Value then begin FAutoSize := Value; UpdateLayout; end; end;
 procedure THTL_CButtonGroup.SetCaptionPlacement(const Value: TCaptionPlacement); begin if FCaptionPlacement <> Value then begin FCaptionPlacement := Value; UpdateLayout; Invalidate; end; end;
+
+// --- NOVO: MÈtodos de SeleÁ„o ---
+procedure THTL_CButtonGroup.SetItemIndex(const Value: Integer);
+begin
+  // Permite valores de -1 (nenhum selecionado) atÈ o ˙ltimo item.
+  if (Value < -1) or (Value >= FItems.Count) then
+    Exit; // Ou pode-se levantar uma exceÁ„o: raise EListError.Create('Õndice fora dos limites');
+
+  if FSelectedItemIndex <> Value then
+  begin
+    FSelectedItemIndex := Value;
+    DoChange; // Dispara o evento OnChange
+    Invalidate; // ForÁa a repintura para mostrar o novo estado visual
+  end;
+end;
+
+function THTL_CButtonGroup.GetSelectedItem: THTL_CGroupButtonItem;
+begin
+  if (FSelectedItemIndex >= 0) and (FSelectedItemIndex < FItems.Count) then
+    Result := FItems[FSelectedItemIndex]
+  else
+    Result := nil;
+end;
+
+procedure THTL_CButtonGroup.SetSelectionSettings(const Value: THTL_CSelectionSettings);
+begin
+  FSelectionSettings.Assign(Value);
+  Invalidate;
+end;
+
+procedure THTL_CButtonGroup.DoChange;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
 
 end.

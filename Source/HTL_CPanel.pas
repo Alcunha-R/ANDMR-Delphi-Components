@@ -393,6 +393,7 @@ var
   LPathRect: TGPRectF;
   NewRegion: HRGN;
   OldRegion: HRGN;
+  LBorderThickness: Single;
 begin
   if not HandleAllocated then
     Exit;
@@ -406,19 +407,41 @@ begin
   begin
     LPath := TGPGraphicsPath.Create;
     try
-      LPathRect.X := 0;
-      LPathRect.Y := 0;
-      LPathRect.Width := LClientRect.Width;
-      LPathRect.Height := LClientRect.Height;
+      LBorderThickness := FBorderSettings.Thickness;
+      if LBorderThickness > 0 then
+      begin
+        LPathRect.X      := LBorderThickness / 2.0;
+        LPathRect.Y      := LBorderThickness / 2.0;
+        LPathRect.Width  := LClientRect.Width - LBorderThickness;
+        LPathRect.Height := LClientRect.Height - LBorderThickness;
+      end
+      else
+      begin
+        LPathRect.X      := 0;
+        LPathRect.Y      := 0;
+        LPathRect.Width  := LClientRect.Width;
+        LPathRect.Height := LClientRect.Height;
+      end;
 
       if LPathRect.Width < 0 then LPathRect.Width := 0;
       if LPathRect.Height < 0 then LPathRect.Height := 0;
 
+      // [CORREÇÃO] Substituído o 'Inflate' pela manipulação manual das coordenadas.
+      // O resultado geométrico é o mesmo: encolher a área em 0.5 pixel de cada lado.
+//      LPathRect.X := LPathRect.X + 0.5;
+//      LPathRect.Y := LPathRect.Y + 0.5;
+//      LPathRect.Width := LPathRect.Width - 1.0;
+//      LPathRect.Height := LPathRect.Height - 1.0;
+
       if (LPathRect.Width > 0) and (LPathRect.Height > 0) then
       begin
-        ANDMR_ComponentUtils.CreateGPRoundedPath(LPath, LPathRect, Single(FBorderSettings.CornerRadius), FBorderSettings.RoundCornerType);
+        CreateGPRoundedPath(LPath, LPathRect, Single(FBorderSettings.CornerRadius), FBorderSettings.RoundCornerType);
+
         LG := TGPGraphics.Create(Self.Handle);
         try
+          LG.SetSmoothingMode(SmoothingModeAntiAlias);
+          LG.SetPixelOffsetMode(PixelOffsetModeHalf);
+
           LGDIRgn := TGPRegion.Create(LPath);
           try
             NewRegion := LGDIRgn.GetHRGN(LG);
@@ -434,6 +457,7 @@ begin
     end;
   end;
 
+  // O restante do procedimento continua o mesmo...
   if (HandleAllocated) and ((NewRegion <> OldRegion) or ((NewRegion = 0) And (OldRegion <> 0) )) then
   begin
     SetWindowRgn(Self.Handle, NewRegion, True);

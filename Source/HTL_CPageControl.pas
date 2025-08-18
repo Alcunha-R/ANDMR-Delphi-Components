@@ -347,8 +347,8 @@ end;
 
 procedure Register;
 begin
-  RegisterComponents('HOTLINE', [THTL_CPageControl]);
 {$IFDEF DESIGNTIME}
+  RegisterComponents('HOTLINE', [THTL_CPageControl]);
   RegisterComponentEditor(THTL_CPageControl, THTL_CPageControlEditor);
 {$ENDIF}
 end;

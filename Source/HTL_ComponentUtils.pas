@@ -191,10 +191,11 @@ type
     FAnimationStep: Integer;
     FAnimationTimer: TTimer;
     FCurrentAnimationValue: Integer;
-    FAnimationDirection: Integer;
+    FAnimationDirection: Integer; // Mantido para compatibilidade, mas a lógica principal usará FHovering
     FOwnerControl: TWinControl;
     FOnAnimationProgress: TNotifyEvent;
     FTargets: THoverTargets;
+    FHovering: Boolean; // <-- [NOVO] Campo de Estado Alvo
     procedure SetBackgroundColor(const Value: TColor);
     procedure SetBorderColor(const Value: TColor);
     procedure SetFontColor(const Value: TColor);
@@ -480,6 +481,7 @@ function UnmaskText(const AText: string): string;
 function FormatText(const ARawText, AMask: string): string;
 
 // HELPER FUNCTIONS
+function RectToGPRectF(const ARect: TRect): TGPRectF;
 function ColorToARGB(AColor: TColor; Alpha: Byte = 255): Cardinal;
 procedure CreateGPRoundedPath(APath: TGPGraphicsPath; const ARect: TGPRectF; ARadiusValue: Single; AType: TRoundCornerType);
 procedure DrawEditBox(AGraphics: TGPGraphics; const ADrawArea: TRect; ABackgroundColor: TColor; ABorderColor: TColor; ABorderThickness: Integer; ABorderStyle: TPenStyle; ACornerRadius: Integer; ARoundCornerType: TRoundCornerType; AOpacity: Byte);
@@ -697,7 +699,6 @@ begin
   end;
 end;
 
-// ... O restante do arquivo continua inalterado ...
 { TFocusSettings }
 constructor TFocusSettings.Create;
 begin
@@ -1301,7 +1302,9 @@ procedure TCaptionSettings.SetVerticalAlignment(const Value: TCaptionVerticalAli
 procedure TCaptionSettings.SetOffset(const Value: TPoint); begin if FOffset <> Value then begin FOffset := Value; Changed; end; end;
 procedure TCaptionSettings.SetDisabledColor(const Value: TColor); begin if FDisabledColor <> Value then begin FDisabledColor := Value; Changed; end; end;
 
-{ THoverSettings }
+// ================================================================= //
+// == INÍCIO DAS ALTERAÇÕES NA CLASSE THoverSettings == //
+// ================================================================= //
 constructor THoverSettings.Create(AOwnerControl: TWinControl);
 begin
   inherited Create;
@@ -1315,7 +1318,8 @@ begin
   FAnimationTimerInterval := 15;
   FAnimationStep := 20;
   FCurrentAnimationValue := 0;
-  FAnimationDirection := 0;
+  FAnimationDirection := 0; // Mantido para compatibilidade, não usado na lógica principal
+  FHovering := False; // <-- [ALTERADO] Inicializa o novo campo
   FAnimationTimer := TTimer.Create(nil);
   FAnimationTimer.Interval := FAnimationTimerInterval;
   FAnimationTimer.OnTimer := DoAnimate;
@@ -1415,51 +1419,43 @@ begin
   end;
 end;
 
+// [ALTERADO] Lógica do timer para usar o "Estado Alvo" (FHovering)
 procedure THoverSettings.DoAnimate(Sender: TObject);
 var
   TargetValue: Integer;
-  OldAnimationValue: Integer;
-  NeedsUpdate: Boolean;
+  ReachedTarget: Boolean;
 begin
-  OldAnimationValue := FCurrentAnimationValue;
-
-  if FAnimationDirection = 1 then
+  // Determina o valor alvo baseado no estado FHovering
+  if FHovering then
     TargetValue := 255
-  else if FAnimationDirection = -1 then
-    TargetValue := 0
   else
-  begin
-    FAnimationTimer.Enabled := False;
-    Exit;
-  end;
+    TargetValue := 0;
 
-  if FAnimationDirection = 1 then
+  // Move a animação na direção do valor alvo
+  if FCurrentAnimationValue < TargetValue then
     Inc(FCurrentAnimationValue, FAnimationStep)
-  else
+  else if FCurrentAnimationValue > TargetValue then
     Dec(FCurrentAnimationValue, FAnimationStep);
 
+  // Garante que o valor não ultrapasse os limites
   FCurrentAnimationValue := Max(0, Min(255, FCurrentAnimationValue));
 
-  if ((FAnimationDirection = 1) and (FCurrentAnimationValue >= TargetValue)) or
-     ((FAnimationDirection = -1) and (FCurrentAnimationValue <= TargetValue)) then
+  // Verifica se o alvo foi alcançado
+  ReachedTarget := FCurrentAnimationValue = TargetValue;
+
+  if ReachedTarget then
   begin
-    FCurrentAnimationValue := TargetValue;
     FAnimationTimer.Enabled := False;
-    FAnimationDirection := 0;
   end;
 
-  NeedsUpdate := (FCurrentAnimationValue <> OldAnimationValue) or not FAnimationTimer.Enabled;
-
-  if NeedsUpdate then
+  // Notifica a UI para se redesenhar
+  if Assigned(FOnAnimationProgress) then
   begin
-    if Assigned(FOnAnimationProgress) then
-    begin
-      FOnAnimationProgress(Self);
-    end
-    else if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated and FOwnerControl.Visible then
-    begin
-       FOwnerControl.Invalidate;
-    end;
+    FOnAnimationProgress(Self);
+  end
+  else if Assigned(FOwnerControl) and FOwnerControl.HandleAllocated and FOwnerControl.Visible then
+  begin
+     FOwnerControl.Invalidate;
   end;
 end;
 
@@ -1467,6 +1463,7 @@ procedure THoverSettings.ResetAnimation;
 begin
     FAnimationTimer.Enabled := False;
     FCurrentAnimationValue := 0;
+    FHovering := False;
     FAnimationDirection := 0;
 
     if Assigned(FOnAnimationProgress) then
@@ -1475,9 +1472,7 @@ begin
       FOwnerControl.Invalidate;
 end;
 
-// ********************************************************************
-// * CORREÇÃO: Lógica de animação revisada para evitar "race condition" *
-// ********************************************************************
+// [ALTERADO] Lógica de início da animação para ser mais robusta
 procedure THoverSettings.StartAnimation(IsHovering: Boolean);
 begin
   if not Self.Enabled then
@@ -1486,43 +1481,36 @@ begin
     Exit;
   end;
 
-  if FHoverEffect = heNone then
+  // 1. Apenas defina o estado alvo final. A última chamada sempre vence.
+  FHovering := IsHovering;
+
+  // 2. Se o efeito for instantâneo (heNone) ou se a animação já estiver no estado certo, pare.
+  if (FHoverEffect = heNone) or
+     (FHovering and (FCurrentAnimationValue = 255)) or
+     (not FHovering and (FCurrentAnimationValue = 0)) then
   begin
-    var TargetValue: Integer;
-    if IsHovering then TargetValue := 255 else TargetValue := 0;
-    if FCurrentAnimationValue <> TargetValue then
+    // Se for heNone, ajusta o valor instantaneamente
+    if FHoverEffect = heNone then
     begin
-        FCurrentAnimationValue := TargetValue;
-        if Assigned(FOnAnimationProgress) then FOnAnimationProgress(Self);
+      if FHovering then FCurrentAnimationValue := 255 else FCurrentAnimationValue := 0;
+      if Assigned(FOnAnimationProgress) then FOnAnimationProgress(Self);
     end;
-    FAnimationTimer.Enabled := False;
-    FAnimationDirection := 0;
+    FAnimationTimer.Enabled := False; // Garante que o timer pare se já atingiu o alvo
     Exit;
   end;
 
-  FAnimationTimer.Interval := FAnimationTimerInterval;
-
-  if IsHovering then
+  // 3. Se não estiver no estado alvo, simplesmente ative o timer.
+  //    O DoAnimate fará o trabalho de ir na direção certa.
+  if not FAnimationTimer.Enabled then
   begin
-    // Animação de ENTRADA
-    // Se já estiver entrando ou já estiver no estado final, não faz nada.
-    if (FAnimationDirection = 1) and FAnimationTimer.Enabled then Exit;
-    if (FCurrentAnimationValue = 255) and (FAnimationDirection <> -1) then Exit;
-
-    FAnimationDirection := 1;
-    FAnimationTimer.Enabled := True;
-  end
-  else
-  begin
-    // Animação de SAÍDA
-    // Se já estiver saindo ou já estiver no estado inicial, não faz nada.
-    if (FAnimationDirection = -1) and FAnimationTimer.Enabled then Exit;
-    if (FCurrentAnimationValue = 0) and (FAnimationDirection <> 1) then Exit;
-
-    FAnimationDirection := -1;
+    FAnimationTimer.Interval := FAnimationTimerInterval;
     FAnimationTimer.Enabled := True;
   end;
 end;
+
+// ================================================================= //
+// == FIM DAS ALTERAÇÕES NA CLASSE THoverSettings == //
+// ================================================================= //
 
 { TImageSettings }
 
@@ -2252,5 +2240,12 @@ begin
   Result.Top := DestRect.Top + (DestRect.Height - Result.Height) div 2;
 end;
 
-end.
+function RectToGPRectF(const ARect: TRect): TGPRectF;
+begin
+  Result.X := ARect.Left;
+  Result.Y := ARect.Top;
+  Result.Width := ARect.Width;
+  Result.Height := ARect.Height;
+end;
 
+end.

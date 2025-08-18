@@ -30,7 +30,9 @@ package HOTLINE_COMPONENTES;
 requires
   rtl,
   vcl,
-  vclimg;
+  vclimg,
+  dbrtl,
+  vcldb;
 
 contains
   HTL_CButton in 'Source\HTL_CButton.pas',
@@ -44,8 +46,13 @@ contains
   HTL_CScrollBar in 'Source\HTL_CScrollBar.pas',
   HTL_CButtonGroup in 'Source\HTL_CButtonGroup.pas',
   HTL_CDatePicker in 'Source\HTL_CDatePicker.pas',
-  HTL_CToggleSwitch in 'Source\HTL_CToggleSwitch.pas',
+  HTL_CSwitch in 'Source\HTL_CSwitch.pas',
   HTL_CTabBar in 'Source\HTL_CTabBar.pas',
-  HTL_CPageControl in 'Source\HTL_CPageControl.pas';
+  HTL_CPageControl in 'Source\HTL_CPageControl.pas',
+  HTL_DBCEdit in 'Source\HTL_DBCEdit.pas',
+  HTL_DBCCheckBox in 'Source\HTL_DBCCheckBox.pas',
+  HTL_CExpandingButton in 'Source\HTL_CExpandingButton.pas',
+  HTL_Notification in 'Source\HTL_Notification.pas',
+  HTL_CNotification in 'Source\HTL_CNotification.pas';
 
 end.

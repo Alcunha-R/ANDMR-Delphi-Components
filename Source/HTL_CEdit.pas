@@ -53,6 +53,11 @@ type
     FOriginalText: string;
     FOriginalEnabledState: Boolean;
 
+    // NOVO: Campos para controle da seleção
+    FSelectionStart: Integer;
+    FSelectionLength: Integer;
+    FSelecting: Boolean;
+
     FOnExit: TNotifyEvent;
     FOnChange: TNotifyEvent;
     FOnEnter: TNotifyEvent;
@@ -99,6 +104,12 @@ type
     procedure ImageSettingsChanged(Sender: TObject);
     procedure PlaceholderFontChanged(Sender: TObject);
 
+    // NOVO: Métodos auxiliares e manipuladores de mensagem para área de transferência
+    procedure DeleteSelection;
+    procedure WMCut(var Message: TMessage); message WM_CUT;
+    procedure WMCopy(var Message: TMessage); message WM_COPY;
+    procedure WMPaste(var Message: TMessage); message WM_PASTE;
+
     procedure CMMouseEnter(var Message: TMessage); message CM_MOUSEENTER;
     procedure CMMouseLeave(var Message: TMessage); message CM_MOUSELEAVE;
     procedure CMEnter(var Message: TCMEnter); message CM_ENTER;
@@ -111,12 +122,18 @@ type
     procedure KeyPress(var Key: Char); override;
     procedure Click; override;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    // NOVO: Overrides para manipulação do mouse
+    procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
 
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure StartProcessing;
     procedure StopProcessing;
+    // NOVO: Métodos públicos para controle da seleção
+    procedure SelectAll;
+    function GetSelText: string;
 
   published
     property Text: string read FText write SetText;
@@ -175,6 +192,8 @@ procedure Register;
 
 implementation
 
+uses Vcl.Clipbrd;
+
 procedure Register;
 begin
   RegisterComponents('HOTLINE', [THTL_CEdit]);
@@ -185,10 +204,14 @@ end;
 constructor THTL_CEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable];
+  ControlStyle := [csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable];
   DoubleBuffered := True;
   Width := 180; Height := 40; TabStop := True;
   FText := ''; FMaxLength := 0; FPasswordChar := #0; FReadOnly := False;
+
+  FSelectionStart := 0;
+  FSelectionLength := 0;
+  FSelecting := False;
 
   FPlaceholder := '';
   FPlaceholderFont := TFont.Create;
@@ -748,12 +771,43 @@ begin
         else
         begin
           if (FPasswordChar <> #0) and not (csDesigning in ComponentState) then TextToDisplay := StringOfChar(FPasswordChar, Length(FText)) else TextToDisplay := FText;
+
+          if (FSelectionLength <> 0) and IsFocused then
+          begin
+            var SelStart := FSelectionStart;
+            var SelLen := FSelectionLength;
+            if SelLen < 0 then
+            begin
+                SelStart := SelStart + SelLen;
+                SelLen := Abs(SelLen);
+            end;
+
+            var PreSelectionWidth := Canvas.TextWidth(Copy(TextToDisplay, 1, SelStart));
+            var SelectionWidth := Canvas.TextWidth(Copy(TextToDisplay, SelStart + 1, SelLen));
+
+            var SelectionRect: TRect;
+            SelectionRect.Top := PaddedTextDrawArea.Top;
+            SelectionRect.Bottom := PaddedTextDrawArea.Bottom;
+            SelectionRect.Left := PaddedTextDrawArea.Left + PreSelectionWidth;
+            SelectionRect.Right := SelectionRect.Left + SelectionWidth;
+
+            Canvas.Brush.Color := clHighlight;
+            Canvas.Brush.Style := TBrushStyle.bsSolid;
+            Canvas.FillRect(SelectionRect);
+          end;
+
           ActualTextColor := ResolveStateColor(Enabled, FHovered, IsFocused, Self.Font.Color, FHoverSettings.FontColor, Self.Font.Color, clGrayText, FHoverSettings.Enabled, False);
           Canvas.Font.Assign(Self.Font);
-          Canvas.Font.Color := ActualTextColor;
+
+          if (FSelectionLength <> 0) and IsFocused then
+             Canvas.Font.Color := clHighlightText
+          else
+             Canvas.Font.Color := ActualTextColor;
+
           Canvas.Brush.Style := bsClear;
           SetBkMode(Canvas.Handle, TRANSPARENT);
           DrawText(Canvas.Handle, PChar(TextToDisplay), -1, PaddedTextDrawArea, DT_LEFT or DT_VCENTER or DT_SINGLELINE or DT_NOPREFIX or DT_EDITCONTROL);
+
           if IsFocused and FCaretVisible and not ReadOnly then
           begin
             var CaretXBase := PaddedTextDrawArea.Left;
@@ -823,8 +877,6 @@ end;
 procedure THTL_CEdit.CMEnabledChanged(var Message: TMessage);
 begin
   inherited;
-  // Apenas pare as animações se o controle for desabilitado externamente,
-  // e não como parte do estado de 'Processing'.
   if not Enabled and not FProcessing then
   begin
     FClickEffectActive := False;
@@ -866,8 +918,22 @@ var
   OldText: string;
   Changed: Boolean;
   RawText: string;
+  OldCaretPos: Integer;
+  Msg: TMessage; // <-- ADICIONE ESTA VARIÁVEL
 begin
   inherited KeyDown(Key, Shift);
+
+  // Bloco corrigido
+  if ssCtrl in Shift then
+  begin
+    case Key of
+      Ord('C'): begin WMCopy(Msg); Key := 0; Exit; end;
+      Ord('V'): begin WMPaste(Msg); Key := 0; Exit; end;
+      Ord('X'): begin WMCut(Msg); Key := 0; Exit; end;
+      Ord('A'): begin SelectAll; Key := 0; Exit; end;
+    end;
+  end;
+
   if FProcessing or FReadOnly then
   begin
     Key := 0;
@@ -895,18 +961,65 @@ begin
   begin
     Changed := False;
     OldText := FText;
+    OldCaretPos := FCaretPosition;
+
     case Key of
-      VK_BACK: if (FCaretPosition > 0) then begin FText := Copy(FText, 1, FCaretPosition - 1) + Copy(FText, FCaretPosition + 1, MaxInt); Dec(FCaretPosition); Changed := True; end;
-      VK_DELETE: if (FCaretPosition < Length(FText)) then begin FText := Copy(FText, 1, FCaretPosition) + Copy(FText, FCaretPosition + 2, MaxInt); Changed := True; end;
+      VK_BACK:
+        if FSelectionLength <> 0 then
+        begin
+          DeleteSelection;
+          Changed := True;
+        end
+        else if (FCaretPosition > 0) then
+        begin
+          System.Delete(FText, FCaretPosition, 1);
+          Dec(FCaretPosition);
+          Changed := True;
+        end;
+      VK_DELETE:
+        if FSelectionLength <> 0 then
+        begin
+          DeleteSelection;
+          Changed := True;
+        end
+        else if FCaretPosition < Length(FText) then
+        begin
+          System.Delete(FText, FCaretPosition + 1, 1);
+          Changed := True;
+        end;
       VK_HOME: begin FCaretPosition := 0; Changed := True; end;
       VK_END: begin FCaretPosition := Length(FText); Changed := True; end;
       VK_LEFT: begin if FCaretPosition > 0 then Dec(FCaretPosition); Changed := True; end;
       VK_RIGHT: begin if FCaretPosition < Length(FText) then Inc(FCaretPosition); Changed := True; end;
-      else exit;
+      else
+        exit;
     end;
+
     Key := 0;
     if Changed then
     begin
+      if ssShift in Shift then
+      begin
+        if OldCaretPos = (FSelectionStart + FSelectionLength) then
+        begin
+          FSelectionLength := FCaretPosition - FSelectionStart;
+        end
+        else if OldCaretPos = FSelectionStart then
+        begin
+          FSelectionLength := (FSelectionStart + FSelectionLength) - FCaretPosition;
+          FSelectionStart := FCaretPosition;
+        end
+        else
+        begin
+          FSelectionStart := OldCaretPos;
+          FSelectionLength := FCaretPosition - FSelectionStart;
+        end;
+      end
+      else
+      begin
+        FSelectionLength := 0;
+      end;
+
       FCaretVisible := True;
       if Focused then begin FCaretTimer.Enabled := False; FCaretTimer.Enabled := True; end;
       if Assigned(FOnChange) and (OldText <> FText) then FOnChange(Self);
@@ -921,6 +1034,11 @@ var
   RawText: string;
 begin
   inherited KeyPress(Key);
+
+  if (FSelectionLength <> 0) and (Key in [#32..#255]) then
+  begin
+    DeleteSelection;
+  end;
 
   if (FInputMask = '') then
   begin
@@ -989,27 +1107,105 @@ begin
 end;
 
 procedure THTL_CEdit.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-var i, ClickX_RelativeToPaddedText, CurrentWidth, CharWidth: Integer; TextToMeasure: string; PaddedTextDrawArea: TRect;
+var i, ClickX_RelativeToPaddedText, CurrentWidth, CharWidth, NewCaretPos: Integer; TextToMeasure: string; PaddedTextDrawArea: TRect;
 begin
   inherited MouseDown(Button, Shift, X, Y);
   if FProcessing then Exit;
   if Button = mbLeft then
   begin
-    StartClickEffect; if CanFocus and not Focused then SetFocus;
-    FCaretVisible := True; FCaretTimer.Enabled := False; FCaretTimer.Enabled := True;
+    StartClickEffect;
+    if CanFocus and not Focused then SetFocus;
+    FCaretVisible := True;
+    FCaretTimer.Enabled := False;
+    FCaretTimer.Enabled := True;
+
     PaddedTextDrawArea := ClientRect;
     InflateRect(PaddedTextDrawArea, -(FBorderSettings.Thickness + FImageSettings.Margins.Left + FTextMargins.Left), -(FBorderSettings.Thickness + FTextMargins.Top));
     if FImageSettings.Visible and (FImageSettings.Picture.Graphic <> nil) and (FImageSettings.ImagePosition = ipLeft) then
       PaddedTextDrawArea.Left := PaddedTextDrawArea.Left + FImageSettings.Picture.Width + FImageSettings.Margins.Right + FSeparatorSettings.Thickness + FSeparatorSettings.Padding;
     ClickX_RelativeToPaddedText := X - PaddedTextDrawArea.Left;
-    TextToMeasure := FText; if (FPasswordChar <> #0) then TextToMeasure := StringOfChar(FPasswordChar, Length(FText));
-    Canvas.Font.Assign(Self.Font); CurrentWidth := 0; FCaretPosition := 0;
+    TextToMeasure := FText;
+    if (FPasswordChar <> #0) then
+      TextToMeasure := StringOfChar(FPasswordChar, Length(FText));
+    Canvas.Font.Assign(Self.Font);
+    CurrentWidth := 0;
+    NewCaretPos := 0;
     for I := 1 to Length(TextToMeasure) do
     begin
-      CharWidth := Canvas.TextWidth(TextToMeasure[I]); if ClickX_RelativeToPaddedText < (CurrentWidth + CharWidth div 2) then begin FCaretPosition := I - 1; Break; end;
-      CurrentWidth := CurrentWidth + CharWidth; FCaretPosition := I;
+      CharWidth := Canvas.TextWidth(TextToMeasure[I]);
+      if ClickX_RelativeToPaddedText < (CurrentWidth + CharWidth div 2) then
+      begin
+        NewCaretPos := I - 1;
+        Break;
+      end;
+      CurrentWidth := CurrentWidth + CharWidth;
+      NewCaretPos := I;
+    end;
+    FCaretPosition := NewCaretPos;
+
+    FSelecting := True;
+    if not (ssShift in Shift) then
+    begin
+      FSelectionStart := FCaretPosition;
+      FSelectionLength := 0;
+    end
+    else
+    begin
+      FSelectionLength := FCaretPosition - FSelectionStart;
     end;
     Invalidate;
+  end;
+end;
+
+procedure THTL_CEdit.MouseMove(Shift: TShiftState; X, Y: Integer);
+var i, ClickX_RelativeToPaddedText, CurrentWidth, CharWidth, NewCaretPos: Integer; TextToMeasure: string; PaddedTextDrawArea: TRect;
+begin
+  inherited MouseMove(Shift, X, Y);
+  if FSelecting and (ssLeft in Shift) then
+  begin
+    PaddedTextDrawArea := ClientRect;
+    InflateRect(PaddedTextDrawArea, -(FBorderSettings.Thickness + FImageSettings.Margins.Left + FTextMargins.Left), -(FBorderSettings.Thickness + FTextMargins.Top));
+    if FImageSettings.Visible and (FImageSettings.Picture.Graphic <> nil) and (FImageSettings.ImagePosition = ipLeft) then
+        PaddedTextDrawArea.Left := PaddedTextDrawArea.Left + FImageSettings.Picture.Width + FImageSettings.Margins.Right + FSeparatorSettings.Thickness + FSeparatorSettings.Padding;
+    ClickX_RelativeToPaddedText := X - PaddedTextDrawArea.Left;
+    TextToMeasure := FText;
+    if (FPasswordChar <> #0) then
+      TextToMeasure := StringOfChar(FPasswordChar, Length(FText));
+    Canvas.Font.Assign(Self.Font);
+    CurrentWidth := 0;
+    NewCaretPos := 0;
+    for I := 1 to Length(TextToMeasure) do
+    begin
+      CharWidth := Canvas.TextWidth(TextToMeasure[I]);
+      if ClickX_RelativeToPaddedText < (CurrentWidth + CharWidth div 2) then
+      begin
+        NewCaretPos := I - 1;
+        Break;
+      end;
+      CurrentWidth := CurrentWidth + CharWidth;
+      NewCaretPos := I;
+    end;
+
+    if NewCaretPos <> FCaretPosition then
+    begin
+      FCaretPosition := NewCaretPos;
+      FSelectionLength := FCaretPosition - FSelectionStart;
+      Invalidate;
+    end;
+  end;
+end;
+
+procedure THTL_CEdit.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  inherited MouseUp(Button, Shift, X, Y);
+  if Button = mbLeft then
+  begin
+    FSelecting := False;
+    if FSelectionLength < 0 then
+    begin
+      FSelectionStart := FSelectionStart + FSelectionLength;
+      FSelectionLength := Abs(FSelectionLength);
+    end;
   end;
 end;
 
@@ -1138,5 +1334,99 @@ procedure THTL_CEdit.SetStyle(const Value: TButtonStyle); begin if FStyle <> Val
 procedure THTL_CEdit.SetImageSettings(const Value: TImageSettings); begin FImageSettings.Assign(Value); end;
 procedure THTL_CEdit.SetSeparatorSettings(const Value: TSeparatorSettings); begin FSeparatorSettings.Assign(Value); end;
 
-end.
+procedure THTL_CEdit.SelectAll;
+begin
+  FSelectionStart := 0;
+  FSelectionLength := Length(FText);
+  FCaretPosition := Length(FText);
+  Invalidate;
+end;
 
+function THTL_CEdit.GetSelText: string;
+var
+  Start: Integer;
+  Len: Integer;
+begin
+  if FSelectionLength <> 0 then
+  begin
+    Start := FSelectionStart;
+    Len := FSelectionLength;
+    if Len < 0 then
+    begin
+      Start := Start + Len;
+      Len := Abs(Len);
+    end;
+    Result := Copy(FText, Start + 1, Len);
+  end
+  else
+    Result := '';
+end;
+
+procedure THTL_CEdit.DeleteSelection;
+var
+  OldText: string;
+  StartPos: Integer;
+  Len: Integer;
+begin
+  if FSelectionLength <> 0 then
+  begin
+    OldText := FText;
+    StartPos := FSelectionStart;
+    Len := FSelectionLength;
+    if Len < 0 then
+    begin
+      StartPos := StartPos + Len;
+      Len := Abs(Len);
+    end;
+
+    System.Delete(FText, StartPos + 1, Len);
+    FCaretPosition := StartPos;
+    FSelectionStart := FCaretPosition;
+    FSelectionLength := 0;
+    if OldText <> FText then
+      if Assigned(FOnChange) then FOnChange(Self);
+    Invalidate;
+  end;
+end;
+
+procedure THTL_CEdit.WMCopy(var Message: TMessage);
+begin
+  var SelText := GetSelText;
+  if SelText <> '' then
+  begin
+    Clipboard.AsText := SelText;
+  end;
+end;
+
+procedure THTL_CEdit.WMPaste(var Message: TMessage);
+var
+  PasteText: string;
+  OldText: string;
+begin
+  if FReadOnly or FProcessing then Exit;
+  DeleteSelection;
+
+  if Clipboard.HasFormat(CF_TEXT) then
+  begin
+    PasteText := Clipboard.AsText;
+    if PasteText = '' then Exit;
+    OldText := FText;
+    System.Insert(PasteText, FText, FCaretPosition + 1);
+    if (FMaxLength > 0) and (Length(FText) > FMaxLength) then
+      FText := Copy(FText, 1, FMaxLength);
+    FCaretPosition := FCaretPosition + Length(PasteText);
+    ApplyFormatting;
+    if OldText <> FText then
+      if Assigned(FOnChange) then FOnChange(Self);
+    Invalidate;
+  end;
+end;
+
+procedure THTL_CEdit.WMCut(var Message: TMessage);
+begin
+  if FReadOnly or FProcessing then Exit;
+  WMCopy(Message);
+  DeleteSelection;
+end;
+
+end.

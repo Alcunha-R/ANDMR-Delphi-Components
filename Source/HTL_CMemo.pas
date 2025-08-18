@@ -201,7 +201,7 @@ constructor THTL_CMemo.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   // --- Estilo e tamanho padrão ---
-  ControlStyle := [csOpaque, csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csAcceptsControls];
+  ControlStyle := [csClickEvents, csCaptureMouse, csDoubleClicks, csReplicatable, csAcceptsControls];
   DoubleBuffered := True;
   Width := 185;
   Height := 80;
@@ -494,8 +494,16 @@ end;
 
 procedure THTL_CMemo.SetFocus;
 begin
-  if TabStop and CanFocus and Assigned(FInternalMemo) then
-    FInternalMemo.SetFocus;
+  if ReadOnly then
+  begin
+    if TabStop and CanFocus then
+      inherited SetFocus;
+  end
+  else
+  begin
+    if TabStop and CanFocus and Assigned(FInternalMemo) then
+      FInternalMemo.SetFocus;
+  end;
 end;
 
 procedure THTL_CMemo.SetTabStop(Value: Boolean);

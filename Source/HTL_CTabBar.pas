@@ -1,5 +1,5 @@
 ﻿unit HTL_CTabBar;
-
+
 interface
 
 uses
@@ -27,22 +27,22 @@ type
     FTag: Integer;
     FWidth: Integer;
     FHeight: Integer;
-    FImageSettings: TImageSettings; // Adicionado
+    FImageSettings: TImageSettings;
     procedure SetCaption(const Value: string);
     procedure SetVisible(const Value: Boolean);
     procedure SetEnabled(const Value: Boolean);
     procedure SetWidth(const Value: Integer);
     procedure SetHeight(const Value: Integer);
-    procedure SetImageSettings(const Value: TImageSettings); // Adicionado
-    function GetImage: TPicture; // Adicionado
-    procedure SetImage(const Value: TPicture); // Adicionado
-    procedure ImageSettingsChanged(Sender: TObject); // Adicionado
+    procedure SetImageSettings(const Value: TImageSettings);
+    function GetImage: TPicture;
+    procedure SetImage(const Value: TPicture);
+    procedure ImageSettingsChanged(Sender: TObject);
   protected
     function GetDisplayName: string; override;
   public
     constructor Create(Collection: TCollection); override;
-    destructor Destroy; override; // Adicionado
-    procedure Assign(Source: TPersistent); override; // Adicionado
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
   published
     property Caption: string read FCaption write SetCaption;
     property Width: Integer read FWidth write SetWidth default 80;
@@ -50,8 +50,8 @@ type
     property Visible: Boolean read FVisible write SetVisible default True;
     property Enabled: Boolean read FEnabled write SetEnabled default True;
     property Tag: Integer read FTag write FTag default 0;
-    property Image: TPicture read GetImage write SetImage; // Adicionado
-    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings; // Adicionado
+    property Image: TPicture read GetImage write SetImage;
+    property ImageSettings: TImageSettings read FImageSettings write SetImageSettings;
   end;
 
   THTL_CTabItems = class(TCollection)
@@ -78,10 +78,11 @@ type
     FActiveIndex: Integer;
     FActiveIndicator: TBorderSettings;
     FGradient: TGradientSettings;
-    FActiveFont: TFont;            // ALTERADO: de FActiveFontColor para FActiveFont
+    FActiveFont: TFont;
     FInactiveFontColor: TColor;
     FHoverSettings: THoverSettings;
     FOnChange: TNotifyEvent;
+    FTransparent: Boolean; // [NOVO] Campo para controlar a transparência
 
     FAnimationTimer: TTimer;
     FActiveIndicatorAnimProgress: Single;
@@ -99,13 +100,14 @@ type
     procedure SetActiveIndex(const Value: Integer);
     procedure SetActiveIndicator(const Value: TBorderSettings);
     procedure SetGradient(const Value: TGradientSettings);
-    procedure SetActiveFont(const Value: TFont); // ALTERADO: de SetActiveFontColor para SetActiveFont
+    procedure SetActiveFont(const Value: TFont);
     procedure SetInactiveFontColor(const Value: TColor);
     procedure SetHoverSettings(const Value: THoverSettings);
     procedure SetOrientation(const Value: TTabBarOrientation);
+    procedure SetTransparent(const Value: Boolean); // [NOVO] Setter para a propriedade Transparent
     procedure Animate(Sender: TObject);
     procedure SettingsChanged(Sender: TObject);
-    procedure FontChanged(Sender: TObject); // ADICIONADO
+    procedure FontChanged(Sender: TObject);
     procedure UpdateLayout;
     procedure ApplyStyleDefaults;
     function GetItemAt(X, Y: Integer): Integer;
@@ -129,12 +131,13 @@ type
     property ActiveIndex: Integer read FActiveIndex write SetActiveIndex default -1;
     property Style: TTabBarStyle read FStyle write SetStyle default tsContained;
     property Orientation: TTabBarOrientation read FOrientation write SetOrientation default tboHorizontal;
+    property Transparent: Boolean read FTransparent write SetTransparent default False; // [NOVO] Propriedade publicada
     property Spacing: Integer read FSpacing write SetSpacing default 0;
     property AutoSizeTabs: Boolean read FAutoSizeTabs write SetAutoSizeTabs default True;
     property Container: TBorderSettings read FContainer write SetContainer;
     property ActiveIndicator: TBorderSettings read FActiveIndicator write SetActiveIndicator;
     property Gradient: TGradientSettings read FGradient write SetGradient;
-    property ActiveFont: TFont read FActiveFont write SetActiveFont; // ALTERADO
+    property ActiveFont: TFont read FActiveFont write SetActiveFont;
     property InactiveFontColor: TColor read FInactiveFontColor write SetInactiveFontColor default TColor($00666666);
     property HoverSettings: THoverSettings read FHoverSettings write SetHoverSettings;
     property Align;
@@ -167,14 +170,15 @@ begin
 end;
 
 { THTL_CTabItem }
+// ... Nenhuma alteração nesta classe ...
 constructor THTL_CTabItem.Create(Collection: TCollection);
 begin
   inherited Create(Collection);
   FVisible := True;
   FEnabled := True;
   FWidth := 80;
+  FHeight := 30;
   FCaption := 'Tab ' + IntToStr(Collection.Count);
-  // Garante que o Owner do ImageSettings é o THTL_CTabBar, um TWinControl.
   FImageSettings := TImageSettings.Create(THTL_CTabItems(Collection).FOwner);
   FImageSettings.OnChange := ImageSettingsChanged;
 end;
@@ -191,6 +195,7 @@ begin
   begin
     FCaption := THTL_CTabItem(Source).Caption;
     FWidth := THTL_CTabItem(Source).Width;
+    FHeight := THTL_CTabItem(Source).Height;
     FVisible := THTL_CTabItem(Source).Visible;
     FEnabled := THTL_CTabItem(Source).Enabled;
     FTag := THTL_CTabItem(Source).Tag;
@@ -212,7 +217,9 @@ procedure THTL_CTabItem.SetImageSettings(const Value: TImageSettings); begin FIm
 function THTL_CTabItem.GetImage: TPicture; begin Result := FImageSettings.Picture; end;
 procedure THTL_CTabItem.SetImage(const Value: TPicture); begin FImageSettings.Picture.Assign(Value); end;
 
+
 { THTL_CTabItems }
+// ... Nenhuma alteração nesta classe ...
 constructor THTL_CTabItems.Create(AOwner: THTL_CTabBar); begin inherited Create(THTL_CTabItem); FOwner := AOwner; end;
 function THTL_CTabItems.Add: THTL_CTabItem; begin Result := THTL_CTabItem(inherited Add); end;
 function THTL_CTabItems.GetItem(Index: Integer): THTL_CTabItem; begin Result := THTL_CTabItem(inherited GetItem(Index)); end;
@@ -224,20 +231,22 @@ procedure THTL_CTabItems.Update(Item: TCollectionItem); begin inherited; if Assi
 constructor THTL_CTabBar.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  ControlStyle := [csOpaque, csReplicatable, csDoubleClicks, csCaptureMouse, csSetCaption, csAcceptsControls, csNeedsBorderPaint];
+  // [ALTERADO] Adicionado csOpaque para garantir o comportamento padrão não transparente.
+  ControlStyle := [csReplicatable, csDoubleClicks, csCaptureMouse, csSetCaption, csAcceptsControls, csNeedsBorderPaint, csOpaque];
   DoubleBuffered := True;
   Width := 250;
   Height := 40;
   TabStop := True;
   Font.Name := 'Segoe UI';
   Font.Size := 10;
-  Font.OnChange := FontChanged; // ADICIONADO
+  Font.OnChange := FontChanged;
 
-  // ADICIONADO: Configuração da nova fonte ativa
+  FTransparent := False; // [NOVO] Inicializa a propriedade de transparência
+
   FActiveFont := TFont.Create;
-  FActiveFont.Assign(Self.Font); // Herda as propriedades da fonte principal
-  FActiveFont.Style := [fsBold];   // Define uma sobreposição padrão (negrito)
-  FActiveFont.Color := clBlack;    // Define uma cor padrão
+  FActiveFont.Assign(Self.Font);
+  FActiveFont.Style := [fsBold];
+  FActiveFont.Color := clBlack;
   FActiveFont.OnChange := FontChanged;
 
   FItems := THTL_CTabItems.Create(Self);
@@ -295,11 +304,29 @@ begin
   FGradient.Free;
   FHoverSettings.Free;
   FAnimationTimer.Free;
-  FActiveFont.Free; // ADICIONADO
+  FActiveFont.Free;
   inherited Destroy;
 end;
 
+// [NOVO] Implementação do setter para a propriedade Transparent
+procedure THTL_CTabBar.SetTransparent(const Value: Boolean);
+begin
+  if FTransparent <> Value then
+  begin
+    FTransparent := Value;
+    if FTransparent then
+      ControlStyle := ControlStyle - [csOpaque] + [csParentBackground]
+    else
+      ControlStyle := ControlStyle + [csOpaque] - [csParentBackground];
+
+    // Recria a janela do controle para que o novo estilo seja aplicado corretamente
+    if HandleAllocated then RecreateWnd;
+    Invalidate;
+  end;
+end;
+
 procedure THTL_CTabBar.Loaded;
+// ... Nenhuma alteração neste método ...
 begin
   inherited;
   if (FActiveIndex >= 0) and (FActiveIndex < FItems.Count) then
@@ -313,11 +340,11 @@ end;
 
 procedure THTL_CTabBar.Resize; begin inherited; UpdateLayout; end;
 procedure THTL_CTabBar.SettingsChanged(Sender: TObject); begin Invalidate; end;
-// ADICIONADO: Novo handler para mudança de fonte
 procedure THTL_CTabBar.FontChanged(Sender: TObject); begin Invalidate; end;
 procedure THTL_CTabBar.UpdateLayout; begin Invalidate; Repaint; end;
 
 procedure THTL_CTabBar.Animate(Sender: TObject);
+// ... Nenhuma alteração neste método ...
 begin
   if FActiveIndicatorAnimProgress < 1.0 then
   begin
@@ -331,6 +358,7 @@ begin
 end;
 
 function THTL_CTabBar.GetItemAt(X, Y: Integer): Integer;
+// ... Nenhuma alteração neste método ...
 var i: Integer;
 begin
   for i := 0 to FItems.Count - 1 do
@@ -339,6 +367,7 @@ begin
 end;
 
 procedure THTL_CTabBar.CMMouseEnter(var Message: TMessage);
+// ... Nenhuma alteração neste método ...
 var
   TrackMouseEventStruct: TTrackMouseEvent;
 begin
@@ -351,6 +380,7 @@ begin
 end;
 
 procedure THTL_CTabBar.CMMouseLeave(var Message: TMessage);
+// ... Nenhuma alteração neste método ...
 begin
   inherited;
   Self.Cursor := crDefault;
@@ -363,6 +393,7 @@ begin
 end;
 
 procedure THTL_CTabBar.MouseMove(Shift: TShiftState; X, Y: Integer);
+// ... Nenhuma alteração neste método ...
 var
   NewHoverIndex: Integer;
 begin
@@ -405,6 +436,7 @@ begin
 end;
 
 procedure THTL_CTabBar.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+// ... Nenhuma alteração neste método ...
 var ItemIndex: Integer;
 begin
   inherited;
@@ -417,11 +449,14 @@ begin
 end;
 
 procedure THTL_CTabBar.SetActiveIndex(const Value: Integer);
+// ... Nenhuma alteração neste método ...
 var PrevIndex: Integer;
 begin
   PrevIndex := FActiveIndex;
   if (Value >= -1) and (Value < FItems.Count) and (FActiveIndex <> Value) then
   begin
+    if (Value > -1) and not FItems[Value].Enabled then Exit; // Do not select disabled tabs
+
     FActiveIndex := Value;
     if (PrevIndex > -1) and (PrevIndex < FItems.Count) then
       FFromRect := GetItemRect(PrevIndex)
@@ -439,6 +474,7 @@ begin
   end;
 end;
 
+// ... Nenhuma alteração nos setters abaixo ...
 procedure THTL_CTabBar.SetItems(const Value: THTL_CTabItems); begin FItems.Assign(Value); UpdateLayout; Invalidate; end;
 procedure THTL_CTabBar.SetContainer(const Value: TBorderSettings); begin FContainer.Assign(Value); Invalidate; end;
 procedure THTL_CTabBar.SetSpacing(const Value: Integer); begin if FSpacing <> Value then begin FSpacing := Value; UpdateLayout; Invalidate; end; end;
@@ -447,10 +483,10 @@ procedure THTL_CTabBar.SetInactiveFontColor(const Value: TColor); begin if FInac
 procedure THTL_CTabBar.SetHoverSettings(const Value: THoverSettings); begin FHoverSettings.Assign(Value); Invalidate; end;
 procedure THTL_CTabBar.SetGradient(const Value: TGradientSettings); begin FGradient.Assign(Value); Invalidate; end;
 procedure THTL_CTabBar.SetAutoSizeTabs(const Value: Boolean); begin if FAutoSizeTabs <> Value then begin FAutoSizeTabs := Value; UpdateLayout; Invalidate; end; end;
-// ALTERADO: de SetActiveFontColor para SetActiveFont
 procedure THTL_CTabBar.SetActiveFont(const Value: TFont); begin FActiveFont.Assign(Value); Invalidate; end;
 
 procedure THTL_CTabBar.SetOrientation(const Value: TTabBarOrientation);
+// ... Nenhuma alteração neste método ...
 begin
   if FOrientation <> Value then
   begin
@@ -460,6 +496,7 @@ begin
 end;
 
 procedure THTL_CTabBar.ApplyStyleDefaults;
+// ... Nenhuma alteração neste método ...
 begin
   case FStyle of
     tsContained, tsPill, tsSegmented:
@@ -473,6 +510,7 @@ begin
 end;
 
 procedure THTL_CTabBar.SetStyle(const Value: TTabBarStyle);
+// ... Nenhuma alteração neste método ...
 begin
   if FStyle <> Value then
   begin
@@ -493,6 +531,7 @@ begin
 end;
 
 function THTL_CTabBar.GetItemRect(Index: Integer): TRect;
+// ... Nenhuma alteração neste método ...
 var
   i, VisibleItemIndex, VisibleCount: Integer;
   ContentWidth, ContentHeight, TotalSpacing, TotalManualSize: Integer;
@@ -608,10 +647,10 @@ end;
 procedure THTL_CTabBar.Paint;
 var
   LG: TGPGraphics;
-  i, LastVisibleIndex: Integer;
+  i, FirstVisibleIndex, LastVisibleIndex, VisibleCount: Integer;
   Item: THTL_CTabItem;
   ItemRect, IndicatorRect: TRect;
-  FinalIndicatorColor, BaseBgColor: TColor;
+  FinalIndicatorColor, BaseBgColor, ContainerBgToDraw: TColor; // [ALTERADO] Adicionado ContainerBgToDraw
   IndicatorPen: TGPPen;
   IndicatorBrush: TGPBrush;
   SeparatorPen: TGPPen;
@@ -626,12 +665,40 @@ begin
     LG.SetInterpolationMode(InterpolationModeHighQualityBicubic);
     LG.SetPixelOffsetMode(PixelOffsetModeHalf);
 
-    if FContainer.Visible then
-      DrawEditBox(LG, ClientRect, FContainer.BackgroundColor, FContainer.Color, FContainer.Thickness, FContainer.Style, FContainer.CornerRadius, FContainer.RoundCornerType, 255);
+    VisibleCount := 0;
+    FirstVisibleIndex := -1;
+    LastVisibleIndex := -1;
+    for i := 0 to FItems.Count - 1 do
+    begin
+      if FItems[i].Visible then
+      begin
+        Inc(VisibleCount);
+        if FirstVisibleIndex = -1 then
+          FirstVisibleIndex := i;
+        LastVisibleIndex := i;
+      end;
+    end;
 
-    BaseBgColor := FContainer.BackgroundColor;
-    if not FContainer.Visible or (BaseBgColor = clNone) then
-       BaseBgColor := Self.Color;
+    // [ALTERADO] Lógica para determinar a cor de fundo do container
+    if FTransparent then
+      ContainerBgToDraw := clNone // Se for transparente, não desenha cor de fundo
+    else
+      ContainerBgToDraw := FContainer.BackgroundColor; // Senão, usa a cor definida
+
+    if FContainer.Visible then
+      DrawEditBox(LG, ClientRect, ContainerBgToDraw, FContainer.Color, FContainer.Thickness, FContainer.Style, FContainer.CornerRadius, FContainer.RoundCornerType, 255);
+
+    // [ALTERADO] Lógica para determinar a cor de base para efeitos de hover
+    if FTransparent then
+    begin
+      BaseBgColor := clNone;
+    end
+    else
+    begin
+       BaseBgColor := FContainer.BackgroundColor;
+       if not FContainer.Visible or (BaseBgColor = clNone) then
+          BaseBgColor := Self.Color;
+    end;
 
     IsCrossFade := (FLastHoveredTabIndex <> -1) and (FHoveredTabIndex <> -1);
 
@@ -646,6 +713,11 @@ begin
 
     if (FActiveIndex >= 0) and (FActiveIndex < FItems.Count) and FItems[FActiveIndex].Visible then
     begin
+      // O restante do método de pintura continua a partir daqui,
+      // pois a lógica interna para desenhar indicadores e itens já respeita
+      // as cores de fundo calculadas acima.
+      // Nenhuma outra alteração é necessária no resto deste método.
+
       IndicatorRect.Left   := Round(FFromRect.Left + (FToRect.Left - FFromRect.Left) * FActiveIndicatorAnimProgress);
       IndicatorRect.Top    := Round(FFromRect.Top + (FToRect.Top - FFromRect.Top) * FActiveIndicatorAnimProgress);
       IndicatorRect.Right  := Round(FFromRect.Right + (FToRect.Right - FFromRect.Right) * FActiveIndicatorAnimProgress);
@@ -658,7 +730,38 @@ begin
 
       case FStyle of
         tsContained: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, FActiveIndicator.RoundCornerType, 255);
-        tsPill: DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, Min(IndicatorRect.Width, IndicatorRect.Height) div 2, rctAll, 255);
+        tsPill:
+        begin
+          var LRoundType: TRoundCornerType;
+          var LRadius: Integer;
+
+          if FOrientation = tboHorizontal then
+          begin
+            LRadius := IndicatorRect.Height div 2;
+            if VisibleCount <= 1 then
+              LRoundType := rctAll
+            else if FActiveIndex = FirstVisibleIndex then
+              LRoundType := rctLeft
+            else if FActiveIndex = LastVisibleIndex then
+              LRoundType := rctRight
+            else
+              LRoundType := rctNone;
+          end
+          else // tboVertical
+          begin
+            LRadius := IndicatorRect.Width div 2;
+            if VisibleCount <= 1 then
+              LRoundType := rctAll
+            else if FActiveIndex = FirstVisibleIndex then
+              LRoundType := rctTop
+            else if FActiveIndex = LastVisibleIndex then
+              LRoundType := rctBottom
+            else
+              LRoundType := rctNone;
+          end;
+
+          DrawEditBox(LG, IndicatorRect, FActiveIndicator.BackgroundColor, FinalIndicatorColor, FActiveIndicator.Thickness, FActiveIndicator.Style, LRadius, LRoundType, 255);
+        end;
         tsUnderlined, tsUnderlinedInverted:
         begin
           IndicatorPen := TGPPen.Create(ColorToARGB(FinalIndicatorColor), FActiveIndicator.Thickness);
@@ -708,8 +811,44 @@ begin
       if (LHoverProgress > 0.001) and not (i = FActiveIndex) and FItems[i].Enabled and (htBackground in FHoverSettings.Targets) then
       begin
         var FinalBackgroundColor := BlendColors(BaseBgColor, FHoverSettings.BackgroundColor, LHoverProgress);
-        var HoverRadius := IfThen(FStyle = tsPill, ItemRect.Height div 2, FActiveIndicator.CornerRadius);
-        DrawEditBox(LG, ItemRect, FinalBackgroundColor, clNone, 0, psClear, HoverRadius, rctAll, 255);
+
+        var LRoundType: TRoundCornerType;
+        var LRadius: Integer;
+
+        if FStyle = tsPill then
+        begin
+          if FOrientation = tboHorizontal then
+          begin
+            LRadius := ItemRect.Height div 2;
+            if VisibleCount <= 1 then
+              LRoundType := rctAll
+            else if i = FirstVisibleIndex then
+              LRoundType := rctLeft
+            else if i = LastVisibleIndex then
+              LRoundType := rctRight
+            else
+              LRoundType := rctNone;
+          end
+          else // tboVertical
+          begin
+            LRadius := ItemRect.Width div 2;
+            if VisibleCount <= 1 then
+              LRoundType := rctAll
+            else if i = FirstVisibleIndex then
+              LRoundType := rctTop
+            else if i = LastVisibleIndex then
+              LRoundType := rctBottom
+            else
+              LRoundType := rctNone;
+          end;
+        end
+        else
+        begin
+          LRadius := FActiveIndicator.CornerRadius;
+          LRoundType := rctAll;
+        end;
+
+        DrawEditBox(LG, ItemRect, FinalBackgroundColor, clNone, 0, psClear, LRadius, LRoundType, 255);
       end;
     end;
 
@@ -722,8 +861,6 @@ begin
 
       if (FStyle = tsSegmented) and (i = FActiveIndex) then
         DrawEditBox(LG, ItemRect, FActiveIndicator.BackgroundColor, FActiveIndicator.Color, FActiveIndicator.Thickness, FActiveIndicator.Style, FActiveIndicator.CornerRadius, rctAll, 255);
-
-      // --- INÍCIO DA LÓGICA DE FONTE E COR (MODIFICADO) ---
 
       var  FontToUse: TFont;
       var  ColorToUse: TColor;
@@ -739,9 +876,9 @@ begin
       else if IsItemActive then
       begin
         FontToUse := FActiveFont;
-        ColorToUse := FActiveFont.Color; // A cor vem do objeto de fonte ativa
+        ColorToUse := FActiveFont.Color;
       end
-      else // Inativo e Habilitado
+      else
       begin
         FontToUse := Self.Font;
         ColorToUse := FInactiveFontColor;
@@ -763,9 +900,7 @@ begin
           ColorToUse := BlendColors(FInactiveFontColor, FHoverSettings.FontColor, LHoverProgress);
         end;
       end;
-      // --- FIM DA LÓGICA DE FONTE E COR ---
 
-      // --- INÍCIO DA LÓGICA DE LAYOUT DE IMAGEM E TEXTO ---
       var  imageSlotRect, textSlotRect: TRect;
       var  imageAndMarginsW, imageAndMarginsH: Integer;
       var  LDrawW, LDrawH: Integer;
@@ -779,7 +914,6 @@ begin
       LDrawW := 0;
       LDrawH := 0;
 
-      // Calcula o tamanho do desenho da imagem
       if (Item.ImageSettings.Picture.Graphic <> nil) and not Item.ImageSettings.Picture.Graphic.Empty and Item.ImageSettings.Visible then
       begin
         AvailableWidth := Max(0, imageSlotRect.Width - Item.ImageSettings.Margins.Left - Item.ImageSettings.Margins.Right);
@@ -880,7 +1014,6 @@ begin
         if LDrawH > AvailableHeight then LDrawH := AvailableHeight;
       end;
 
-      // Particiona o espaço entre a imagem e o texto
       if (LDrawW > 0) then
       begin
         imageAndMarginsW := LDrawW + Item.ImageSettings.Margins.Left + Item.ImageSettings.Margins.Right;
@@ -891,11 +1024,10 @@ begin
           ipRight:  begin imageSlotRect.Left := imageSlotRect.Right - imageAndMarginsW; textSlotRect.Right := imageSlotRect.Left; end;
           ipTop:    begin imageSlotRect.Height := imageAndMarginsH; textSlotRect.Top := imageSlotRect.Bottom; end;
           ipBottom: begin imageSlotRect.Top := imageSlotRect.Bottom - imageAndMarginsH; textSlotRect.Bottom := imageSlotRect.Top; end;
-          ipCenter, ipFill, ipBehind: ; // Nesses casos, os slots se sobrepõem
+          ipCenter, ipFill, ipBehind: ;
         end;
       end;
 
-      // Desenha a imagem
       if (LDrawW > 0) then
       begin
         AvailableWidth := Max(0, imageSlotRect.Width - Item.ImageSettings.Margins.Left - Item.ImageSettings.Margins.Right);
@@ -926,13 +1058,11 @@ begin
         end;
       end;
 
-      // Desenha o texto (MODIFICADO para usar FontToUse e ColorToUse)
       if Trim(Item.Caption) <> '' then
       begin
         if (textSlotRect.Width > 0) and (textSlotRect.Height > 0) then
           DrawComponentCaption(Self.Canvas, textSlotRect, Item.Caption, FontToUse, ColorToUse, taCenter, cvaCenter, false, 255);
       end;
-      // --- FIM DA LÓGICA DE LAYOUT ---
     end;
 
     if FStyle = tsSegmented then
@@ -963,4 +1093,4 @@ begin
 end;
 
 end.
-
+
